@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { use } from 'react';
 import Link from 'next/link';
-import { StandingsTable } from '@/components/StandingsTable';
 import { useTournament } from '@/lib/hooks/useChainData';
 import { useSponsor } from '@/lib/hooks/useSponsor';
 import { SponsorBanner } from '@/components/SponsorBanner';
