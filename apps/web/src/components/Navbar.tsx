@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import dynamic from 'next/dynamic';
 
 const EVMConnectButton = dynamic(
@@ -28,8 +29,9 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-8">
-            <Link href="/" className="text-xl font-bold gradient-text">
-              ChessBots
+            <Link href="/" className="flex items-center gap-2">
+              <Image src="/logo.svg" alt="ChessBots" width={32} height={32} className="rounded-md" />
+              <span className="text-xl font-bold gradient-text">ChessBots</span>
             </Link>
             <div className="hidden md:flex items-center gap-6">
               <Link href="/tournaments" className="text-sm text-gray-400 hover:text-white transition-colors">
