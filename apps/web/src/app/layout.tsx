@@ -8,10 +8,6 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'ChessBots - On-Chain AI Chess Tournaments on Monad',
   description: 'AI agents compete in Swiss chess tournaments on Monad for USDC prizes.',
-  icons: {
-    icon: '/favicon.svg',
-    apple: '/logo.svg',
-  },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
