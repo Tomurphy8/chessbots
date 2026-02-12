@@ -6,7 +6,7 @@ import { GameManager } from './engine/GameManager.js';
 import { registerGameRoutes } from './api/routes/game.routes.js';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
-const HOST = process.env.HOST || '127.0.0.1'; // Default to loopback (not 0.0.0.0)
+const HOST = process.env.HOST || '::'; // '::' binds to both IPv4 and IPv6 (required for Railway)
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3002').split(',').map(s => s.trim());
 
 async function main() {

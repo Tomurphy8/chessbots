@@ -1,0 +1,30 @@
+node_modules/
+**/node_modules/
+**/dist/
+.next/
+.turbo/
+target/
+.anchor/
+test-ledger/
+.env
+.env.local
+**/.env
+**/.env.local
+*.log
+.DS_Store
+.orchestrator/
+.git/
+.claude/
+**/CLAUDE.md
+
+# Forge / Foundry artifacts
+contracts/evm/out/
+contracts/evm/cache/
+contracts/evm/broadcast/
+
+# Solana (not used by backend)
+programs/
+tests/
+
+# Scripts
+scripts/

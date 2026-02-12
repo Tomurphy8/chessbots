@@ -1,0 +1,66 @@
+version: "3.9"
+
+# ChessBots Backend Services
+# Usage:
+#   docker compose up              # Start all services
+#   docker compose up -d           # Start detached
+#   docker compose logs -f         # Follow logs
+#   docker compose down            # Stop all
+
+services:
+  chess-engine:
+    build:
+      context: .
+      dockerfile: services/chess-engine/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      HOST: "0.0.0.0"
+      SERVICE_API_KEY: ${SERVICE_API_KEY}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3002}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  agent-gateway:
+    build:
+      context: .
+      dockerfile: services/agent-gateway/Dockerfile
+    ports:
+      - "3002:3002"
+    depends_on:
+      chess-engine:
+        condition: service_healthy
+    environment:
+      GATEWAY_PORT: "3002"
+      GATEWAY_HOST: "0.0.0.0"
+      CHESS_ENGINE_URL: http://chess-engine:3001
+      SERVICE_API_KEY: ${SERVICE_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      MONAD_RPC: ${MONAD_RPC:-https://testnet-rpc.monad.xyz/}
+      MONAD_CONTRACT: ${MONAD_CONTRACT:-0x376714678A7B332E245b3780795fF6518d66A15c}
+    restart: unless-stopped
+
+  tournament-orchestrator:
+    build:
+      context: .
+      dockerfile: services/tournament-orchestrator/Dockerfile
+    depends_on:
+      chess-engine:
+        condition: service_healthy
+    environment:
+      CHESS_ENGINE_URL: http://chess-engine:3001
+      SERVICE_API_KEY: ${SERVICE_API_KEY}
+      MONAD_RPC: ${MONAD_RPC:-https://testnet-rpc.monad.xyz/}
+      MONAD_CONTRACT: ${MONAD_CONTRACT:-0x376714678A7B332E245b3780795fF6518d66A15c}
+      MONAD_USDC: ${MONAD_USDC:-0x89D63D7Ad84c38f0a3a0040c593785E7CE2aA9e3}
+      CHESS_TOKEN: ${CHESS_TOKEN:-0x26B45A209599C3dC766BCF1B57d1fb1BdFdcFc43}
+      CHESS_STAKING: ${CHESS_STAKING:-0xe353E7Fff6Af5df3e4E249844Ad791A8Aa1d0cBE}
+      PRIVATE_KEY: ${PRIVATE_KEY}
+      POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-10000}
+    restart: unless-stopped

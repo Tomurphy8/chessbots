@@ -19,8 +19,8 @@ if (!serviceApiKey || serviceApiKey.length < 16) {
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000').split(',').map(s => s.trim());
 
 export const CONFIG = {
-  port: parseInt(process.env.GATEWAY_PORT || '3002', 10),
-  host: process.env.GATEWAY_HOST || '127.0.0.1', // Default to loopback, not 0.0.0.0
+  port: parseInt(process.env.PORT || process.env.GATEWAY_PORT || '3002', 10),
+  host: process.env.GATEWAY_HOST || '::',  // '::' binds to both IPv4 and IPv6 (required for Railway)
 
   // Internal chess engine
   chessEngineUrl: process.env.CHESS_ENGINE_URL || 'http://localhost:3001',

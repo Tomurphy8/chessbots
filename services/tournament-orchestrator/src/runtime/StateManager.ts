@@ -1,4 +1,4 @@
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
+import { writeFileSync, readFileSync, existsSync, mkdirSync, renameSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 
 /**
@@ -96,7 +96,6 @@ export class StateManager {
       // Write to temp file first, then rename (atomic on most filesystems)
       const tmpPath = this.filePath + '.tmp';
       writeFileSync(tmpPath, JSON.stringify(this.state, null, 2), 'utf-8');
-      const { renameSync, unlinkSync } = require('fs');
       try {
         renameSync(tmpPath, this.filePath);
       } catch (renameErr: any) {
