@@ -6,6 +6,7 @@ import "../src/MockUSDC.sol";
 import "../src/ChessBotsTournament.sol";
 import "../src/ChessToken.sol";
 import "../src/ChessStaking.sol";
+import "../src/ChessBettingPool.sol";
 
 /// @title DeployMonad - Self-contained testnet deployment
 /// @notice Deploys MockUSDC + ChessBotsTournament + ChessToken + ChessStaking
@@ -44,15 +45,24 @@ contract DeployMonad is Script {
         ChessStaking staking = new ChessStaking(address(chess));
         console.log("ChessStaking deployed at:", address(staking));
 
-        // 6. Configure tokenomics on tournament contract
+        // 6. Deploy betting pool (3% vig)
+        ChessBettingPool bettingPool = new ChessBettingPool(
+            address(usdc),
+            address(tournament),
+            TREASURY,
+            300 // 3% vig
+        );
+        console.log("ChessBettingPool deployed at:", address(bettingPool));
+
+        // 7. Configure tokenomics on tournament contract
         tournament.setChessToken(address(chess));
         tournament.setStakingContract(address(staking));
         console.log("Tokenomics configured on tournament contract");
 
-        // 7. Note: setDexRouter left for manual config after pool creation
+        // 8. Note: setDexRouter left for manual config after pool creation
         //    tournament.setDexRouter(UNISWAP_V3_ROUTER);
 
-        // 8. Mint test USDC to deployer (100,000 USDC)
+        // 9. Mint test USDC to deployer (100,000 USDC)
         usdc.mint(deployer, 100_000 * 1e6);
         console.log("Minted 100,000 USDC to deployer");
 
@@ -64,6 +74,7 @@ contract DeployMonad is Script {
         console.log("  Tournament:", address(tournament));
         console.log("  ChessToken:", address(chess));
         console.log("  ChessStaking:", address(staking));
+        console.log("  BettingPool:", address(bettingPool));
         console.log("  Deployer:", deployer);
         console.log("  Treasury (Safe):", TREASURY);
         console.log("");

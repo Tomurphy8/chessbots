@@ -48,6 +48,7 @@ export const CHESSBOTS_ABI = [
         { name: 'gamesDrawn', type: 'uint32' },
         { name: 'gamesLost', type: 'uint32' },
         { name: 'totalEarnings', type: 'uint64' },
+        { name: 'referredBy', type: 'address' },
         { name: 'registered', type: 'bool' },
       ],
       name: '',
@@ -179,6 +180,76 @@ export const CHESSBOTS_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
+  // --- Referral functions (Proposal A) ---
+  {
+    inputs: [
+      { name: 'name', type: 'string' },
+      { name: 'metadataUri', type: 'string' },
+      { name: 'agentType', type: 'uint8' },
+      { name: 'referrer', type: 'address' },
+    ],
+    name: 'registerAgentWithReferral',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'referralEarnings',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'referralTournamentsRemaining',
+    outputs: [{ name: '', type: 'uint8' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'tournamentId', type: 'uint256' }],
+    name: 'tournamentReferralBonuses',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'claimReferralEarnings',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // --- Sponsorship functions (Proposal C) ---
+  {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'sponsorName', type: 'string' },
+      { name: 'sponsorUri', type: 'string' },
+    ],
+    name: 'sponsorTournament',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'tournamentId', type: 'uint256' }],
+    name: 'getSponsor',
+    outputs: [{
+      components: [
+        { name: 'sponsor', type: 'address' },
+        { name: 'name', type: 'string' },
+        { name: 'uri', type: 'string' },
+        { name: 'amount', type: 'uint256' },
+      ],
+      name: '',
+      type: 'tuple',
+    }],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const;
 
 // ERC20 ABI subset for USDC and CHESS
@@ -265,6 +336,105 @@ export const STAKING_ABI = [
   },
 ] as const;
 
+// ChessBettingPool ABI (Proposal B — Spectator Betting)
+export const BETTING_ABI = [
+  {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'round', type: 'uint8' },
+      { name: 'gameIndex', type: 'uint8' },
+    ],
+    name: 'createBetPool',
+    outputs: [{ name: 'poolId', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'poolId', type: 'uint256' },
+      { name: 'prediction', type: 'uint8' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    name: 'placeBet',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'poolId', type: 'uint256' }],
+    name: 'settleBets',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'poolId', type: 'uint256' }],
+    name: 'claimWinnings',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'poolId', type: 'uint256' }],
+    name: 'claimRefund',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'poolId', type: 'uint256' }],
+    name: 'getPoolTotal',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'poolId', type: 'uint256' },
+      { name: 'bettor', type: 'address' },
+    ],
+    name: 'getBet',
+    outputs: [
+      { name: 'prediction', type: 'uint8' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'claimed', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'poolId', type: 'uint256' }],
+    name: 'getPoolBreakdown',
+    outputs: [
+      { name: 'whiteWins', type: 'uint256' },
+      { name: 'blackWins', type: 'uint256' },
+      { name: 'draw', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'vigBps',
+    outputs: [{ name: '', type: 'uint16' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'minBetAmount',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+export const BetPredictionMap = {
+  0: 'WhiteWins',
+  1: 'BlackWins',
+  2: 'Draw',
+} as const;
+
 export function getChessBotContract(address: Address, client: PublicClient) {
   return getContract({ address, abi: CHESSBOTS_ABI, client });
 }
@@ -279,6 +449,10 @@ export function getChessTokenContract(address: Address, client: PublicClient) {
 
 export function getStakingContract(address: Address, client: PublicClient) {
   return getContract({ address, abi: STAKING_ABI, client });
+}
+
+export function getBettingContract(address: Address, client: PublicClient) {
+  return getContract({ address, abi: BETTING_ABI, client });
 }
 
 // Enum mappings matching Solidity contract

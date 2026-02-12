@@ -63,6 +63,7 @@ contract ChessBotsTournament is IChessBotsTournament {
         uint32 gamesDrawn;
         uint32 gamesLost;
         uint64 totalEarnings;
+        address referredBy;     // Proposal A: who referred this agent
         bool registered;
     }
 
@@ -161,6 +162,23 @@ contract ChessBotsTournament is IChessBotsTournament {
     uint256 public pendingBuyback;       // Accumulated USDC for buyback
     mapping(uint256 => uint256) public tournamentCollected; // Actual USDC collected per tournament
     mapping(uint256 => mapping(address => uint256)) public playerPayment; // Actual amount each player paid
+
+    // --- Referral State (Proposal A) ---
+    mapping(address => uint256) public referralEarnings;           // Claimable USDC per referrer
+    mapping(address => uint8) public referralTournamentsRemaining; // Decrements per paid tournament
+    mapping(uint256 => uint256) public tournamentReferralBonuses;  // Total referral bonuses per tournament
+    uint8 public constant REFERRAL_MAX_TOURNAMENTS = 10;
+    uint16 public constant REFERRAL_BONUS_BPS = 500;              // 5% of entry fee
+
+    // --- Sponsorship State (Proposal C) ---
+    struct Sponsorship {
+        address sponsor;
+        string name;
+        string uri;
+        uint256 amount;
+    }
+    mapping(uint256 => Sponsorship) public tournamentSponsors;
+    uint16 public constant SPONSOR_PLATFORM_FEE_BPS = 1000;       // 10% platform fee
 
     // Reentrancy guard
     uint256 private _reentrancyStatus;
@@ -276,6 +294,65 @@ contract ChessBotsTournament is IChessBotsTournament {
         emit TournamentFunded(tournamentId, amount);
     }
 
+    // --- Referral Claims (Proposal A) ---
+
+    /// @notice Claim accrued referral earnings
+    function claimReferralEarnings() external nonReentrant {
+        uint256 amount = referralEarnings[msg.sender];
+        require(amount > 0, "No referral earnings");
+
+        referralEarnings[msg.sender] = 0;
+        require(usdc.transfer(msg.sender, amount), "Referral transfer failed");
+
+        emit ReferralEarningsClaimed(msg.sender, amount);
+    }
+
+    // --- Sponsorship (Proposal C) ---
+
+    /// @notice Sponsor a tournament. Anyone can call. 10% platform fee to treasury.
+    ///         Remaining 90% added to tournament prize pool.
+    function sponsorTournament(
+        uint256 tournamentId,
+        uint256 amount,
+        string calldata sponsorName,
+        string calldata sponsorUri
+    ) external whenNotPaused nonReentrant {
+        Tournament storage t = tournaments[tournamentId];
+        require(t.exists, "Tournament not found");
+        require(!t.prizeDistributed, "Prizes already distributed");
+        require(t.status != TournamentLib.TournamentStatus.Cancelled, "Tournament cancelled");
+        require(amount > 0, "Zero amount");
+        require(tournamentSponsors[tournamentId].sponsor == address(0), "Already sponsored");
+        require(bytes(sponsorName).length > 0 && bytes(sponsorName).length <= 64, "Invalid sponsor name");
+
+        require(usdc.transferFrom(msg.sender, address(this), amount), "USDC transfer failed");
+
+        uint256 platformFee = (amount * SPONSOR_PLATFORM_FEE_BPS) / TournamentLib.BPS_DENOMINATOR;
+        uint256 prizeContribution = amount - platformFee;
+
+        // Platform fee to treasury
+        if (platformFee > 0) {
+            require(usdc.transfer(protocol.treasury, platformFee), "Treasury transfer failed");
+        }
+
+        // Remaining goes to prize pool
+        tournamentCollected[tournamentId] += prizeContribution;
+
+        // Store sponsor metadata (one sponsor per tournament)
+        tournamentSponsors[tournamentId] = Sponsorship({
+            sponsor: msg.sender,
+            name: sponsorName,
+            uri: sponsorUri,
+            amount: amount
+        });
+
+        emit TournamentSponsored(tournamentId, msg.sender, amount, platformFee);
+    }
+
+    function getSponsor(uint256 tournamentId) external view returns (Sponsorship memory) {
+        return tournamentSponsors[tournamentId];
+    }
+
     // --- Tokenomics Configuration (I-4: zero address checks) ---
 
     function setChessToken(address _token) external onlyAuthority {
@@ -307,8 +384,32 @@ contract ChessBotsTournament is IChessBotsTournament {
         string calldata metadataUri,
         TournamentLib.AgentType agentType
     ) external whenNotPaused {
+        _registerAgent(name, metadataUri, agentType, address(0));
+    }
+
+    function registerAgentWithReferral(
+        string calldata name,
+        string calldata metadataUri,
+        TournamentLib.AgentType agentType,
+        address referrer
+    ) external whenNotPaused {
+        _registerAgent(name, metadataUri, agentType, referrer);
+    }
+
+    function _registerAgent(
+        string calldata name,
+        string calldata metadataUri,
+        TournamentLib.AgentType agentType,
+        address referrer
+    ) internal {
         require(!agents[msg.sender].registered, "Already registered");
         require(bytes(name).length > 0 && bytes(name).length <= 32, "Invalid name");
+
+        // Proposal A: validate referrer
+        if (referrer != address(0)) {
+            require(referrer != msg.sender, "Cannot self-refer");
+            require(agents[referrer].registered, "Referrer not registered");
+        }
 
         agents[msg.sender] = AgentProfile({
             wallet: msg.sender,
@@ -321,8 +422,14 @@ contract ChessBotsTournament is IChessBotsTournament {
             gamesDrawn: 0,
             gamesLost: 0,
             totalEarnings: 0,
+            referredBy: referrer,
             registered: true
         });
+
+        if (referrer != address(0)) {
+            referralTournamentsRemaining[msg.sender] = REFERRAL_MAX_TOURNAMENTS;
+            emit ReferralRegistered(msg.sender, referrer);
+        }
 
         emit AgentRegistered(msg.sender, name, agentType);
     }
@@ -439,6 +546,16 @@ contract ChessBotsTournament is IChessBotsTournament {
             require(usdc.transferFrom(msg.sender, address(this), actualFee), "USDC transfer failed");
             tournamentCollected[tournamentId] += actualFee;
             playerPayment[tournamentId][msg.sender] = actualFee; // Track exact amount paid for accurate refunds
+
+            // Proposal A: accrue referral bonus
+            address referrer = agents[msg.sender].referredBy;
+            if (referrer != address(0) && referralTournamentsRemaining[msg.sender] > 0) {
+                uint256 referralBonus = (actualFee * REFERRAL_BONUS_BPS) / TournamentLib.BPS_DENOMINATOR;
+                referralEarnings[referrer] += referralBonus;
+                tournamentReferralBonuses[tournamentId] += referralBonus;
+                referralTournamentsRemaining[msg.sender]--;
+                emit ReferralBonusAccrued(tournamentId, referrer, msg.sender, referralBonus);
+            }
         }
 
         registrations[tournamentId][msg.sender] = Registration({
@@ -887,6 +1004,13 @@ contract ChessBotsTournament is IChessBotsTournament {
 
         (uint256 firstPrize, uint256 secondPrize, uint256 thirdPrize, uint256 protocolFee) =
             TournamentLib.calculatePrizes(totalPool, protocol.protocolFeeBps);
+
+        // Proposal A: subtract referral bonuses from protocol fee (already held in contract)
+        uint256 referralTotal = tournamentReferralBonuses[tournamentId];
+        if (referralTotal > 0) {
+            require(referralTotal <= protocolFee, "Referral exceeds protocol fee");
+            protocolFee -= referralTotal;
+        }
 
         t.prizeDistributed = true;
 

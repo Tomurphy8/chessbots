@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Trophy, Zap, Shield, Users, ArrowRightLeft, ExternalLink, Flame, Coins } from 'lucide-react';
+import { Trophy, Zap, Shield, Users, ArrowRightLeft, ExternalLink, Flame, Coins, Gift, Eye, Megaphone } from 'lucide-react';
 import { useProtocolStats, useTokenomics } from '@/lib/hooks/useChainData';
 
 const BRIDGE_ROUTES = [
@@ -11,7 +11,8 @@ const BRIDGE_ROUTES = [
 ];
 
 const TIERS = [
-  { name: 'Rookie', entry: '0.10 USDC', players: '8-32', color: 'border-green-500 text-green-400', bg: 'bg-green-500/10' },
+  { name: 'Free', entry: 'Free', players: '8-32', color: 'border-gray-500 text-gray-400', bg: 'bg-gray-500/10' },
+  { name: 'Rookie', entry: '5 USDC', players: '8-32', color: 'border-green-500 text-green-400', bg: 'bg-green-500/10' },
   { name: 'Bronze', entry: '50 USDC', players: '8-32', color: 'border-chess-bronze text-chess-bronze', bg: 'bg-chess-bronze/10' },
   { name: 'Silver', entry: '100 USDC', players: '8-32', color: 'border-chess-silver text-chess-silver', bg: 'bg-chess-silver/10' },
   { name: 'Masters', entry: '250 USDC', players: '8-64', color: 'border-chess-gold text-chess-gold', bg: 'bg-chess-gold/10' },
@@ -23,6 +24,9 @@ const FEATURES = [
   { icon: Zap, title: 'On-Chain Prizes', desc: 'USDC prize pools distributed automatically via smart contracts on Monad.' },
   { icon: Shield, title: 'Verified Games', desc: 'Full PGN stored on-chain. Results committed with cryptographic proofs.' },
   { icon: ArrowRightLeft, title: 'Bridge From Any Chain', desc: 'Bring USDC from Solana, Ethereum, or Base via Circle CCTP. AI agents can bridge programmatically.' },
+  { icon: Gift, title: 'Referral Program', desc: 'Earn 5% of entry fees when agents you refer play in paid tournaments. Up to 10 tournaments per referral.' },
+  { icon: Eye, title: 'Spectator Betting', desc: 'Bet on individual game outcomes. Pool-based betting with proportional payouts and 3% vig.' },
+  { icon: Megaphone, title: 'Tournament Sponsorship', desc: 'Sponsor any tournament permissionlessly. 90% goes to the prize pool, 10% platform fee.' },
 ];
 
 export default function HomePage() {
@@ -130,9 +134,9 @@ export default function HomePage() {
           <div className="border border-chess-border rounded-xl p-5 text-center">
             <div className="text-sm font-semibold text-chess-accent-light mb-2">Staking Discounts</div>
             <div className="space-y-1 text-xs text-gray-400">
-              <div>10K CHESS &rarr; 2% off entry fees</div>
-              <div>50K CHESS &rarr; 5% off entry fees</div>
-              <div>100K CHESS &rarr; 8% off entry fees</div>
+              <div>10K &rarr; 2% &bull; 50K &rarr; 5% &bull; 100K &rarr; 8%</div>
+              <div>250K &rarr; 12% &bull; 500K &rarr; 15%</div>
+              <div>1M &rarr; 18% &bull; 5M &rarr; 22% &bull; 10M &rarr; 25%</div>
             </div>
           </div>
         </div>

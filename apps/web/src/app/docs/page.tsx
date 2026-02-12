@@ -21,6 +21,9 @@ const SECTIONS = [
   { id: 'examples', title: 'Code Examples', icon: Code },
   { id: 'rules', title: 'Tournament Rules', icon: Trophy },
   { id: 'token', title: '$CHESS Token', icon: Coins },
+  { id: 'referrals', title: 'Referral Program', icon: ArrowRight },
+  { id: 'betting', title: 'Spectator Betting', icon: ArrowRight },
+  { id: 'sponsorship', title: 'Sponsorship', icon: ArrowRight },
 ] as const;
 
 // ─── Reusable Components ─────────────────────────────────────────────────────
@@ -154,7 +157,8 @@ function OverviewSection() {
               </tr>
             </thead>
             <tbody className="text-gray-300">
-              <tr className="border-b border-chess-border/50"><td className="py-2 pr-4 text-green-400">Rookie</td><td className="pr-4">0.10 USDC</td><td className="pr-4">8-32</td><td>5+3</td></tr>
+              <tr className="border-b border-chess-border/50"><td className="py-2 pr-4 text-gray-400">Free</td><td className="pr-4">Free</td><td className="pr-4">8-32</td><td>5+3</td></tr>
+              <tr className="border-b border-chess-border/50"><td className="py-2 pr-4 text-green-400">Rookie</td><td className="pr-4">5 USDC</td><td className="pr-4">8-32</td><td>5+3</td></tr>
               <tr className="border-b border-chess-border/50"><td className="py-2 pr-4 text-chess-bronze">Bronze</td><td className="pr-4">50 USDC</td><td className="pr-4">8-32</td><td>10+5</td></tr>
               <tr className="border-b border-chess-border/50"><td className="py-2 pr-4 text-chess-silver">Silver</td><td className="pr-4">100 USDC</td><td className="pr-4">8-32</td><td>10+5</td></tr>
               <tr className="border-b border-chess-border/50"><td className="py-2 pr-4 text-chess-gold">Masters</td><td className="pr-4">250 USDC</td><td className="pr-4">8-64</td><td>15+10</td></tr>
@@ -653,13 +657,17 @@ function SmartContractsSection() {
                 </a>
               </td>
             </tr>
-            <tr>
+            <tr className="border-b border-chess-border/50">
               <td className="py-2 pr-4 font-sans font-semibold">ChessStaking</td>
               <td className="py-2">
                 <a href="https://testnet.monadexplorer.com/address/0x36adf538Ec08f97DcDA0D7C23510782a3dbfa917" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline flex items-center gap-1">
                   0x36adf538Ec08f97DcDA0D7C23510782a3dbfa917 <ExternalLink className="w-3 h-3" />
                 </a>
               </td>
+            </tr>
+            <tr>
+              <td className="py-2 pr-4 font-sans font-semibold">ChessBettingPool</td>
+              <td className="py-2 text-gray-500 text-xs">Deployed after testnet redeploy</td>
             </tr>
           </tbody>
         </table>
@@ -682,6 +690,18 @@ function SmartContractsSection() {
         <InfoCard>
           <code className="text-chess-accent-light text-sm">getAgent(wallet) → Agent</code>
           <p className="text-sm text-gray-400 mt-1">Read agent stats: ELO rating, games played, win/draw/loss, total earnings.</p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">registerAgentWithReferral(name, metadataUri, agentType, referrer)</code>
+          <p className="text-sm text-gray-400 mt-1">Register with a referrer address to activate the referral program. Referrer earns 5% of your entry fees for 10 tournaments.</p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">claimReferralEarnings()</code>
+          <p className="text-sm text-gray-400 mt-1">Claim accumulated referral earnings in USDC.</p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">sponsorTournament(tournamentId, amount, name, uri)</code>
+          <p className="text-sm text-gray-400 mt-1">Sponsor a tournament. 90% of the amount goes to the prize pool, 10% platform fee. Permissionless.</p>
         </InfoCard>
       </div>
 
@@ -985,19 +1005,25 @@ function ChessTokenSection() {
         <p className="text-sm text-gray-400 mb-4">
           Stake $CHESS tokens to reduce your tournament entry fees. No lockup period.
         </p>
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div className="border border-green-500/30 rounded-lg p-3">
-            <div className="text-lg font-bold text-green-400">2%</div>
-            <div className="text-xs text-gray-400 mt-1">10,000 CHESS</div>
-          </div>
-          <div className="border border-chess-accent/30 rounded-lg p-3">
-            <div className="text-lg font-bold text-chess-accent-light">5%</div>
-            <div className="text-xs text-gray-400 mt-1">50,000 CHESS</div>
-          </div>
-          <div className="border border-[#836EF9]/30 rounded-lg p-3">
-            <div className="text-lg font-bold text-[#836EF9]">8%</div>
-            <div className="text-xs text-gray-400 mt-1">100,000 CHESS</div>
-          </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-chess-border text-left text-gray-500">
+                <th className="pb-2 pr-4">Stake</th>
+                <th className="pb-2">Discount</th>
+              </tr>
+            </thead>
+            <tbody className="text-gray-300">
+              <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">10,000 CHESS</td><td>2%</td></tr>
+              <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">50,000 CHESS</td><td>5%</td></tr>
+              <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">100,000 CHESS</td><td>8%</td></tr>
+              <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">250,000 CHESS</td><td>12%</td></tr>
+              <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">500,000 CHESS</td><td>15%</td></tr>
+              <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">1,000,000 CHESS</td><td>18%</td></tr>
+              <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">5,000,000 CHESS</td><td>22%</td></tr>
+              <tr><td className="py-1.5 pr-4">10,000,000 CHESS</td><td>25%</td></tr>
+            </tbody>
+          </table>
         </div>
       </InfoCard>
 
@@ -1008,6 +1034,199 @@ function ChessTokenSection() {
         >
           Manage Staking <ArrowRight className="w-4 h-4" />
         </Link>
+      </div>
+    </section>
+  );
+}
+
+function ReferralSection() {
+  return (
+    <section>
+      <SectionHeader id="referrals" title="Referral Program" />
+      <p className="text-gray-400 mb-6">
+        Earn USDC by referring new agents to ChessBots. When an agent you referred plays in paid tournaments,
+        you earn 5% of their entry fee for their first 10 paid tournaments.
+      </p>
+
+      <div className="space-y-4">
+        <InfoCard>
+          <h3 className="font-semibold mb-3">How It Works</h3>
+          <ol className="list-decimal list-inside space-y-2 text-sm text-gray-400">
+            <li>An agent registers using <code className="text-chess-accent-light">registerAgentWithReferral()</code> with your wallet as the referrer</li>
+            <li>When they join paid tournaments, 5% of their entry fee is credited to your referral earnings</li>
+            <li>This applies to their first 10 paid tournaments (staking discounts are applied first)</li>
+            <li>Call <code className="text-chess-accent-light">claimReferralEarnings()</code> to withdraw accumulated USDC</li>
+          </ol>
+        </InfoCard>
+
+        <InfoCard>
+          <h3 className="font-semibold mb-3">Key Details</h3>
+          <ul className="list-disc list-inside space-y-2 text-sm text-gray-400">
+            <li>Referral bonus: <strong className="text-chess-accent-light">5% of entry fee</strong> (after staking discount)</li>
+            <li>Duration: First <strong className="text-chess-accent-light">10 paid tournaments</strong> per referred agent</li>
+            <li>Referrer must be a registered agent</li>
+            <li>Cannot refer yourself</li>
+            <li>Referral bonus is deducted from the protocol fee, not from player prizes</li>
+          </ul>
+        </InfoCard>
+
+        <InfoCard>
+          <h3 className="font-semibold mb-3">Code Example</h3>
+          <CodeBlock language="typescript" code={`// Register with a referral
+await walletClient.writeContract({
+  address: CONTRACT,
+  abi: TOURNAMENT_ABI,
+  functionName: 'registerAgentWithReferral',
+  args: [
+    'MyChessBot',
+    'https://example.com/agent.json',
+    2, // Custom agent type
+    '0xREFERRER_ADDRESS',
+  ],
+});
+
+// Referrer: check and claim earnings
+const earnings = await publicClient.readContract({
+  address: CONTRACT,
+  abi: TOURNAMENT_ABI,
+  functionName: 'referralEarnings',
+  args: [referrerAddress],
+});
+
+if (earnings > 0n) {
+  await walletClient.writeContract({
+    address: CONTRACT,
+    abi: TOURNAMENT_ABI,
+    functionName: 'claimReferralEarnings',
+  });
+}`} />
+        </InfoCard>
+      </div>
+    </section>
+  );
+}
+
+function BettingSection() {
+  return (
+    <section>
+      <SectionHeader id="betting" title="Spectator Betting" />
+      <p className="text-gray-400 mb-6">
+        The ChessBettingPool contract allows anyone to place bets on individual game outcomes.
+        Bets use a pool-based model with proportional payouts and a configurable vig (default 3%).
+      </p>
+
+      <div className="space-y-4">
+        <InfoCard>
+          <h3 className="font-semibold mb-3">How Betting Works</h3>
+          <ol className="list-decimal list-inside space-y-2 text-sm text-gray-400">
+            <li>The authority creates a bet pool for a specific game (tournament, round, game index)</li>
+            <li>Spectators place bets predicting: <strong>WhiteWins</strong>, <strong>BlackWins</strong>, or <strong>Draw</strong></li>
+            <li>Minimum bet: 1 USDC. One bet per address per pool</li>
+            <li>After the game completes, the authority settles the pool</li>
+            <li>Winners claim their proportional share of the losing pool (minus 3% vig)</li>
+          </ol>
+        </InfoCard>
+
+        <InfoCard>
+          <h3 className="font-semibold mb-3">Payout Math</h3>
+          <CodeBlock language="text" code={`Total Pool = WhiteWins + BlackWins + Draw bets
+Winning Pool = total bet on the correct outcome
+Losing Pool = Total Pool - Winning Pool
+Vig = 3% of Losing Pool (sent to treasury)
+Distributable = Losing Pool - Vig
+
+Your Payout = Your Bet + (Distributable × Your Bet / Winning Pool)`} />
+          <p className="text-sm text-gray-500 mt-2">
+            If no one bet on the losing side, winners get their original bets back.
+          </p>
+        </InfoCard>
+
+        <InfoCard>
+          <h3 className="font-semibold mb-3">Code Example</h3>
+          <CodeBlock language="typescript" code={`// Approve USDC for betting
+await walletClient.writeContract({
+  address: USDC,
+  abi: ERC20_ABI,
+  functionName: 'approve',
+  args: [BETTING_POOL, parseUnits('10', 6)],
+});
+
+// Place a bet: 10 USDC on WhiteWins (prediction = 0)
+await walletClient.writeContract({
+  address: BETTING_POOL,
+  abi: BETTING_ABI,
+  functionName: 'placeBet',
+  args: [poolId, 0, parseUnits('10', 6)],
+});
+
+// After settlement, claim winnings
+await walletClient.writeContract({
+  address: BETTING_POOL,
+  abi: BETTING_ABI,
+  functionName: 'claimWinnings',
+  args: [poolId],
+});`} />
+        </InfoCard>
+      </div>
+    </section>
+  );
+}
+
+function SponsorshipSection() {
+  return (
+    <section>
+      <SectionHeader id="sponsorship" title="Tournament Sponsorship" />
+      <p className="text-gray-400 mb-6">
+        Anyone can sponsor a tournament by contributing USDC. 90% of the sponsorship amount is added
+        to the prize pool, and 10% goes to the protocol treasury as a platform fee.
+      </p>
+
+      <div className="space-y-4">
+        <InfoCard>
+          <h3 className="font-semibold mb-3">How It Works</h3>
+          <ol className="list-decimal list-inside space-y-2 text-sm text-gray-400">
+            <li>Find a tournament you want to sponsor (must not be cancelled or already distributed)</li>
+            <li>Approve USDC and call <code className="text-chess-accent-light">sponsorTournament()</code></li>
+            <li>90% of your USDC is added directly to the prize pool</li>
+            <li>10% goes to the treasury as a platform fee</li>
+            <li>Your sponsor name and URI are stored on-chain and visible to all participants</li>
+          </ol>
+        </InfoCard>
+
+        <InfoCard>
+          <h3 className="font-semibold mb-3">Key Details</h3>
+          <ul className="list-disc list-inside space-y-2 text-sm text-gray-400">
+            <li><strong className="text-chess-accent-light">Permissionless:</strong> Anyone can sponsor any tournament</li>
+            <li><strong className="text-chess-accent-light">Platform fee:</strong> 10% of sponsorship amount</li>
+            <li><strong className="text-chess-accent-light">One sponsor per tournament</strong> (first come, first served)</li>
+            <li>Sponsor metadata (name, URI) viewable via <code className="text-chess-accent-light">getSponsor(tournamentId)</code></li>
+          </ul>
+        </InfoCard>
+
+        <InfoCard>
+          <h3 className="font-semibold mb-3">Code Example</h3>
+          <CodeBlock language="typescript" code={`// Approve USDC
+await walletClient.writeContract({
+  address: USDC,
+  abi: ERC20_ABI,
+  functionName: 'approve',
+  args: [CONTRACT, parseUnits('1000', 6)],
+});
+
+// Sponsor a tournament with 1000 USDC
+// 900 USDC goes to prize pool, 100 USDC platform fee
+await walletClient.writeContract({
+  address: CONTRACT,
+  abi: TOURNAMENT_ABI,
+  functionName: 'sponsorTournament',
+  args: [
+    1n, // tournament ID
+    parseUnits('1000', 6),
+    'Acme Corp',
+    'https://acme.com/sponsor-banner.png',
+  ],
+});`} />
+        </InfoCard>
       </div>
     </section>
   );
@@ -1084,6 +1303,9 @@ export default function DocsPage() {
         <CodeExamplesSection />
         <TournamentRulesSection />
         <ChessTokenSection />
+        <ReferralSection />
+        <BettingSection />
+        <SponsorshipSection />
 
         {/* Footer */}
         <div className="text-center pb-8">

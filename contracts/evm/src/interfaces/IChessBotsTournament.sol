@@ -38,4 +38,12 @@ interface IChessBotsTournament {
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event TournamentFunded(uint256 indexed tournamentId, uint256 amount);
     event FreeTournamentLimitUpdated(uint8 newLimit);
+
+    // Referral events (Proposal A)
+    event ReferralRegistered(address indexed agent, address indexed referrer);
+    event ReferralBonusAccrued(uint256 indexed tournamentId, address indexed referrer, address indexed referee, uint256 amount);
+    event ReferralEarningsClaimed(address indexed referrer, uint256 amount);
+
+    // Sponsorship events (Proposal C)
+    event TournamentSponsored(uint256 indexed tournamentId, address indexed sponsor, uint256 amount, uint256 platformFee);
 }

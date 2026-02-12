@@ -71,7 +71,44 @@ export interface StakingData {
   chessBalance: string;        // User's wallet CHESS balance (formatted string)
 }
 
+// Referral data (Proposal A)
+export interface ReferralData {
+  referrer: string;
+  earnings: string;           // USDC formatted string
+  tournamentsRemaining: number;
+}
+
+// Sponsorship data (Proposal C)
+export interface SponsorshipData {
+  sponsor: string;
+  name: string;
+  uri: string;
+  amount: string;             // USDC formatted string
+}
+
+// Bet pool data (Proposal B)
+export interface BetPoolData {
+  poolId: string;
+  tournamentId: string;
+  round: number;
+  gameIndex: number;
+  status: 'Open' | 'Settled' | 'Cancelled';
+  totalWhiteWins: string;     // USDC formatted string
+  totalBlackWins: string;
+  totalDraw: string;
+  totalPool: string;
+  vigCollected: string;
+  winningPrediction?: 'WhiteWins' | 'BlackWins' | 'Draw';
+}
+
+export interface BetData {
+  prediction: 'WhiteWins' | 'BlackWins' | 'Draw';
+  amount: string;             // USDC formatted string
+  claimed: boolean;
+}
+
 export const CONTRACT_ADDRESS = CHAIN.contractAddress;
 export const USDC_ADDRESS = CHAIN.usdcAddress;
 export const CHESS_TOKEN_ADDRESS = CHAIN.chessTokenAddress;
 export const STAKING_ADDRESS = CHAIN.stakingAddress;
+export const BETTING_POOL_ADDRESS = CHAIN.bettingPoolAddress;

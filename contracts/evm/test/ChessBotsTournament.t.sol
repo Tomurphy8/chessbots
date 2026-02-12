@@ -82,7 +82,7 @@ contract ChessBotsTournamentTest is Test {
         vm.prank(agent1);
         tournament.registerAgent("DeepClaw-v3", "", TournamentLib.AgentType.OpenClaw);
 
-        (address wallet, string memory agentName,,,,,,,,, bool registered) = tournament.agents(agent1);
+        (address wallet, string memory agentName,,,,,,,,,, bool registered) = tournament.agents(agent1);
         assertEq(wallet, agent1);
         assertEq(agentName, "DeepClaw-v3");
         assertTrue(registered);
