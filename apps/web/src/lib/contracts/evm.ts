@@ -414,6 +414,20 @@ export const BETTING_ABI = [
     type: 'function',
   },
   {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'round', type: 'uint8' },
+      { name: 'gameIndex', type: 'uint8' },
+    ],
+    name: 'getPoolIdForGame',
+    outputs: [
+      { name: 'poolId', type: 'uint256' },
+      { name: 'exists', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
     inputs: [],
     name: 'vigBps',
     outputs: [{ name: '', type: 'uint16' }],

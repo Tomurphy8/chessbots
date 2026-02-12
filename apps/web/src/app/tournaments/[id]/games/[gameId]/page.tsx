@@ -1,127 +1,320 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { use } from 'react';
 import Link from 'next/link';
 import { GameBoard } from '@/components/GameBoard';
 import { MoveList } from '@/components/MoveList';
-import { shortenAddress } from '@/lib/utils';
-import { ArrowLeft, SkipBack, ChevronLeft, ChevronRight, SkipForward, Play, Pause, Download } from 'lucide-react';
+import { LiveIndicator } from '@/components/LiveIndicator';
+import { PlayerClock } from '@/components/PlayerClock';
+import { SponsorBanner } from '@/components/SponsorBanner';
+import { BettingPanel } from '@/components/BettingPanel';
+import { useGameData } from '@/lib/hooks/useGameData';
+import { useGameSocket } from '@/lib/hooks/useGameSocket';
+import { useSponsor } from '@/lib/hooks/useSponsor';
+import { useBettingPool } from '@/lib/hooks/useBettingPool';
+import { GameResultMap } from '@/lib/contracts/evm';
+import { ArrowLeft, SkipBack, ChevronLeft, ChevronRight, SkipForward, Play, Pause } from 'lucide-react';
 import { Chess } from 'chess.js';
 
-const MOCK_PGN = `[Event "ChessBots Tournament #2"]
-[Site "Solana Devnet"]
-[Date "2026.02.09"]
-[Round "3"]
-[White "DeepClaw-v3"]
-[Black "NeuralKnight"]
-[Result "1-0"]
+/**
+ * Parse game ID format: t{tournamentId}-r{round}-g{gameIndex}
+ * Example: "t0-r1-g0" → { tournamentId: 0, round: 1, gameIndex: 0 }
+ */
+function parseGameId(gameId: string): { tournamentId: number; round: number; gameIndex: number } | null {
+  const match = gameId.match(/^t(\d+)-r(\d+)-g(\d+)$/);
+  if (!match) return null;
+  return {
+    tournamentId: parseInt(match[1]),
+    round: parseInt(match[2]),
+    gameIndex: parseInt(match[3]),
+  };
+}
 
-1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. d4 Nbd7 1-0`;
+export default function GameViewerPage({ params }: { params: Promise<{ id: string; gameId: string }> }) {
+  const { id, gameId } = use(params);
+  const tournamentId = parseInt(id);
 
-export default function GameViewerPage({ params }: { params: { id: string; gameId: string } }) {
-  const [game] = useState(() => {
-    const g = new Chess();
-    g.loadPgn(MOCK_PGN);
-    return g;
-  });
+  // Parse game coordinates from ID
+  const parsed = useMemo(() => parseGameId(gameId), [gameId]);
+  const round = parsed?.round ?? 1;
+  const gameIndex = parsed?.gameIndex ?? 0;
+
+  // Chain data
+  const { game: chainGame, whiteName, whiteElo, blackName, blackElo, loading: gameLoading, error: gameError } = useGameData(tournamentId, round, gameIndex);
+
+  // Live game state from gateway polling
+  const liveEnabled = chainGame !== null && (chainGame.status === 0 || chainGame.status === 1);
+  const liveState = useGameSocket(gameId, { enabled: liveEnabled });
+
+  // Sponsor data
+  const { sponsor, hasSponsor, isImageUri } = useSponsor(tournamentId);
+
+  // Betting pool
+  const bettingPool = useBettingPool(tournamentId, round, gameIndex);
+
+  // Mode detection
+  const isLive = liveState.isLive || (chainGame?.status === 1);
+  const isCompleted = chainGame?.status === 2;
+
+  // Move history — prefer live moves from gateway, fall back to chain move count
+  const moves = liveState.moves.length > 0 ? liveState.moves : [];
+  const totalMoves = moves.length;
+
+  // Replay state
   const [moveIndex, setMoveIndex] = useState(-1);
   const [displayFen, setDisplayFen] = useState('start');
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const history = game.history();
-  const totalMoves = history.length;
+  // Compute last move for highlighting
+  const lastMove = useMemo(() => {
+    const targetIndex = isLive ? moves.length - 1 : moveIndex;
+    if (targetIndex < 0 || moves.length === 0) return undefined;
 
+    try {
+      const g = new Chess();
+      for (let i = 0; i <= targetIndex; i++) {
+        g.move(moves[i]);
+      }
+      const history = g.history({ verbose: true });
+      if (history.length > 0) {
+        const last = history[history.length - 1];
+        return { from: last.from, to: last.to };
+      }
+    } catch { /* ignore parsing errors */ }
+    return undefined;
+  }, [isLive, moves, moveIndex]);
+
+  // When live, show current FEN from gateway
+  useEffect(() => {
+    if (isLive && liveState.currentFen !== 'start') {
+      setDisplayFen(liveState.currentFen);
+      setMoveIndex(liveState.moves.length - 1);
+    }
+  }, [isLive, liveState.currentFen, liveState.moves.length]);
+
+  // When transitioning from live to completed, show final position
+  useEffect(() => {
+    if (isCompleted && !isLive && moves.length > 0 && moveIndex === -1) {
+      setMoveIndex(moves.length - 1);
+      const g = new Chess();
+      for (const m of moves) g.move(m);
+      setDisplayFen(g.fen());
+    }
+  }, [isCompleted, isLive, moves, moveIndex]);
+
+  // Replay navigation
   const goToMove = useCallback((index: number) => {
+    if (moves.length === 0) return;
     const clamped = Math.max(-1, Math.min(index, totalMoves - 1));
     setMoveIndex(clamped);
+
+    if (clamped === -1) {
+      setDisplayFen('start');
+      return;
+    }
+
     const replay = new Chess();
     for (let i = 0; i <= clamped; i++) {
-      replay.move(history[i]);
+      replay.move(moves[i]);
     }
     setDisplayFen(replay.fen());
-  }, [history, totalMoves]);
+  }, [moves, totalMoves]);
 
+  // Auto-play for replay
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying || isLive) return;
     if (moveIndex >= totalMoves - 1) { setIsPlaying(false); return; }
     const timer = setTimeout(() => goToMove(moveIndex + 1), 800);
     return () => clearTimeout(timer);
-  }, [isPlaying, moveIndex, totalMoves, goToMove]);
+  }, [isPlaying, isLive, moveIndex, totalMoves, goToMove]);
+
+  // Determine whose turn it is (for clock highlighting)
+  const isWhiteTurn = useMemo(() => {
+    if (!displayFen || displayFen === 'start') return true;
+    return displayFen.includes(' w ');
+  }, [displayFen]);
+
+  // Result display
+  const resultText = useMemo(() => {
+    if (chainGame?.result && chainGame.result > 0) {
+      const name = GameResultMap[chainGame.result as keyof typeof GameResultMap];
+      if (name === 'WhiteWins' || name === 'BlackForfeit') return '1 - 0';
+      if (name === 'BlackWins' || name === 'WhiteForfeit') return '0 - 1';
+      if (name === 'Draw') return '½ - ½';
+    }
+    if (liveState.gameResult && liveState.gameResult !== 'undecided') {
+      return liveState.gameResult;
+    }
+    return isLive ? 'In Progress' : '';
+  }, [chainGame?.result, liveState.gameResult, isLive]);
+
+  // Loading state
+  if (gameLoading) {
+    return (
+      <div>
+        <Link href={`/tournaments/${id}`} className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
+          <ArrowLeft className="w-4 h-4" /> Back to tournament
+        </Link>
+        <div className="text-center py-16 text-gray-500">Loading game from Monad...</div>
+      </div>
+    );
+  }
+
+  if (gameError || !chainGame) {
+    return (
+      <div>
+        <Link href={`/tournaments/${id}`} className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
+          <ArrowLeft className="w-4 h-4" /> Back to tournament
+        </Link>
+        <div className="text-center py-16 text-gray-500">{gameError || 'Game not found'}</div>
+      </div>
+    );
+  }
 
   return (
     <div>
-      <Link href={`/tournaments/${params.id}`} className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
-        <ArrowLeft className="w-4 h-4" /> Back to tournament
-      </Link>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <Link href={`/tournaments/${id}`} className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white">
+          <ArrowLeft className="w-4 h-4" /> Back to tournament
+        </Link>
+        <LiveIndicator isLive={isLive} />
+      </div>
 
-      <h1 className="text-2xl font-bold mb-1">Game #{parseInt(params.gameId) + 1}</h1>
-      <p className="text-gray-400 mb-6">Tournament #{params.id} &middot; Round 3</p>
+      <h1 className="text-2xl font-bold mb-1">
+        Round {round}, Game {gameIndex + 1}
+      </h1>
+      <p className="text-gray-400 mb-6">
+        Tournament #{id}
+        {resultText && <span className="ml-2 text-chess-gold font-medium">&middot; {resultText}</span>}
+      </p>
 
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* Board */}
-        <div className="flex flex-col items-center gap-4">
-          <div className="flex items-center justify-between w-full max-w-[480px]">
-            <div>
-              <span className="text-sm font-medium">DeepClaw-v3</span>
-              <span className="text-xs text-gray-500 ml-2">(White)</span>
-            </div>
-            <span className="text-sm font-bold text-chess-gold">1 - 0</span>
-            <div>
-              <span className="text-sm font-medium">NeuralKnight</span>
-              <span className="text-xs text-gray-500 ml-2">(Black)</span>
-            </div>
+        {/* Left Column: Board Area */}
+        <div className="flex flex-col items-center gap-3">
+          {/* Black player clock (top) */}
+          <div className="w-full max-w-[480px]">
+            <PlayerClock
+              name={blackName || 'Black'}
+              elo={blackElo}
+              timeMs={liveState.blackTimeMs}
+              isActive={!isWhiteTurn}
+              isLive={isLive}
+              color="black"
+              result={chainGame.resultName}
+            />
           </div>
 
-          <GameBoard fen={displayFen} boardWidth={480} />
+          {/* Board */}
+          <GameBoard
+            fen={displayFen}
+            boardWidth={480}
+            lastMove={lastMove}
+          />
 
-          {/* Controls */}
-          <div className="flex items-center gap-2">
-            <button onClick={() => goToMove(-1)} className="p-2 rounded hover:bg-chess-border/50" title="Start">
-              <SkipBack className="w-4 h-4" />
-            </button>
-            <button onClick={() => goToMove(moveIndex - 1)} className="p-2 rounded hover:bg-chess-border/50" title="Back">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setIsPlaying(!isPlaying)}
-              className="p-2 rounded bg-chess-accent/20 hover:bg-chess-accent/30"
-              title={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-            </button>
-            <button onClick={() => goToMove(moveIndex + 1)} className="p-2 rounded hover:bg-chess-border/50" title="Forward">
-              <ChevronRight className="w-4 h-4" />
-            </button>
-            <button onClick={() => goToMove(totalMoves - 1)} className="p-2 rounded hover:bg-chess-border/50" title="End">
-              <SkipForward className="w-4 h-4" />
-            </button>
+          {/* Sponsor Banner — below board */}
+          {hasSponsor && sponsor && (
+            <div className="w-full max-w-[480px]">
+              <SponsorBanner
+                name={sponsor.name}
+                uri={sponsor.uri}
+                amount={sponsor.amount}
+                isImageUri={isImageUri}
+              />
+            </div>
+          )}
+
+          {/* White player clock (bottom) */}
+          <div className="w-full max-w-[480px]">
+            <PlayerClock
+              name={whiteName || 'White'}
+              elo={whiteElo}
+              timeMs={liveState.whiteTimeMs}
+              isActive={isWhiteTurn}
+              isLive={isLive}
+              color="white"
+              result={chainGame.resultName}
+            />
           </div>
+
+          {/* Replay controls — only in replay mode with moves */}
+          {!isLive && totalMoves > 0 && (
+            <div className="flex items-center gap-2">
+              <button onClick={() => goToMove(-1)} className="p-2 rounded hover:bg-chess-border/50" title="Start">
+                <SkipBack className="w-4 h-4" />
+              </button>
+              <button onClick={() => goToMove(moveIndex - 1)} className="p-2 rounded hover:bg-chess-border/50" title="Back">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setIsPlaying(!isPlaying)}
+                className="p-2 rounded bg-chess-accent/20 hover:bg-chess-accent/30"
+                title={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              </button>
+              <button onClick={() => goToMove(moveIndex + 1)} className="p-2 rounded hover:bg-chess-border/50" title="Forward">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button onClick={() => goToMove(totalMoves - 1)} className="p-2 rounded hover:bg-chess-border/50" title="End">
+                <SkipForward className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Sidebar */}
-        <div className="flex-1 space-y-4">
-          <MoveList moves={history} currentMoveIndex={moveIndex} onMoveClick={goToMove} />
+        {/* Right Column: Sidebar */}
+        <div className="flex-1 space-y-4 min-w-0">
+          {/* Move List */}
+          {totalMoves > 0 && (
+            <MoveList
+              moves={moves}
+              currentMoveIndex={moveIndex}
+              onMoveClick={isLive ? undefined : goToMove}
+            />
+          )}
+          {totalMoves === 0 && isLive && (
+            <div className="bg-chess-surface border border-chess-border rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-2">Moves</h3>
+              <p className="text-sm text-gray-500">Waiting for first move...</p>
+            </div>
+          )}
+          {totalMoves === 0 && !isLive && chainGame.status === 0 && (
+            <div className="bg-chess-surface border border-chess-border rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-2">Moves</h3>
+              <p className="text-sm text-gray-500">Game has not started yet.</p>
+            </div>
+          )}
 
+          {/* Betting Panel */}
+          <BettingPanel
+            pool={bettingPool}
+            gameStatus={chainGame.status}
+            gameResult={chainGame.result}
+          />
+
+          {/* Game Info Card */}
           <div className="bg-chess-surface border border-chess-border rounded-lg p-4 space-y-3">
             <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Game Info</h3>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="text-gray-400">White</div>
-              <div>DeepClaw-v3</div>
+              <div className="truncate">{whiteName || chainGame.white.slice(0, 10) + '...'}</div>
               <div className="text-gray-400">Black</div>
-              <div>NeuralKnight</div>
+              <div className="truncate">{blackName || chainGame.black.slice(0, 10) + '...'}</div>
               <div className="text-gray-400">Result</div>
-              <div className="text-chess-gold font-medium">White wins (1-0)</div>
+              <div className="text-chess-gold font-medium">{chainGame.resultName}</div>
               <div className="text-gray-400">Moves</div>
-              <div>{totalMoves}</div>
-              <div className="text-gray-400">Time Control</div>
-              <div>5+3 Blitz</div>
+              <div>{isLive ? liveState.moveCount : chainGame.moveCount}</div>
+              <div className="text-gray-400">Status</div>
+              <div>
+                {chainGame.status === 0 && 'Pending'}
+                {chainGame.status === 1 && 'In Progress'}
+                {chainGame.status === 2 && 'Completed'}
+                {chainGame.status === 3 && 'Aborted'}
+              </div>
             </div>
           </div>
-
-          <button className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
-            <Download className="w-4 h-4" />
-            Download PGN
-          </button>
         </div>
       </div>
     </div>

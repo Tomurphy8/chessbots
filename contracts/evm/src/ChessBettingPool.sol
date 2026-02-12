@@ -80,6 +80,7 @@ contract ChessBettingPool {
     uint256 public nextPoolId;
     mapping(uint256 => BetPool) public betPools;
     mapping(uint256 => mapping(address => Bet)) public bets; // poolId => bettor => Bet
+    mapping(bytes32 => uint256) public gameToPool;            // game key => poolId
 
     // ── Constructor ────────────────────────────────────────────────────
 
@@ -173,6 +174,9 @@ contract ChessBettingPool {
             vigCollected: 0,
             exists: true
         });
+
+        // Index for frontend lookup
+        gameToPool[keccak256(abi.encode(tournamentId, round, gameIndex))] = poolId;
 
         emit BetPoolCreated(poolId, tournamentId, round, gameIndex);
     }
@@ -363,6 +367,14 @@ contract ChessBettingPool {
     function getBet(uint256 poolId, address bettor) external view returns (Prediction, uint256, bool) {
         Bet storage bet = bets[poolId][bettor];
         return (bet.prediction, bet.amount, bet.claimed);
+    }
+
+    /// @notice Look up the pool ID for a specific game
+    /// @return poolId The pool ID, exists Whether a pool exists for this game
+    function getPoolIdForGame(uint256 tournamentId, uint8 round, uint8 gameIndex) external view returns (uint256 poolId, bool exists) {
+        bytes32 key = keccak256(abi.encode(tournamentId, round, gameIndex));
+        poolId = gameToPool[key];
+        exists = betPools[poolId].exists;
     }
 
     /// @notice Get pool totals broken down by prediction

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 
@@ -10,9 +10,10 @@ interface GameBoardProps {
   onMove?: (move: { from: string; to: string; promotion?: string }) => void;
   interactive?: boolean;
   boardWidth?: number;
+  lastMove?: { from: string; to: string };
 }
 
-export function GameBoard({ fen, pgn, onMove, interactive = false, boardWidth = 480 }: GameBoardProps) {
+export function GameBoard({ fen, pgn, onMove, interactive = false, boardWidth = 480, lastMove }: GameBoardProps) {
   const [game, setGame] = useState(new Chess());
   const [position, setPosition] = useState('start');
 
@@ -26,6 +27,16 @@ export function GameBoard({ fen, pgn, onMove, interactive = false, boardWidth = 
       setPosition(g.fen());
     }
   }, [fen, pgn]);
+
+  // Highlight last move squares
+  const customSquareStyles = useMemo(() => {
+    if (!lastMove) return {};
+    const highlightColor = 'rgba(124, 58, 237, 0.35)'; // chess-accent with transparency
+    return {
+      [lastMove.from]: { backgroundColor: highlightColor },
+      [lastMove.to]: { backgroundColor: highlightColor },
+    };
+  }, [lastMove]);
 
   function onDrop(sourceSquare: string, targetSquare: string): boolean {
     if (!interactive || !onMove) return false;
@@ -51,6 +62,7 @@ export function GameBoard({ fen, pgn, onMove, interactive = false, boardWidth = 
         customDarkSquareStyle={{ backgroundColor: '#4c1d95' }}
         customLightSquareStyle={{ backgroundColor: '#c4b5fd' }}
         customBoardStyle={{ borderRadius: '0' }}
+        customSquareStyles={customSquareStyles}
       />
     </div>
   );

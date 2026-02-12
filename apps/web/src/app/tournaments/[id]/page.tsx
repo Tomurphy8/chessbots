@@ -5,6 +5,8 @@ import { use } from 'react';
 import Link from 'next/link';
 import { StandingsTable } from '@/components/StandingsTable';
 import { useTournament } from '@/lib/hooks/useChainData';
+import { useSponsor } from '@/lib/hooks/useSponsor';
+import { SponsorBanner } from '@/components/SponsorBanner';
 import { cn, tierColor, statusBadgeColor, shortenAddress } from '@/lib/utils';
 import { Trophy, ArrowLeft } from 'lucide-react';
 
@@ -12,6 +14,7 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
   const { id } = use(params);
   const [activeTab, setActiveTab] = useState<'standings' | 'info'>('standings');
   const { tournament, loading } = useTournament(parseInt(id));
+  const { sponsor, hasSponsor, isImageUri } = useSponsor(parseInt(id));
 
   if (loading) {
     return (
@@ -56,6 +59,11 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
             Round {t.currentRound} of {t.totalRounds} &middot; {t.registeredCount} players registered
             &middot; {t.baseTimeSeconds / 60}+{t.incrementSeconds}s time control
           </p>
+          {hasSponsor && sponsor && (
+            <div className="mt-2">
+              <SponsorBanner name={sponsor.name} uri={sponsor.uri} amount={sponsor.amount} isImageUri={isImageUri} compact />
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 bg-chess-surface border border-chess-border rounded-xl px-5 py-3">
           <Trophy className="w-5 h-5 text-chess-gold" />
@@ -115,6 +123,17 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
               </div>
             </div>
           </div>
+          {hasSponsor && sponsor && (
+            <div className="border border-chess-border rounded-xl p-5 bg-chess-surface">
+              <h3 className="text-sm text-gray-400 mb-3">Sponsor</h3>
+              <SponsorBanner
+                name={sponsor.name}
+                uri={sponsor.uri}
+                amount={sponsor.amount}
+                isImageUri={isImageUri}
+              />
+            </div>
+          )}
           {t.winners[0] !== '0x0000000000000000000000000000000000000000' && (
             <div className="border border-chess-border rounded-xl p-5 bg-chess-surface">
               <h3 className="text-sm text-gray-400 mb-2">Winners</h3>
