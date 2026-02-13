@@ -8,15 +8,23 @@ import { useTournamentStandings } from '@/lib/hooks/useTournamentStandings';
 import { SponsorBanner } from '@/components/SponsorBanner';
 import { StandingsTable } from '@/components/StandingsTable';
 import { cn, tierColor, statusBadgeColor, shortenAddress } from '@/lib/utils';
-import { Trophy, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Trophy, ArrowLeft, RefreshCw, UserPlus, CheckCircle, Megaphone } from 'lucide-react';
+import { useAccount } from 'wagmi';
+import { useJoinTournament } from '@/lib/hooks/useJoinTournament';
+import { SponsorModal } from '@/components/SponsorModal';
 
 export default function TournamentDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const [activeTab, setActiveTab] = useState<'standings' | 'info'>('standings');
+  const [showSponsorModal, setShowSponsorModal] = useState(false);
   const tournamentId = parseInt(id);
+  const { address } = useAccount();
   const { tournament, loading } = useTournament(tournamentId);
   const { sponsor, hasSponsor, isImageUri } = useSponsor(tournamentId);
   const { standings, loading: standingsLoading, refresh: refreshStandings } = useTournamentStandings(tournamentId);
+  const joinTournament = useJoinTournament(tournamentId, tournament?.entryFee ?? 0);
+
+  const canJoin = address && tournament && tournament.status === 'registration' && tournament.registeredCount < tournament.maxPlayers;
 
   if (loading) {
     return (
@@ -67,12 +75,47 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 bg-chess-surface border border-chess-border rounded-xl px-5 py-3">
-          <Trophy className="w-5 h-5 text-chess-gold" />
-          <div>
-            <div className="text-xs text-gray-400">Prize Pool</div>
-            <div className="text-lg font-bold text-chess-gold">{t.prizePool.toFixed(2)} USDC</div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-chess-surface border border-chess-border rounded-xl px-5 py-3">
+            <Trophy className="w-5 h-5 text-chess-gold" />
+            <div>
+              <div className="text-xs text-gray-400">Prize Pool</div>
+              <div className="text-lg font-bold text-chess-gold">{t.prizePool.toFixed(2)} USDC</div>
+            </div>
           </div>
+
+          {/* Join Tournament */}
+          {canJoin && !joinTournament.success && (
+            <div className="flex flex-col gap-2">
+              {joinTournament.needsApproval ? (
+                <button
+                  onClick={joinTournament.approve}
+                  disabled={joinTournament.approving}
+                  className="px-5 py-3 bg-yellow-600 hover:bg-yellow-500 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {joinTournament.approving ? 'Approving...' : `Approve ${t.entryFee.toFixed(2)} USDC`}
+                </button>
+              ) : (
+                <button
+                  onClick={joinTournament.join}
+                  disabled={joinTournament.isPending}
+                  className="px-5 py-3 bg-chess-accent hover:bg-chess-accent/80 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  {joinTournament.isPending ? 'Joining...' : 'Join Tournament'}
+                </button>
+              )}
+              {joinTournament.error && (
+                <p className="text-red-400 text-xs max-w-[200px]">{joinTournament.error}</p>
+              )}
+            </div>
+          )}
+          {joinTournament.success && (
+            <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
+              <CheckCircle className="w-5 h-5" />
+              Joined!
+            </div>
+          )}
         </div>
       </div>
 
@@ -157,6 +200,15 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
               />
             </div>
           )}
+          {address && !hasSponsor && (
+            <button
+              onClick={() => setShowSponsorModal(true)}
+              className="w-full py-3 bg-chess-surface border border-chess-border hover:border-chess-accent rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              <Megaphone className="w-4 h-4 text-chess-accent" />
+              Sponsor This Tournament
+            </button>
+          )}
           {t.winners[0] !== '0x0000000000000000000000000000000000000000' && (
             <div className="border border-chess-border rounded-xl p-5 bg-chess-surface">
               <h3 className="text-sm text-gray-400 mb-2">Winners</h3>
@@ -169,6 +221,14 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
           )}
         </div>
       )}
+
+      {/* Sponsor Modal */}
+      <SponsorModal
+        isOpen={showSponsorModal}
+        onClose={() => setShowSponsorModal(false)}
+        tournamentId={tournamentId}
+        onSuccess={() => window.location.reload()}
+      />
     </div>
   );
 }

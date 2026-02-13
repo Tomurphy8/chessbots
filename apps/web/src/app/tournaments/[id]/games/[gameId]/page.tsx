@@ -30,9 +30,21 @@ function parseGameId(gameId: string): { tournamentId: number; round: number; gam
   };
 }
 
+function useWindowWidth() {
+  const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  useEffect(() => {
+    const handleResize = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  return width;
+}
+
 export default function GameViewerPage({ params }: { params: { id: string; gameId: string } }) {
   const { id, gameId } = params;
   const tournamentId = parseInt(id);
+  const windowWidth = useWindowWidth();
+  const boardWidth = Math.min(480, windowWidth - 32);
 
   // Parse game coordinates from ID
   const parsed = useMemo(() => parseGameId(gameId), [gameId]);
@@ -193,7 +205,7 @@ export default function GameViewerPage({ params }: { params: { id: string; gameI
         {/* Left Column: Board Area */}
         <div className="flex flex-col items-center gap-3">
           {/* Black player clock (top) */}
-          <div className="w-full max-w-[480px]">
+          <div className="w-full" style={{ maxWidth: boardWidth }}>
             <PlayerClock
               name={blackName || 'Black'}
               elo={blackElo}
@@ -208,13 +220,13 @@ export default function GameViewerPage({ params }: { params: { id: string; gameI
           {/* Board */}
           <GameBoard
             fen={displayFen}
-            boardWidth={480}
+            boardWidth={boardWidth}
             lastMove={lastMove}
           />
 
           {/* Sponsor Banner — below board */}
           {hasSponsor && sponsor && (
-            <div className="w-full max-w-[480px]">
+            <div className="w-full" style={{ maxWidth: boardWidth }}>
               <SponsorBanner
                 name={sponsor.name}
                 uri={sponsor.uri}
@@ -225,7 +237,7 @@ export default function GameViewerPage({ params }: { params: { id: string; gameI
           )}
 
           {/* White player clock (bottom) */}
-          <div className="w-full max-w-[480px]">
+          <div className="w-full" style={{ maxWidth: boardWidth }}>
             <PlayerClock
               name={whiteName || 'White'}
               elo={whiteElo}

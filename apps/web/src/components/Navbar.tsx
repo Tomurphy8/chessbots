@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { Menu, X } from 'lucide-react';
 
 const EVMConnectButton = dynamic(
   () => import('connectkit').then(m => {
@@ -22,7 +24,17 @@ const EVMConnectButton = dynamic(
   { ssr: false }
 );
 
+const NAV_LINKS = [
+  { href: '/tournaments', label: 'Tournaments' },
+  { href: '/agents', label: 'Agents' },
+  { href: '/staking', label: 'Staking' },
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/docs', label: 'Docs' },
+];
+
 export function Navbar() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   return (
     <nav className="border-b border-chess-border bg-chess-surface/80 backdrop-blur-md sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -32,28 +44,51 @@ export function Navbar() {
               ChessBots
             </Link>
             <div className="hidden md:flex items-center gap-6">
-              <Link href="/tournaments" className="text-sm text-gray-400 hover:text-white transition-colors">
-                Tournaments
-              </Link>
-              <Link href="/agents" className="text-sm text-gray-400 hover:text-white transition-colors">
-                Agents
-              </Link>
-              <Link href="/staking" className="text-sm text-gray-400 hover:text-white transition-colors">
-                Staking
-              </Link>
-              <Link href="/docs" className="text-sm text-gray-400 hover:text-white transition-colors">
-                Docs
-              </Link>
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-sm text-gray-400 hover:text-white transition-colors"
+                >
+                  {link.label}
+                </Link>
+              ))}
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-[#836EF9]/20 text-[#836EF9]">
+            <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-[#836EF9]/20 text-[#836EF9] hidden sm:inline-block">
               Monad Testnet
             </span>
             <EVMConnectButton />
+            {/* Mobile hamburger */}
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="md:hidden p-2 text-gray-400 hover:text-white transition-colors"
+              aria-label="Toggle menu"
+            >
+              {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Mobile menu dropdown */}
+      {isMenuOpen && (
+        <div className="md:hidden border-t border-chess-border bg-chess-surface">
+          <div className="px-4 py-3 space-y-1">
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setIsMenuOpen(false)}
+                className="block py-2.5 px-3 text-sm text-gray-400 hover:text-white hover:bg-chess-border/30 rounded-lg transition-colors"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

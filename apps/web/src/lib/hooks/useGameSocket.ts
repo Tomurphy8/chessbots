@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { io, type Socket } from 'socket.io-client';
 import { CHAIN } from '@/lib/chains';
 
 export interface LiveGameState {
@@ -16,44 +17,42 @@ export interface LiveGameState {
   error: string | null;
 }
 
+const INITIAL_STATE: LiveGameState = {
+  isLive: false,
+  currentFen: 'start',
+  moves: [],
+  whiteTimeMs: 0,
+  blackTimeMs: 0,
+  gameStatus: 'unknown',
+  gameResult: 'undecided',
+  moveCount: 0,
+  loading: true,
+  error: null,
+};
+
 /**
- * Polls the Agent Gateway API for live game state.
- * Auto-polls every 2s when game is in_progress.
- * Stops when game is completed.
+ * Connects to the gateway's /spectator WebSocket namespace for real-time game updates.
+ * Falls back to HTTP polling if WebSocket fails to connect within 5 seconds.
  */
 export function useGameSocket(gameId: string | null, options?: { enabled?: boolean }): LiveGameState {
-  const [state, setState] = useState<LiveGameState>({
-    isLive: false,
-    currentFen: 'start',
-    moves: [],
-    whiteTimeMs: 0,
-    blackTimeMs: 0,
-    gameStatus: 'unknown',
-    gameResult: 'undecided',
-    moveCount: 0,
-    loading: true,
-    error: null,
-  });
-
+  const [state, setState] = useState<LiveGameState>(INITIAL_STATE);
   const enabled = options?.enabled !== false;
+  const socketRef = useRef<Socket | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const usingPollingRef = useRef(false);
 
+  // HTTP polling fallback
   const fetchGameState = useCallback(async () => {
     if (!gameId) return;
-
     try {
       const res = await fetch(`${CHAIN.gatewayUrl}/api/game/${gameId}`);
-      if (!res.ok) {
-        // Game might not exist in gateway yet — that's okay
-        if (res.status === 404) {
-          setState(prev => ({ ...prev, loading: false, error: null, gameStatus: 'not_found' }));
-          return;
-        }
-        throw new Error(`HTTP ${res.status}`);
+      if (res.status === 404) {
+        setState(prev => ({ ...prev, loading: false, error: null, gameStatus: 'not_found' }));
+        return;
       }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
-
       setState({
         isLive: data.status === 'in_progress',
         currentFen: data.fen || 'start',
@@ -67,7 +66,6 @@ export function useGameSocket(gameId: string | null, options?: { enabled?: boole
         error: null,
       });
 
-      // Stop polling when game is done
       if (data.status === 'completed' || data.status === 'aborted') {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
@@ -80,22 +78,114 @@ export function useGameSocket(gameId: string | null, options?: { enabled?: boole
     }
   }, [gameId]);
 
-  useEffect(() => {
-    if (!gameId || !enabled) return;
-
-    // Initial fetch
+  // Start HTTP polling fallback
+  const startPolling = useCallback(() => {
+    if (usingPollingRef.current || !gameId) return;
+    usingPollingRef.current = true;
+    console.log('[useGameSocket] Falling back to HTTP polling');
     fetchGameState();
-
-    // Poll every 2s
     intervalRef.current = setInterval(fetchGameState, 2000);
+  }, [gameId, fetchGameState]);
+
+  useEffect(() => {
+    if (!gameId || !enabled) {
+      setState(INITIAL_STATE);
+      return;
+    }
+
+    // Reset state on new gameId
+    setState(INITIAL_STATE);
+    usingPollingRef.current = false;
+
+    // Try WebSocket first
+    const socket = io(`${CHAIN.gatewayUrl}/spectator`, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionAttempts: 5,
+      timeout: 5000,
+    });
+
+    socketRef.current = socket;
+
+    // Connection timeout — fall back to polling after 5s
+    const connectTimeout = setTimeout(() => {
+      if (!socket.connected && !usingPollingRef.current) {
+        console.warn('[useGameSocket] WebSocket connection timeout, falling back to polling');
+        socket.disconnect();
+        startPolling();
+      }
+    }, 5000);
+
+    socket.on('connect', () => {
+      clearTimeout(connectTimeout);
+      console.log('[useGameSocket] Connected to spectator namespace');
+      socket.emit('subscribe:game', gameId);
+
+      // Do an initial HTTP fetch to get current state, since WS only pushes deltas
+      fetchGameState();
+    });
+
+    socket.on('connect_error', (err) => {
+      console.warn('[useGameSocket] WebSocket connect error:', err.message);
+      // Fall back to polling on connection failure
+      if (!usingPollingRef.current) {
+        clearTimeout(connectTimeout);
+        socket.disconnect();
+        startPolling();
+      }
+    });
+
+    // Real-time game events
+    socket.on('game:started', (data: any) => {
+      if (data.gameId !== gameId) return;
+      setState(prev => ({
+        ...prev,
+        isLive: true,
+        gameStatus: 'in_progress',
+        loading: false,
+      }));
+    });
+
+    socket.on('game:move', (data: any) => {
+      if (data.gameId !== gameId) return;
+      setState(prev => ({
+        ...prev,
+        isLive: true,
+        currentFen: data.fen || prev.currentFen,
+        moves: data.moves || [...prev.moves, data.move].filter(Boolean),
+        whiteTimeMs: data.whiteTimeMs ?? prev.whiteTimeMs,
+        blackTimeMs: data.blackTimeMs ?? prev.blackTimeMs,
+        moveCount: data.moveCount ?? (prev.moveCount + 1),
+        gameStatus: 'in_progress',
+        loading: false,
+      }));
+    });
+
+    socket.on('game:ended', (data: any) => {
+      if (data.gameId !== gameId) return;
+      setState(prev => ({
+        ...prev,
+        isLive: false,
+        currentFen: data.fen || prev.currentFen,
+        moves: data.moves || prev.moves,
+        gameStatus: 'completed',
+        gameResult: data.result || prev.gameResult,
+        loading: false,
+      }));
+    });
 
     return () => {
+      clearTimeout(connectTimeout);
+      socket.disconnect();
+      socketRef.current = null;
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      usingPollingRef.current = false;
     };
-  }, [gameId, enabled, fetchGameState]);
+  }, [gameId, enabled, fetchGameState, startPolling]);
 
   return state;
 }

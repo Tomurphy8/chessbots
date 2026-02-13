@@ -10,8 +10,17 @@ const TOURNAMENT_ID_REGEX = /^[0-9]{1,10}$/;
 const MAX_GAME_SUBS_PER_SOCKET = 20;
 const MAX_TOURNAMENT_SUBS_PER_SOCKET = 10;
 
+// Spectator namespace limits (more restrictive — no auth)
+const MAX_SPECTATOR_GAME_SUBS = 5;
+const MAX_SPECTATOR_TOURNAMENT_SUBS = 3;
+
 interface AuthenticatedSocket extends Socket {
   wallet?: Address;
+  subscribedGames?: Set<string>;
+  subscribedTournaments?: Set<string>;
+}
+
+interface SpectatorSocket extends Socket {
   subscribedGames?: Set<string>;
   subscribedTournaments?: Set<string>;
 }
@@ -44,6 +53,7 @@ export class SocketBridge {
 
     this.setupEngineListeners();
     this.setupAgentServer();
+    this.setupSpectatorNamespace();
   }
 
   private setupEngineListeners() {
@@ -62,19 +72,23 @@ export class SocketBridge {
       console.log('[SocketBridge] Disconnected from chess engine, will reconnect...');
     });
 
-    // Bridge events from chess engine to agent-facing rooms
+    // Bridge events from chess engine to agent-facing rooms AND spectator namespace
     this.engineClient.on('game:started', (data: any) => {
       this.agentServer.to(`game:${data.gameId}`).emit('game:started', data);
+      this.agentServer.of('/spectator').to(`game:${data.gameId}`).emit('game:started', data);
     });
 
     this.engineClient.on('game:move', (data: any) => {
       this.agentServer.to(`game:${data.gameId}`).emit('game:move', data);
+      this.agentServer.of('/spectator').to(`game:${data.gameId}`).emit('game:move', data);
     });
 
     this.engineClient.on('game:ended', (data: any) => {
       this.agentServer.to(`game:${data.gameId}`).emit('game:ended', data);
+      this.agentServer.of('/spectator').to(`game:${data.gameId}`).emit('game:ended', data);
       if (data.tournamentId) {
         this.agentServer.to(`tournament:${data.tournamentId}`).emit('game:ended', data);
+        this.agentServer.of('/spectator').to(`tournament:${data.tournamentId}`).emit('game:ended', data);
       }
     });
   }
@@ -172,6 +186,84 @@ export class SocketBridge {
         }
       });
     });
+  }
+
+  /**
+   * Spectator namespace — no authentication required.
+   * Allows frontend viewers to subscribe to live game/tournament events.
+   * More restrictive subscription caps than agent namespace.
+   */
+  private setupSpectatorNamespace() {
+    const spectator = this.agentServer.of('/spectator');
+
+    spectator.on('connection', (socket: SpectatorSocket) => {
+      socket.subscribedGames = new Set();
+      socket.subscribedTournaments = new Set();
+      console.log(`[SocketBridge] Spectator connected: ${socket.id}`);
+
+      socket.on('subscribe:game', (gameId: string) => {
+        if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) return;
+        if (socket.subscribedGames!.size >= MAX_SPECTATOR_GAME_SUBS) {
+          socket.emit('error', { message: `Max ${MAX_SPECTATOR_GAME_SUBS} game subscriptions per spectator` });
+          return;
+        }
+        if (socket.subscribedGames!.has(gameId)) return;
+        socket.join(`game:${gameId}`);
+        socket.subscribedGames!.add(gameId);
+
+        // Track on engine side with shared ref counting
+        const count = this.gameRefCount.get(gameId) || 0;
+        this.gameRefCount.set(gameId, count + 1);
+        if (!this.trackedGames.has(gameId)) {
+          this.trackedGames.add(gameId);
+          this.engineClient.emit('join:game', gameId);
+        }
+      });
+
+      socket.on('subscribe:tournament', (tournamentId: string) => {
+        if (typeof tournamentId !== 'string' || !TOURNAMENT_ID_REGEX.test(tournamentId)) return;
+        if (socket.subscribedTournaments!.size >= MAX_SPECTATOR_TOURNAMENT_SUBS) {
+          socket.emit('error', { message: `Max ${MAX_SPECTATOR_TOURNAMENT_SUBS} tournament subscriptions per spectator` });
+          return;
+        }
+        if (socket.subscribedTournaments!.has(tournamentId)) return;
+        socket.join(`tournament:${tournamentId}`);
+        socket.subscribedTournaments!.add(tournamentId);
+
+        const count = this.tournamentRefCount.get(tournamentId) || 0;
+        this.tournamentRefCount.set(tournamentId, count + 1);
+        if (!this.trackedTournaments.has(tournamentId)) {
+          this.trackedTournaments.add(tournamentId);
+          this.engineClient.emit('join:tournament', tournamentId);
+        }
+      });
+
+      socket.on('unsubscribe:game', (gameId: string) => {
+        if (!socket.subscribedGames!.has(gameId)) return;
+        socket.leave(`game:${gameId}`);
+        socket.subscribedGames!.delete(gameId);
+        this.decrementGameRef(gameId);
+      });
+
+      socket.on('unsubscribe:tournament', (tournamentId: string) => {
+        if (!socket.subscribedTournaments!.has(tournamentId)) return;
+        socket.leave(`tournament:${tournamentId}`);
+        socket.subscribedTournaments!.delete(tournamentId);
+        this.decrementTournamentRef(tournamentId);
+      });
+
+      socket.on('disconnect', () => {
+        console.log(`[SocketBridge] Spectator disconnected: ${socket.id}`);
+        for (const gameId of socket.subscribedGames || []) {
+          this.decrementGameRef(gameId);
+        }
+        for (const tournamentId of socket.subscribedTournaments || []) {
+          this.decrementTournamentRef(tournamentId);
+        }
+      });
+    });
+
+    console.log('[SocketBridge] Spectator namespace /spectator ready (no auth required)');
   }
 
   getConnectedAgentCount(): number {
