@@ -144,6 +144,43 @@ export function registerTournamentRoutes(app: FastifyInstance, publicClient: Pub
     CONFIG.deployBlock,
   );
 
+  // Standings cache: { tournamentId -> { data, timestamp } }
+  const standingsCache = new Map<number, { data: any; timestamp: number }>();
+  const STANDINGS_CACHE_TTL = 120_000; // 2 minutes
+  // Dedup: if a standings scan is already running for a tournament, share the result
+  const pendingStandings = new Map<number, Promise<any>>();
+
+  // Pre-warm standings cache 15s after boot for completed/active tournaments
+  setTimeout(async () => {
+    try {
+      const protocolState = await publicClient.readContract({
+        address: CONFIG.contractAddress as Address,
+        abi: TOURNAMENT_ABI,
+        functionName: 'protocol',
+      });
+      const total = Number(protocolState[5]);
+      console.log(`Pre-warming standings cache for up to ${total} tournaments...`);
+      for (let i = 1; i <= total; i++) {
+        try {
+          const raw = await publicClient.readContract({
+            address: CONFIG.contractAddress as Address,
+            abi: TOURNAMENT_ABI,
+            functionName: 'getTournament',
+            args: [BigInt(i)],
+          });
+          const status = StatusNames[raw.status] || 'Unknown';
+          if (status === 'Completed' || status === 'RoundActive' || status === 'RoundComplete') {
+            console.log(`Warming standings for tournament #${i} (${status})...`);
+            // Trigger internal fetch to populate cache
+            fetch(`http://127.0.0.1:${CONFIG.port}/api/tournaments/${i}/standings`).catch(() => {});
+          }
+        } catch { /* skip */ }
+      }
+    } catch (err: any) {
+      console.error('Standings cache warmup failed:', err.message);
+    }
+  }, 15_000);
+
   // GET /api/tournaments - List recent tournaments
   app.get('/api/tournaments', async (_request, reply) => {
     if (!checkPublicRateLimit(_request)) return reply.status(429).send({ error: 'Rate limited' });
@@ -219,6 +256,21 @@ export function registerTournamentRoutes(app: FastifyInstance, publicClient: Pub
     }
 
     try {
+      // Check cache first
+      const cached = standingsCache.get(parsedId);
+      if (cached && Date.now() - cached.timestamp < STANDINGS_CACHE_TTL) {
+        return reply.send(cached.data);
+      }
+
+      // Dedup: if already scanning for this tournament, wait for that result
+      const pending = pendingStandings.get(parsedId);
+      if (pending) {
+        const result = await pending;
+        return reply.send(result);
+      }
+
+      // Start the scan and store the promise for dedup
+      const scanPromise = (async () => {
       // 1. Find all players by scanning AgentJoined events for this tournament
       const logs = await scanner.scan(
         AGENT_JOINED_EVENT,
@@ -300,8 +352,20 @@ export function registerTournamentRoutes(app: FastifyInstance, publicClient: Pub
       // 4. Assign ranks
       standings.forEach((s, i) => { s.rank = i + 1; });
 
-      return reply.send({ standings, tournamentId: parsedId });
+      const response = { standings, tournamentId: parsedId };
+      standingsCache.set(parsedId, { data: response, timestamp: Date.now() });
+      return response;
+      })();
+
+      pendingStandings.set(parsedId, scanPromise);
+      try {
+        const result = await scanPromise;
+        return reply.send(result);
+      } finally {
+        pendingStandings.delete(parsedId);
+      }
     } catch (err: any) {
+      pendingStandings.delete(parsedId);
       console.error(`Standings error for tournament ${parsedId}:`, err.message);
       return reply.status(500).send({ error: 'Failed to fetch standings' });
     }
