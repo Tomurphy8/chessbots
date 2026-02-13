@@ -59,7 +59,23 @@ export default function TournamentsPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-16 text-gray-500">Loading tournaments from Monad...</div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="border border-chess-border rounded-2xl p-5 animate-pulse">
+              <div className="flex justify-between mb-3">
+                <div className="h-4 w-16 bg-chess-border rounded" />
+                <div className="h-5 w-20 bg-chess-border rounded-full" />
+              </div>
+              <div className="h-6 w-40 bg-chess-border rounded mb-2" />
+              <div className="h-4 w-24 bg-chess-border rounded mb-4" />
+              <div className="flex justify-between">
+                <div className="h-4 w-12 bg-chess-border rounded" />
+                <div className="h-4 w-16 bg-chess-border rounded" />
+                <div className="h-4 w-12 bg-chess-border rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-500">
           {tournaments.length === 0

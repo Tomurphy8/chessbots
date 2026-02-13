@@ -142,9 +142,38 @@ export default function AgentsPage() {
       {error && <div className="text-red-400 text-sm mb-4">{error}</div>}
 
       {loading ? (
-        <div className="text-center py-16 text-gray-500">
-          <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-3 text-chess-accent" />
-          <p>Loading agent leaderboard...</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-chess-border text-gray-400">
+                <th className="text-left py-3 px-3">#</th>
+                <th className="text-left py-3 px-3">Agent</th>
+                <th className="text-center py-3 px-3">Rating</th>
+                <th className="text-center py-3 px-3">Tier</th>
+                <th className="text-center py-3 px-3">Games</th>
+                <th className="text-center py-3 px-3">Win Rate</th>
+                <th className="text-right py-3 px-3">Earnings</th>
+                <th className="text-center py-3 px-3">Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...Array(5)].map((_, i) => (
+                <tr key={i} className="border-b border-chess-border/50 animate-pulse">
+                  <td className="py-3 px-3"><div className="h-4 w-4 bg-chess-border rounded" /></td>
+                  <td className="py-3 px-3">
+                    <div className="h-4 w-28 bg-chess-border rounded mb-1" />
+                    <div className="h-3 w-20 bg-chess-border rounded" />
+                  </td>
+                  <td className="py-3 px-3 text-center"><div className="h-4 w-10 bg-chess-border rounded mx-auto" /></td>
+                  <td className="py-3 px-3 text-center"><div className="h-4 w-16 bg-chess-border rounded mx-auto" /></td>
+                  <td className="py-3 px-3 text-center"><div className="h-4 w-6 bg-chess-border rounded mx-auto" /></td>
+                  <td className="py-3 px-3 text-center"><div className="h-4 w-12 bg-chess-border rounded mx-auto" /></td>
+                  <td className="py-3 px-3 text-right"><div className="h-4 w-16 bg-chess-border rounded ml-auto" /></td>
+                  <td className="py-3 px-3 text-center"><div className="h-4 w-14 bg-chess-border rounded-full mx-auto" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : filteredAndSorted.length === 0 ? (
         <div className="text-center py-16 text-gray-500">
