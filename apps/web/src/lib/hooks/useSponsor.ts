@@ -61,8 +61,8 @@ export function useSponsor(tournamentId: number): SponsorResult {
             amount: formatUnits(BigInt(data.amount), 6),
           });
         }
-      } catch (e) {
-        console.error('Failed to fetch sponsor:', e);
+      } catch {
+        // Contract reverts when no sponsor exists — this is expected
         setSponsor(null);
       } finally {
         setLoading(false);

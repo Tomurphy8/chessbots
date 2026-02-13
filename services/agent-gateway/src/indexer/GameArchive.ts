@@ -79,6 +79,22 @@ export class GameArchive {
   }
 
   /**
+   * Get all archived games where the given wallet was white or black.
+   * Returns newest games first.
+   */
+  getByWallet(wallet: string): ArchivedGame[] {
+    const w = wallet.toLowerCase();
+    const results: ArchivedGame[] = [];
+    for (const game of this.games.values()) {
+      if (game.white.toLowerCase() === w || game.black.toLowerCase() === w) {
+        results.push(game);
+      }
+    }
+    results.sort((a, b) => b.archivedAt - a.archivedAt);
+    return results;
+  }
+
+  /**
    * Get total number of archived games.
    */
   get size(): number {

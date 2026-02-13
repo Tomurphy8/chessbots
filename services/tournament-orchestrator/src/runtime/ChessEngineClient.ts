@@ -77,7 +77,11 @@ export class ChessEngineClient {
 
   async startGame(gameId: string): Promise<any> {
     if (!GAME_ID_REGEX.test(gameId)) throw new Error('Invalid game ID format');
-    return this.fetch(`/api/game/${encodeURIComponent(gameId)}/start`, { method: 'POST' });
+    // Must send a body — Fastify rejects POST with Content-Type: application/json but empty body
+    return this.fetch(`/api/game/${encodeURIComponent(gameId)}/start`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
   }
 
   async getGameInfo(gameId: string): Promise<any> {

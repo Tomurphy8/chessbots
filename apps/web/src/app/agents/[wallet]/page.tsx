@@ -14,7 +14,7 @@ function eloTierLabel(elo: number): { label: string; color: string } {
 }
 
 export default function AgentProfilePage({ params }: { params: { wallet: string } }) {
-  const { agent, loading, error } = useAgentDetail(params.wallet);
+  const { agent, games, loading, error } = useAgentDetail(params.wallet);
 
   if (loading) {
     return (
@@ -121,13 +121,61 @@ export default function AgentProfilePage({ params }: { params: { wallet: string 
         )}
       </div>
 
-      {/* Tournament History — placeholder until gateway supports per-agent history */}
+      {/* Game History */}
       <div>
-        <h2 className="text-lg font-semibold mb-4">Tournament History</h2>
-        <div className="bg-chess-surface border border-chess-border rounded-xl p-6 text-center text-gray-500">
-          <p>Tournament history coming soon.</p>
-          <p className="text-sm mt-1">Per-agent tournament tracking will be available in a future update.</p>
-        </div>
+        <h2 className="text-lg font-semibold mb-4">Game History</h2>
+        {games.length === 0 ? (
+          <div className="bg-chess-surface border border-chess-border rounded-xl p-6 text-center text-gray-500">
+            <p>No games recorded yet.</p>
+            <p className="text-sm mt-1">Games will appear here once this agent competes in tournaments.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-chess-border text-gray-400">
+                  <th className="text-left py-3 px-3">Game</th>
+                  <th className="text-left py-3 px-3">Opponent</th>
+                  <th className="text-center py-3 px-3">Color</th>
+                  <th className="text-center py-3 px-3">Result</th>
+                  <th className="text-center py-3 px-3">Moves</th>
+                </tr>
+              </thead>
+              <tbody>
+                {games.map((game) => {
+                  const isWhite = game.white.toLowerCase() === params.wallet.toLowerCase();
+                  const opponent = isWhite ? game.black : game.white;
+                  const won = (isWhite && game.result === '1-0') || (!isWhite && game.result === '0-1');
+                  const lost = (isWhite && game.result === '0-1') || (!isWhite && game.result === '1-0');
+                  const resultColor = won ? 'text-green-400' : lost ? 'text-red-400' : 'text-gray-400';
+                  const resultLabel = won ? 'Win' : lost ? 'Loss' : 'Draw';
+                  return (
+                    <tr key={game.gameId} className="border-b border-chess-border/50 hover:bg-chess-border/20">
+                      <td className="py-3 px-3">
+                        <Link
+                          href={`/tournaments/${game.tournamentId}/games/${game.gameId}`}
+                          className="text-chess-accent-light hover:underline"
+                        >
+                          T{game.tournamentId} R{game.round} G{game.gameIndex + 1}
+                        </Link>
+                      </td>
+                      <td className="py-3 px-3 font-mono text-xs">{shortenAddress(opponent, 6)}</td>
+                      <td className="py-3 px-3 text-center">
+                        <span className={isWhite ? 'text-white' : 'text-gray-400'}>
+                          {isWhite ? '♔ White' : '♚ Black'}
+                        </span>
+                      </td>
+                      <td className={`py-3 px-3 text-center font-medium ${resultColor}`}>
+                        {resultLabel}
+                      </td>
+                      <td className="py-3 px-3 text-center">{game.moveCount}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -59,7 +59,7 @@ async function main() {
   // HTTP routes
   registerAuthRoutes(app);
   registerGameRoutes(app, gameArchive);
-  registerAgentRoutes(app, agentIndexer);
+  registerAgentRoutes(app, agentIndexer, gameArchive);
   registerTournamentRoutes(app, publicClient, agentIndexer);
 
   // Health check — no internal info leaked

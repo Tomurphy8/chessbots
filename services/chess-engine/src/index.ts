@@ -13,6 +13,17 @@ async function main() {
   const app = Fastify({ logger: true, bodyLimit: 8192 }); // Limit body size
   await app.register(cors, { origin: ALLOWED_ORIGINS }); // Locked-down CORS
 
+  // Allow POST requests with Content-Type: application/json but empty body
+  // (e.g. /api/game/:id/start doesn't need a body)
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    try {
+      const str = (body as string).trim();
+      done(null, str ? JSON.parse(str) : {});
+    } catch (err: any) {
+      done(err, undefined);
+    }
+  });
+
   const httpServer = createServer(app.server);
   const io = new Server(httpServer, {
     cors: { origin: ALLOWED_ORIGINS, methods: ['GET', 'POST'] },
