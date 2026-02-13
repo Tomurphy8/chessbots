@@ -107,11 +107,12 @@ async function main() {
     }
 
     case 'run': {
-      const tournamentId = parseInt(process.argv[3] || '0');
-      if (!tournamentId) {
+      const tournamentIdArg = process.argv[3];
+      if (tournamentIdArg === undefined || tournamentIdArg === '') {
         log('error', 'Usage: orchestrator run <tournament-id> <wallet1,wallet2,...>');
         process.exit(1);
       }
+      const tournamentId = parseInt(tournamentIdArg);
 
       const t = await chain.getTournament(BigInt(tournamentId));
       if (!t.exists) {
@@ -119,7 +120,8 @@ async function main() {
         process.exit(1);
       }
 
-      const tier = (['rookie', 'bronze', 'silver', 'masters', 'legends'] as const)[t.tier] || 'rookie';
+      const TIER_NAMES: TournamentTier[] = ['rookie', 'bronze', 'silver', 'masters', 'legends', 'free'];
+      const tier = TIER_NAMES[t.tier] || 'rookie';
       const defaults = TIER_DEFAULTS[tier];
 
       const config: TournamentConfig = {
@@ -165,12 +167,6 @@ async function main() {
         process.exit(1);
       }
 
-      // TO-SM: Recover lastCheckedId from state
-      let lastCheckedId = stateManager.getLastCheckedId();
-      if (lastCheckedId > 0) {
-        log('info', 'Recovered state from disk', { lastCheckedId });
-      }
-
       // TO-SM: Check for recoverable tournaments on startup
       const recoverable = stateManager.getRecoverableTournaments();
       if (recoverable.length > 0) {
@@ -188,30 +184,92 @@ async function main() {
         log('warn', `POLL_INTERVAL_MS clamped to ${pollInterval}ms (was ${process.env.POLL_INTERVAL_MS})`, { pollInterval });
       }
 
+      // Track tournaments currently being run so we don't double-trigger
+      const runningTournaments = new Set<number>();
+      // Track tournaments that are done (non-registration status or already ran)
+      const completedTournaments = new Set<number>();
+
       while (!isShuttingDown) {
         try {
           const protocol = await chain.getProtocolState();
           const totalTournaments = Number(protocol[5]);
 
-          for (let id = lastCheckedId + 1; id <= totalTournaments; id++) {
+          // Tournament IDs are 0-indexed: iterate from 0 to totalTournaments - 1
+          // Re-check ALL tournaments each poll (skipping completed/running ones)
+          for (let id = 0; id < totalTournaments; id++) {
             if (isShuttingDown) break;
-            const t = await chain.getTournament(BigInt(id));
-            if (!t.exists) continue;
+            if (runningTournaments.has(id)) continue;
+            if (completedTournaments.has(id)) continue;
 
-            if (t.status === 0 && t.registeredCount >= t.minPlayers) {
+            const t = await chain.getTournament(BigInt(id));
+            if (!t.exists) {
+              completedTournaments.add(id);
+              continue;
+            }
+
+            // Skip tournaments not in registration status — they're already started/completed
+            if (t.status !== 0) {
+              completedTournaments.add(id);
+              continue;
+            }
+
+            // Check if tournament has enough players and deadline has passed
+            if (t.registeredCount >= t.minPlayers) {
               const deadline = Number(t.registrationDeadline);
               const now = Math.floor(Date.now() / 1000);
               if (deadline > 0 && now >= deadline) {
-                log('info', `Tournament #${id} ready`, {
+                log('info', `Tournament #${id} ready — launching runner`, {
                   tournamentId: id,
                   playerCount: t.registeredCount,
                   tier: t.tier,
                 });
+
+                // Fetch registered wallets from on-chain events
+                const wallets = await chain.getRegisteredWallets(BigInt(id), t.registeredCount);
+                if (wallets.length < t.minPlayers) {
+                  log('warn', `Tournament #${id}: found ${wallets.length} wallets but need ${t.minPlayers}, skipping`, {
+                    tournamentId: id,
+                  });
+                  continue;
+                }
+
+                const TIER_NAMES: TournamentTier[] = ['rookie', 'bronze', 'silver', 'masters', 'legends', 'free'];
+                const tier = TIER_NAMES[t.tier] || 'rookie';
+                const defaults = TIER_DEFAULTS[tier];
+
+                const config: TournamentConfig = {
+                  tournamentId: id,
+                  tier,
+                  maxPlayers: t.maxPlayers,
+                  minPlayers: t.minPlayers,
+                  totalRounds: t.totalRounds,
+                  timeControl: {
+                    baseTimeSeconds: t.baseTimeSeconds || defaults.timeControl.baseTimeSeconds,
+                    incrementSeconds: t.incrementSeconds || defaults.timeControl.incrementSeconds,
+                  },
+                };
+
+                runningTournaments.add(id);
+                completedTournaments.add(id);
+
+                // Run tournament (blocking — one at a time for safety)
+                try {
+                  const runner = new TournamentRunner(chain, engine, config, stateManager);
+                  await runner.run(wallets);
+                  log('info', `Tournament #${id} completed successfully`, { tournamentId: id });
+                } catch (err: any) {
+                  log('error', `Tournament #${id} failed`, {
+                    tournamentId: id,
+                    error: err.message,
+                    stack: err.stack,
+                  });
+                } finally {
+                  runningTournaments.delete(id);
+                }
               }
+              // Don't mark as completed if deadline hasn't passed — re-check next poll
             }
           }
-          lastCheckedId = totalTournaments;
-          stateManager.setLastCheckedId(lastCheckedId);
         } catch (err: any) {
           log('error', 'Poll error', { error: err.message });
         }

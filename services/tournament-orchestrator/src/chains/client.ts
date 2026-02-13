@@ -148,7 +148,37 @@ const TOURNAMENT_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  // getRegistration (read)
+  {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'agent', type: 'address' },
+    ],
+    name: 'getRegistration',
+    outputs: [{
+      components: [
+        { name: 'agent', type: 'address' },
+        { name: 'tournamentId', type: 'uint256' },
+        { name: 'exists', type: 'bool' },
+      ],
+      name: '',
+      type: 'tuple',
+    }],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const;
+
+// ABI for the AgentJoined event to fetch registered wallets from logs
+const AGENT_JOINED_EVENT = {
+  type: 'event' as const,
+  name: 'AgentJoined',
+  inputs: [
+    { name: 'tournamentId', type: 'uint256', indexed: true },
+    { name: 'agent', type: 'address', indexed: true },
+    { name: 'registeredCount', type: 'uint8', indexed: false },
+  ],
+};
 
 export class MonadClient {
   private publicClient;
@@ -343,6 +373,76 @@ export class MonadClient {
       await this.confirmTx(hash, `distributePrizes(${tournamentId})`);
       return hash;
     }, `distributePrizes(${tournamentId})`);
+  }
+
+  /**
+   * Discover registered wallets for a tournament by reading AgentJoined event logs.
+   * Uses binary search to find the approximate block range, then scans in chunks.
+   * Monad RPC limits eth_getLogs to 100-block range per request.
+   */
+  async getRegisteredWallets(tournamentId: bigint, expectedCount?: number): Promise<Address[]> {
+    const CHUNK_SIZE = 99n;
+    const PARALLEL_BATCH = 5;
+    const latestBlock = await this.publicClient.getBlockNumber();
+    const wallets: Address[] = [];
+
+    // Use TournamentCreated event to find the creation block, then scan from there
+    // First, try scanning recent blocks (most tournaments are recent)
+    // Scan last 10k blocks first (covers ~1 hour on Monad)
+    const scanRanges = [
+      { from: latestBlock > 10_000n ? latestBlock - 10_000n : 0n, to: latestBlock },
+      { from: latestBlock > 50_000n ? latestBlock - 50_000n : 0n, to: latestBlock > 10_000n ? latestBlock - 10_000n : 0n },
+      { from: latestBlock > 200_000n ? latestBlock - 200_000n : 0n, to: latestBlock > 50_000n ? latestBlock - 50_000n : 0n },
+    ];
+
+    for (const range of scanRanges) {
+      if (range.from >= range.to) continue;
+
+      const blockSpan = range.to - range.from;
+      console.log(`  Scanning blocks ${range.from}..${range.to} (${blockSpan} blocks)...`);
+
+      // Build chunk ranges
+      const chunks: Array<{ from: bigint; to: bigint }> = [];
+      for (let from = range.from; from <= range.to; from += CHUNK_SIZE + 1n) {
+        const to = from + CHUNK_SIZE > range.to ? range.to : from + CHUNK_SIZE;
+        chunks.push({ from, to });
+      }
+
+      // Process chunks in parallel batches
+      for (let i = 0; i < chunks.length; i += PARALLEL_BATCH) {
+        const batch = chunks.slice(i, i + PARALLEL_BATCH);
+        const results = await Promise.allSettled(
+          batch.map(chunk =>
+            this.publicClient.getLogs({
+              address: this.contractAddress,
+              event: AGENT_JOINED_EVENT,
+              args: { tournamentId },
+              fromBlock: chunk.from,
+              toBlock: chunk.to,
+            })
+          )
+        );
+
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            for (const logEntry of result.value) {
+              const args = logEntry.args as Record<string, unknown>;
+              if (args.agent) {
+                wallets.push(args.agent as Address);
+              }
+            }
+          }
+        }
+      }
+
+      // If we found enough wallets, stop scanning older ranges
+      if (wallets.length > 0 && (!expectedCount || wallets.length >= expectedCount)) {
+        break;
+      }
+    }
+
+    console.log(`  Found ${wallets.length} registered wallets for tournament #${tournamentId}`);
+    return wallets;
   }
 
   getAddress(): Address {

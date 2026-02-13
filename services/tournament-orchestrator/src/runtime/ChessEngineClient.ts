@@ -20,7 +20,8 @@ export class ChessEngineClient {
 
   private async fetch<T>(path: string, options?: RequestInit): Promise<T> {
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      // Only set Content-Type when we have a body (Fastify rejects empty body with JSON content-type)
+      ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
       ...(this.serviceKey ? { 'x-service-key': this.serviceKey } : {}),
       ...(options?.headers as Record<string, string> || {}),
     };

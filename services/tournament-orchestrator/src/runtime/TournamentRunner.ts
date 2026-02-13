@@ -120,6 +120,17 @@ export class TournamentRunner {
       }
     }
 
+    // Re-read tournament from chain to get totalRounds (calculated on-chain during startTournament)
+    if (this.config.totalRounds === 0) {
+      const onChainTournament = await this.chain.getTournament(tournamentId);
+      if (onChainTournament.totalRounds > 0) {
+        this.config.totalRounds = onChainTournament.totalRounds;
+        console.log(`  Updated totalRounds from chain: ${this.config.totalRounds}`);
+      } else {
+        throw new Error('totalRounds is still 0 after starting tournament — cannot run rounds');
+      }
+    }
+
     // Run each round
     for (let round = 1; round <= this.config.totalRounds; round++) {
       console.log(`--- Round ${round} of ${this.config.totalRounds} ---`);
@@ -183,8 +194,10 @@ export class TournamentRunner {
       }
     }
 
-    // Distribute prizes
-    if (alreadyDistributed) {
+    // Distribute prizes (skip for Free tier — no prize pool)
+    if (this.config.tier === 'free') {
+      console.log('Free tier tournament — no prizes to distribute.');
+    } else if (alreadyDistributed) {
       console.log('Prizes already distributed (crash recovery), skipping.');
     } else {
       console.log('Distributing prizes...');
