@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { use } from 'react';
 import Link from 'next/link';
 import { useTournament } from '@/lib/hooks/useChainData';
 import { useSponsor } from '@/lib/hooks/useSponsor';
@@ -11,8 +10,8 @@ import { StandingsTable } from '@/components/StandingsTable';
 import { cn, tierColor, statusBadgeColor, shortenAddress } from '@/lib/utils';
 import { Trophy, ArrowLeft, RefreshCw } from 'lucide-react';
 
-export default function TournamentDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function TournamentDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const [activeTab, setActiveTab] = useState<'standings' | 'info'>('standings');
   const tournamentId = parseInt(id);
   const { tournament, loading } = useTournament(tournamentId);

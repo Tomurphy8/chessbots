@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { use } from 'react';
 import Link from 'next/link';
 import { GameBoard } from '@/components/GameBoard';
 import { MoveList } from '@/components/MoveList';
@@ -31,8 +30,8 @@ function parseGameId(gameId: string): { tournamentId: number; round: number; gam
   };
 }
 
-export default function GameViewerPage({ params }: { params: Promise<{ id: string; gameId: string }> }) {
-  const { id, gameId } = use(params);
+export default function GameViewerPage({ params }: { params: { id: string; gameId: string } }) {
+  const { id, gameId } = params;
   const tournamentId = parseInt(id);
 
   // Parse game coordinates from ID
