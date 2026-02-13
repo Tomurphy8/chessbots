@@ -1,38 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { shortenAddress } from '@/lib/utils';
-import { Trophy, TrendingUp, Search } from 'lucide-react';
-import { createPublicClient, http, type Address, defineChain, formatUnits } from 'viem';
-import { CHAIN } from '@/lib/chains';
-import { CHESSBOTS_ABI, AgentTypeMap } from '@/lib/contracts/evm';
+import { Trophy, TrendingUp, Search, RefreshCw } from 'lucide-react';
 import { useProtocolStats } from '@/lib/hooks/useChainData';
-
-const monadTestnet = defineChain({
-  id: CHAIN.evmChainId,
-  name: 'Monad Testnet',
-  nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
-  rpcUrls: { default: { http: [CHAIN.rpcUrl] } },
-});
-
-const publicClient = createPublicClient({
-  chain: monadTestnet,
-  transport: http(CHAIN.rpcUrl),
-});
-
-interface AgentInfo {
-  wallet: string;
-  name: string;
-  agentType: string;
-  eloRating: number;
-  gamesPlayed: number;
-  gamesWon: number;
-  gamesDrawn: number;
-  gamesLost: number;
-  totalEarnings: number;
-  registered: boolean;
-}
+import { useAgents, type IndexedAgent } from '@/lib/hooks/useAgents';
 
 function eloTierLabel(elo: number): { label: string; color: string } {
   if (elo >= 1800) return { label: 'Master', color: 'text-chess-gold' };
@@ -42,94 +15,65 @@ function eloTierLabel(elo: number): { label: string; color: string } {
 }
 
 export default function AgentsPage() {
-  const [searchWallet, setSearchWallet] = useState('');
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [error, setError] = useState('');
+  const [searchFilter, setSearchFilter] = useState('');
   const { stats } = useProtocolStats();
+  const { agents, loading, error, refresh } = useAgents();
 
-  async function lookupAgent(wallet: string) {
-    if (!wallet.startsWith('0x') || wallet.length !== 42) {
-      setError('Enter a valid EVM address (0x...)');
-      return;
-    }
-    setSearching(true);
-    setError('');
-    try {
-      const raw = await publicClient.readContract({
-        address: CHAIN.contractAddress as Address,
-        abi: CHESSBOTS_ABI,
-        functionName: 'getAgent',
-        args: [wallet as Address],
-      });
-
-      if (!raw.registered) {
-        setError('Agent not found. This address is not registered.');
-        return;
-      }
-
-      const agent: AgentInfo = {
-        wallet: raw.wallet,
-        name: raw.name || shortenAddress(raw.wallet),
-        agentType: AgentTypeMap[raw.agentType as keyof typeof AgentTypeMap] || 'Custom',
-        eloRating: raw.eloRating,
-        gamesPlayed: raw.gamesPlayed,
-        gamesWon: raw.gamesWon,
-        gamesDrawn: raw.gamesDrawn,
-        gamesLost: raw.gamesLost,
-        totalEarnings: parseFloat(formatUnits(raw.totalEarnings as bigint, 6)),
-        registered: raw.registered,
-      };
-
-      // Add to list if not already present
-      setAgents(prev => {
-        if (prev.find(a => a.wallet.toLowerCase() === agent.wallet.toLowerCase())) return prev;
-        return [...prev, agent].sort((a, b) => b.eloRating - a.eloRating);
-      });
-      setSearchWallet('');
-    } catch (e: any) {
-      setError('Failed to fetch agent data.');
-    } finally {
-      setSearching(false);
-    }
-  }
+  // Filter agents by search query (name or wallet)
+  const filteredAgents = searchFilter
+    ? agents.filter(a =>
+        a.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+        a.wallet.toLowerCase().includes(searchFilter.toLowerCase())
+      )
+    : agents;
 
   return (
     <div>
       <h1 className="text-3xl font-bold mb-2">Agent Leaderboard</h1>
       <p className="text-gray-400 mb-6">
-        Look up registered AI agents by wallet address.
+        AI agents ranked by performance rating.
         {stats && ` ${stats.totalGamesPlayed} games played across ${stats.totalTournaments} tournaments.`}
       </p>
 
-      {/* Search */}
+      {/* Search + Refresh */}
       <div className="flex gap-2 mb-8">
         <div className="flex-1 relative">
           <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Enter agent wallet address (0x...)"
-            value={searchWallet}
-            onChange={e => setSearchWallet(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && lookupAgent(searchWallet)}
+            placeholder="Filter by name or wallet address..."
+            value={searchFilter}
+            onChange={e => setSearchFilter(e.target.value)}
             className="w-full bg-chess-surface border border-chess-border rounded-lg pl-10 pr-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
           />
         </div>
         <button
-          onClick={() => lookupAgent(searchWallet)}
-          disabled={searching}
-          className="px-4 py-2.5 bg-chess-accent hover:bg-chess-accent/80 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+          onClick={refresh}
+          disabled={loading}
+          className="px-3 py-2.5 bg-chess-surface border border-chess-border hover:border-chess-accent rounded-lg text-sm transition-colors disabled:opacity-50"
+          title="Refresh"
         >
-          {searching ? 'Looking up...' : 'Search'}
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       {error && <div className="text-red-400 text-sm mb-4">{error}</div>}
 
-      {agents.length === 0 ? (
+      {loading ? (
         <div className="text-center py-16 text-gray-500">
-          <p className="mb-2">No agents loaded yet.</p>
-          <p className="text-sm">Search for an agent by wallet address above, or check back when tournaments are running.</p>
+          <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-3 text-chess-accent" />
+          <p>Loading agent leaderboard...</p>
+        </div>
+      ) : filteredAgents.length === 0 ? (
+        <div className="text-center py-16 text-gray-500">
+          {searchFilter ? (
+            <p>No agents matching &quot;{searchFilter}&quot;</p>
+          ) : (
+            <>
+              <p className="mb-2">No agents registered yet.</p>
+              <p className="text-sm">Register an AI agent to appear on the leaderboard.</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -138,7 +82,7 @@ export default function AgentsPage() {
               <tr className="border-b border-chess-border text-gray-400">
                 <th className="text-left py-3 px-3">#</th>
                 <th className="text-left py-3 px-3">Agent</th>
-                <th className="text-center py-3 px-3">Elo</th>
+                <th className="text-center py-3 px-3">Rating</th>
                 <th className="text-center py-3 px-3">Tier</th>
                 <th className="text-center py-3 px-3">Games</th>
                 <th className="text-center py-3 px-3">Win Rate</th>
@@ -147,9 +91,9 @@ export default function AgentsPage() {
               </tr>
             </thead>
             <tbody>
-              {agents.map((agent, i) => {
+              {filteredAgents.map((agent, i) => {
                 const tier = eloTierLabel(agent.eloRating);
-                const winRate = agent.gamesPlayed > 0 ? (agent.gamesWon / agent.gamesPlayed) * 100 : 0;
+                const winRate = agent.gamesPlayed > 0 ? (agent.winRate * 100) : 0;
                 return (
                   <tr key={agent.wallet} className="border-b border-chess-border/50 hover:bg-chess-border/20">
                     <td className="py-3 px-3">

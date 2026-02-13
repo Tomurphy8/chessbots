@@ -1,20 +1,9 @@
 import { type FastifyInstance } from 'fastify';
-import { createPublicClient, http, defineChain, formatUnits, type Address } from 'viem';
+import { type PublicClient, formatUnits, parseAbiItem, type Address } from 'viem';
 import { CONFIG } from '../config.js';
 import { checkPublicRateLimit } from '../middleware/rateLimit.js';
-
-const monadTestnet = defineChain({
-  id: 10143,
-  name: 'Monad Testnet',
-  nativeCurrency: { name: 'Monad', symbol: 'MON', decimals: 18 },
-  rpcUrls: { default: { http: [CONFIG.monadRpcUrl] } },
-  blockExplorers: { default: { name: 'Explorer', url: 'https://testnet.monadexplorer.com' } },
-});
-
-const publicClient = createPublicClient({
-  chain: monadTestnet,
-  transport: http(CONFIG.monadRpcUrl),
-});
+import { EventScanner } from '../indexer/EventScanner.js';
+import type { AgentIndexer } from '../indexer/AgentIndexer.js';
 
 const TOURNAMENT_ABI = [
   {
@@ -114,7 +103,47 @@ function formatTournament(raw: any) {
   };
 }
 
-export function registerTournamentRoutes(app: FastifyInstance) {
+// ABI for getRegistration (per-player standings within a tournament)
+const REGISTRATION_ABI = [
+  {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'agent', type: 'address' },
+    ],
+    name: 'getRegistration',
+    outputs: [{
+      components: [
+        { name: 'agent', type: 'address' },
+        { name: 'score', type: 'uint16' },
+        { name: 'buchholz', type: 'uint16' },
+        { name: 'gamesPlayed', type: 'uint8' },
+        { name: 'gamesWon', type: 'uint8' },
+        { name: 'gamesDrawn', type: 'uint8' },
+        { name: 'gamesLost', type: 'uint8' },
+        { name: 'finalRank', type: 'uint8' },
+        { name: 'active', type: 'bool' },
+        { name: 'exists', type: 'bool' },
+      ],
+      name: '',
+      type: 'tuple',
+    }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+const AGENT_JOINED_EVENT = parseAbiItem(
+  'event AgentJoined(uint256 indexed tournamentId, address indexed agent, uint8 registeredCount)'
+);
+
+export function registerTournamentRoutes(app: FastifyInstance, publicClient: PublicClient, agentIndexer: AgentIndexer) {
+  // Shared event scanner for standings queries
+  const scanner = new EventScanner(
+    publicClient,
+    CONFIG.contractAddress as Address,
+    CONFIG.deployBlock,
+  );
+
   // GET /api/tournaments - List recent tournaments
   app.get('/api/tournaments', async (_request, reply) => {
     if (!checkPublicRateLimit(_request)) return reply.status(429).send({ error: 'Rate limited' });
@@ -156,9 +185,9 @@ export function registerTournamentRoutes(app: FastifyInstance) {
   app.get('/api/tournaments/:id', async (request, reply) => {
     if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
     const { id } = request.params as { id: string };
-    // Validate tournament ID is a positive integer
+    // Validate tournament ID is a non-negative integer (0-indexed)
     const parsedId = parseInt(id, 10);
-    if (isNaN(parsedId) || parsedId < 1 || parsedId > 1_000_000 || String(parsedId) !== id) {
+    if (isNaN(parsedId) || parsedId < 0 || parsedId > 1_000_000 || String(parsedId) !== id) {
       return reply.status(400).send({ error: 'Invalid tournament ID' });
     }
     try {
@@ -177,6 +206,104 @@ export function registerTournamentRoutes(app: FastifyInstance) {
       return reply.send(t);
     } catch (err: any) {
       return reply.status(500).send({ error: 'Failed to read tournament data from chain' });
+    }
+  });
+
+  // GET /api/tournaments/:id/standings - Get tournament standings
+  app.get('/api/tournaments/:id/standings', async (request, reply) => {
+    if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
+    const { id } = request.params as { id: string };
+    const parsedId = parseInt(id, 10);
+    if (isNaN(parsedId) || parsedId < 0 || parsedId > 1_000_000 || String(parsedId) !== id) {
+      return reply.status(400).send({ error: 'Invalid tournament ID' });
+    }
+
+    try {
+      // 1. Find all players by scanning AgentJoined events for this tournament
+      const logs = await scanner.scan(
+        AGENT_JOINED_EVENT,
+        undefined,
+        undefined,
+        { tournamentId: BigInt(parsedId) } as any,
+      );
+
+      const wallets = new Set<string>();
+      for (const log of logs) {
+        const args = (log as any).args;
+        if (args?.agent) {
+          wallets.add(args.agent as string);
+        }
+      }
+
+      if (wallets.size === 0) {
+        return reply.send({ standings: [], tournamentId: parsedId });
+      }
+
+      // 2. Fetch registration data for each wallet
+      const standings: Array<{
+        rank: number;
+        wallet: string;
+        name: string;
+        score: number;
+        buchholz: number;
+        gamesPlayed: number;
+        gamesWon: number;
+        gamesDrawn: number;
+        gamesLost: number;
+      }> = [];
+
+      const walletArr = [...wallets];
+
+      // Batch in groups of 10
+      for (let i = 0; i < walletArr.length; i += 10) {
+        const batch = walletArr.slice(i, i + 10);
+
+        const results = await Promise.allSettled(
+          batch.map(wallet =>
+            publicClient.readContract({
+              address: CONFIG.contractAddress as Address,
+              abi: REGISTRATION_ABI,
+              functionName: 'getRegistration',
+              args: [BigInt(parsedId), wallet as Address],
+            })
+          )
+        );
+
+        for (let j = 0; j < results.length; j++) {
+          const result = results[j];
+          if (result.status === 'fulfilled' && result.value && result.value.exists) {
+            const reg = result.value;
+            const wallet = batch[j];
+
+            // Get agent name from indexer or contract
+            const agentInfo = agentIndexer.get(wallet);
+            const name = agentInfo?.name || wallet.slice(0, 10) + '...';
+
+            standings.push({
+              rank: 0, // Will be assigned after sorting
+              wallet: reg.agent,
+              name,
+              score: Number(reg.score),
+              buchholz: Number(reg.buchholz),
+              gamesPlayed: Number(reg.gamesPlayed),
+              gamesWon: Number(reg.gamesWon),
+              gamesDrawn: Number(reg.gamesDrawn),
+              gamesLost: Number(reg.gamesLost),
+            });
+          }
+        }
+      }
+
+      // 3. Sort by score (desc), then buchholz (desc)
+      standings.sort((a, b) => b.score - a.score || b.buchholz - a.buchholz);
+
+      // 4. Assign ranks
+      standings.forEach((s, i) => { s.rank = i + 1; });
+
+      return reply.send({ standings, tournamentId: parsedId });
+    } catch (err: any) {
+      console.error(`Standings error for tournament ${parsedId}:`, err.message);
+      return reply.status(500).send({ error: 'Failed to fetch standings' });
     }
   });
 }

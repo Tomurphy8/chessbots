@@ -45,4 +45,7 @@ export const CONFIG = {
   // Monad RPC for on-chain reads
   monadRpcUrl: process.env.MONAD_RPC || 'https://testnet-rpc.monad.xyz/',
   contractAddress: process.env.MONAD_CONTRACT || '0x7C4f93CE86E2f0aCCb64BE5892a12a8c04C1d720',
+
+  // Block at which the contract was deployed (for event scanning)
+  deployBlock: BigInt(process.env.DEPLOY_BLOCK || '12314120'),
 } as const;

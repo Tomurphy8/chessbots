@@ -41,18 +41,24 @@ export class TournamentRunner {
   private manager: TournamentManager;
   private config: TournamentConfig;
   private stateManager?: StateManager;
+  private gatewayUrl?: string;
+  private serviceKey?: string;
 
   constructor(
     chain: MonadClient,
     engine: ChessEngineClient,
     config: TournamentConfig,
     stateManager?: StateManager,
+    gatewayUrl?: string,
+    serviceKey?: string,
   ) {
     this.chain = chain;
     this.engine = engine;
     this.config = config;
     this.manager = new TournamentManager(config);
     this.stateManager = stateManager;
+    this.gatewayUrl = gatewayUrl;
+    this.serviceKey = serviceKey;
   }
 
   /**
@@ -315,6 +321,11 @@ export class TournamentRunner {
       }
     }
 
+    // 5b. Archive completed games to gateway for persistence
+    if (this.gatewayUrl) {
+      await this.archiveGames(roundResult.pairings, round, gameResults);
+    }
+
     // 6. Submit round results on-chain
     const standings = this.manager.getStandings();
     const isLastRound = round === this.config.totalRounds;
@@ -340,5 +351,53 @@ export class TournamentRunner {
       console.log(`    ${i + 1}. ${s.wallet.slice(0, 10)}... Score: ${s.score} Buchholz: ${s.buchholz}`);
     });
     console.log('');
+  }
+
+  /**
+   * Archive completed game data to the gateway for persistence.
+   * Best-effort: failures are logged but don't block tournament progress.
+   */
+  private async archiveGames(
+    pairings: Pairing[],
+    round: number,
+    gameResults: Map<string, any>,
+  ): Promise<void> {
+    for (const pairing of pairings) {
+      const gameId = `t${this.config.tournamentId}-r${round}-g${pairing.gameIndex}`;
+      const gameInfo = gameResults.get(gameId);
+      if (!gameInfo) continue;
+
+      try {
+        const res = await fetch(`${this.gatewayUrl}/api/game/${gameId}/archive`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-service-key': this.serviceKey || '',
+          },
+          body: JSON.stringify({
+            gameId,
+            tournamentId: this.config.tournamentId,
+            round,
+            gameIndex: pairing.gameIndex,
+            white: pairing.white,
+            black: pairing.black,
+            pgn: gameInfo.pgn || '',
+            moves: gameInfo.moves || [],
+            result: gameInfo.result || '',
+            moveCount: gameInfo.moveCount || 0,
+            fen: gameInfo.fen || '',
+          }),
+          signal: AbortSignal.timeout(5000),
+        });
+
+        if (res.ok) {
+          console.log(`  Archived game ${gameId} to gateway`);
+        } else {
+          console.warn(`  Failed to archive ${gameId}: HTTP ${res.status}`);
+        }
+      } catch (err: any) {
+        console.warn(`  Failed to archive ${gameId}: ${err.message}`);
+      }
+    }
   }
 }

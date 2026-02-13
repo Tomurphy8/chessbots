@@ -90,6 +90,8 @@ async function main() {
   const engineUrl = process.env.CHESS_ENGINE_URL || 'http://localhost:3001';
   const engine = new ChessEngineClient(engineUrl);
   const stateManager = new StateManager();
+  const gatewayUrl = process.env.GATEWAY_URL || '';
+  const serviceKey = process.env.SERVICE_API_KEY || '';
 
   switch (command) {
     case 'status': {
@@ -151,7 +153,7 @@ async function main() {
         process.exit(1);
       }
 
-      const runner = new TournamentRunner(chain, engine, config, stateManager);
+      const runner = new TournamentRunner(chain, engine, config, stateManager, gatewayUrl, serviceKey);
       await runner.run(registeredWallets);
       break;
     }
@@ -254,7 +256,7 @@ async function main() {
 
                 // Run tournament (blocking — one at a time for safety)
                 try {
-                  const runner = new TournamentRunner(chain, engine, config, stateManager);
+                  const runner = new TournamentRunner(chain, engine, config, stateManager, gatewayUrl, serviceKey);
                   await runner.run(wallets);
                   log('info', `Tournament #${id} completed successfully`, { tournamentId: id });
                 } catch (err: any) {

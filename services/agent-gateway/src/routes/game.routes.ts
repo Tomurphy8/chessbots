@@ -2,7 +2,9 @@ import { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { checkMoveRateLimit, checkPublicRateLimit } from '../middleware/rateLimit.js';
+import { CONFIG } from '../config.js';
 import * as engine from '../proxy/chessEngine.js';
+import type { GameArchive } from '../indexer/GameArchive.js';
 
 const GAME_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
 
@@ -14,17 +16,64 @@ function validateGameId(gameId: string): boolean {
   return typeof gameId === 'string' && GAME_ID_REGEX.test(gameId);
 }
 
-export function registerGameRoutes(app: FastifyInstance) {
-  // GET /api/game/:gameId - Get game state (public, proxied to engine)
+export function registerGameRoutes(app: FastifyInstance, gameArchive: GameArchive) {
+  // GET /api/game/:gameId - Get game state (engine first, archive fallback)
   app.get('/api/game/:gameId', async (request, reply) => {
     if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
     const { gameId } = request.params as { gameId: string };
     if (!validateGameId(gameId)) return reply.status(400).send({ error: 'Invalid game ID' });
+
+    // Try chess engine first (live/recent games)
     try {
       const info = await engine.getGameInfo(gameId);
       return reply.send(info);
     } catch {
-      return reply.status(404).send({ error: 'Game not found' });
+      // Engine doesn't have it — try archive
+    }
+
+    // Fallback: check game archive (completed games persisted by orchestrator)
+    const archived = gameArchive.get(gameId);
+    if (archived) {
+      return reply.send(gameArchive.toGameInfo(archived));
+    }
+
+    return reply.status(404).send({ error: 'Game not found' });
+  });
+
+  // POST /api/game/:gameId/archive - Store completed game data (service-key auth only)
+  app.post('/api/game/:gameId/archive', async (request, reply) => {
+    const { gameId } = request.params as { gameId: string };
+    if (!validateGameId(gameId)) return reply.status(400).send({ error: 'Invalid game ID' });
+
+    // Service-key auth: only the orchestrator can archive games
+    const serviceKey = request.headers['x-service-key'] as string;
+    if (!serviceKey || serviceKey !== CONFIG.serviceApiKey) {
+      return reply.status(403).send({ error: 'Unauthorized' });
+    }
+
+    try {
+      const body = request.body as any;
+      if (!body || !body.gameId) {
+        return reply.status(400).send({ error: 'Missing game data' });
+      }
+
+      gameArchive.store({
+        gameId: body.gameId,
+        tournamentId: body.tournamentId || 0,
+        round: body.round || 0,
+        gameIndex: body.gameIndex || 0,
+        white: body.white || '',
+        black: body.black || '',
+        pgn: body.pgn || '',
+        moves: body.moves || [],
+        result: body.result || '',
+        moveCount: body.moveCount || 0,
+        fen: body.fen || '',
+      });
+
+      return reply.send({ ok: true });
+    } catch {
+      return reply.status(400).send({ error: 'Invalid archive data' });
     }
   });
 
@@ -41,17 +90,27 @@ export function registerGameRoutes(app: FastifyInstance) {
     }
   });
 
-  // GET /api/game/:gameId/pgn - Get game PGN (public)
+  // GET /api/game/:gameId/pgn - Get game PGN (engine first, archive fallback)
   app.get('/api/game/:gameId/pgn', async (request, reply) => {
     if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
     const { gameId } = request.params as { gameId: string };
     if (!validateGameId(gameId)) return reply.status(400).send({ error: 'Invalid game ID' });
+
+    // Try engine first
     try {
       const pgn = await engine.getGamePgn(gameId);
       return reply.type('text/plain').send(pgn);
     } catch {
-      return reply.status(404).send({ error: 'Game not found' });
+      // Engine doesn't have it — try archive
     }
+
+    // Fallback: check archive
+    const archived = gameArchive.get(gameId);
+    if (archived && archived.pgn) {
+      return reply.type('text/plain').send(archived.pgn);
+    }
+
+    return reply.status(404).send({ error: 'Game not found' });
   });
 
   // POST /api/game/:gameId/move - Submit a move (auth required)

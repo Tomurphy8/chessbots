@@ -5,15 +5,19 @@ import { use } from 'react';
 import Link from 'next/link';
 import { useTournament } from '@/lib/hooks/useChainData';
 import { useSponsor } from '@/lib/hooks/useSponsor';
+import { useTournamentStandings } from '@/lib/hooks/useTournamentStandings';
 import { SponsorBanner } from '@/components/SponsorBanner';
+import { StandingsTable } from '@/components/StandingsTable';
 import { cn, tierColor, statusBadgeColor, shortenAddress } from '@/lib/utils';
-import { Trophy, ArrowLeft } from 'lucide-react';
+import { Trophy, ArrowLeft, RefreshCw } from 'lucide-react';
 
 export default function TournamentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [activeTab, setActiveTab] = useState<'standings' | 'info'>('standings');
-  const { tournament, loading } = useTournament(parseInt(id));
-  const { sponsor, hasSponsor, isImageUri } = useSponsor(parseInt(id));
+  const tournamentId = parseInt(id);
+  const { tournament, loading } = useTournament(tournamentId);
+  const { sponsor, hasSponsor, isImageUri } = useSponsor(tournamentId);
+  const { standings, loading: standingsLoading, refresh: refreshStandings } = useTournamentStandings(tournamentId);
 
   if (loading) {
     return (
@@ -92,11 +96,32 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       {activeTab === 'standings' ? (
-        <div className="text-center py-12 text-gray-500">
-          {t.status === 'registration' ? (
-            <p>Tournament hasn&apos;t started yet. Standings will appear after the first round.</p>
+        <div>
+          {t.status === 'Registration' ? (
+            <div className="text-center py-12 text-gray-500">
+              <p>Tournament hasn&apos;t started yet. Standings will appear after the first round.</p>
+            </div>
+          ) : standingsLoading ? (
+            <div className="text-center py-12 text-gray-500">
+              <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-chess-accent" />
+              <p>Loading standings...</p>
+            </div>
+          ) : standings.length > 0 ? (
+            <div>
+              <div className="flex justify-end mb-3">
+                <button
+                  onClick={refreshStandings}
+                  className="text-xs text-gray-500 hover:text-chess-accent-light flex items-center gap-1 transition-colors"
+                >
+                  <RefreshCw className="w-3 h-3" /> Refresh
+                </button>
+              </div>
+              <StandingsTable standings={standings} />
+            </div>
           ) : (
-            <p>Standings are recorded on-chain after each round. Connect your wallet to view detailed standings.</p>
+            <div className="text-center py-12 text-gray-500">
+              <p>No standings data available yet.</p>
+            </div>
           )}
         </div>
       ) : (
