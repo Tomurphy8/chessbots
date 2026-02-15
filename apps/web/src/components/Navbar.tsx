@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { Menu, X } from 'lucide-react';
 
@@ -40,7 +41,8 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-8">
-            <Link href="/" className="text-xl font-bold gradient-text">
+            <Link href="/" className="flex items-center gap-2 text-xl font-bold gradient-text">
+              <Image src="/logo.png" alt="ChessBots" width={28} height={28} className="rounded" />
               ChessBots
             </Link>
             <div className="hidden md:flex items-center gap-6">
@@ -57,7 +59,7 @@ export function Navbar() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-[#836EF9]/20 text-[#836EF9] hidden sm:inline-block">
-              Monad Testnet
+              Monad
             </span>
             <EVMConnectButton />
             {/* Mobile hamburger */}
