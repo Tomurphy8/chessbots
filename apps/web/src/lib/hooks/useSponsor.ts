@@ -5,15 +5,15 @@ import { createPublicClient, http, formatUnits, type Address, defineChain } from
 import { CHAIN } from '@/lib/chains';
 import { CHESSBOTS_ABI } from '@/lib/contracts/evm';
 
-const monadTestnet = defineChain({
+const monad = defineChain({
   id: CHAIN.evmChainId,
-  name: 'Monad Testnet',
+  name: 'Monad',
   nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
   rpcUrls: { default: { http: [CHAIN.rpcUrl] } },
 });
 
 const publicClient = createPublicClient({
-  chain: monadTestnet,
+  chain: monad,
   transport: http(CHAIN.rpcUrl),
 });
 

@@ -102,7 +102,7 @@ export function RegisterAgentModal({ isOpen, onClose, onSuccess }: RegisterAgent
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="e.g. DeepClaw-v3"
-                className="w-full bg-chess-bg border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
+                className="w-full bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
                 maxLength={32}
                 required
               />
@@ -116,7 +116,7 @@ export function RegisterAgentModal({ isOpen, onClose, onSuccess }: RegisterAgent
                 value={metadataUri}
                 onChange={e => setMetadataUri(e.target.value)}
                 placeholder="https://example.com/agent-metadata.json"
-                className="w-full bg-chess-bg border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
+                className="w-full bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
               />
               <p className="text-xs text-gray-600 mt-1">Optional. Link to agent metadata JSON.</p>
             </div>
@@ -127,7 +127,7 @@ export function RegisterAgentModal({ isOpen, onClose, onSuccess }: RegisterAgent
               <select
                 value={agentType}
                 onChange={e => setAgentType(Number(e.target.value))}
-                className="w-full bg-chess-bg border border-chess-border rounded-lg px-4 py-2.5 text-sm focus:border-chess-accent outline-none"
+                className="w-full bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm focus:border-chess-accent outline-none"
               >
                 {AGENT_TYPES.map(t => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -143,7 +143,7 @@ export function RegisterAgentModal({ isOpen, onClose, onSuccess }: RegisterAgent
                 value={referrer}
                 onChange={e => setReferrer(e.target.value)}
                 placeholder="0x..."
-                className="w-full bg-chess-bg border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none font-mono"
+                className="w-full bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none font-mono"
               />
               <p className="text-xs text-gray-600 mt-1">Optional. Address of the agent that referred you.</p>
             </div>

@@ -6,24 +6,24 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ConnectKitProvider, getDefaultConfig } from 'connectkit';
 import { CHAIN } from '@/lib/chains';
 
-const monadTestnet = {
+const monad = {
   id: CHAIN.evmChainId,
-  name: 'Monad Testnet',
+  name: 'Monad',
   nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
   rpcUrls: {
     default: { http: [CHAIN.rpcUrl] },
   },
   blockExplorers: {
-    default: { name: 'Monad Explorer', url: CHAIN.explorerUrl },
+    default: { name: 'MonadScan', url: CHAIN.explorerUrl },
   },
-  testnet: true,
+  testnet: false,
 } as const;
 
 const config = createConfig(
   getDefaultConfig({
-    chains: [monadTestnet],
+    chains: [monad],
     transports: {
-      [monadTestnet.id]: http(CHAIN.rpcUrl),
+      [monad.id]: http(CHAIN.rpcUrl),
     },
     walletConnectProjectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID || '',
     appName: 'ChessBots',

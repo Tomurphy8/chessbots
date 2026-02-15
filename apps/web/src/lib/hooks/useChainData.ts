@@ -6,15 +6,15 @@ import { CHAIN } from '@/lib/chains';
 import { CHESSBOTS_ABI, ERC20_ABI, STAKING_ABI, TierNames, StatusMap, AgentTypeMap } from '@/lib/contracts/evm';
 import type { ProtocolStats, TokenomicsData } from '@/lib/contracts/index';
 
-const monadTestnet = defineChain({
+const monad = defineChain({
   id: CHAIN.evmChainId,
-  name: 'Monad Testnet',
+  name: 'Monad',
   nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
   rpcUrls: { default: { http: [CHAIN.rpcUrl] } },
 });
 
 const publicClient = createPublicClient({
-  chain: monadTestnet,
+  chain: monad,
   transport: http(CHAIN.rpcUrl),
 });
 

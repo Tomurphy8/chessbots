@@ -105,7 +105,7 @@ export function SponsorModal({ isOpen, onClose, tournamentId, onSuccess }: Spons
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
                 placeholder="100.00"
-                className="w-full bg-chess-bg border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
+                className="w-full bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
                 min="0"
                 step="any"
                 required
@@ -121,7 +121,7 @@ export function SponsorModal({ isOpen, onClose, tournamentId, onSuccess }: Spons
                 value={sponsorName}
                 onChange={e => setSponsorName(e.target.value)}
                 placeholder="Your brand or company name"
-                className="w-full bg-chess-bg border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
+                className="w-full bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
                 maxLength={64}
                 required
               />
@@ -135,7 +135,7 @@ export function SponsorModal({ isOpen, onClose, tournamentId, onSuccess }: Spons
                 value={sponsorUri}
                 onChange={e => setSponsorUri(e.target.value)}
                 placeholder="https://yourbrand.com or image URL"
-                className="w-full bg-chess-bg border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
+                className="w-full bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
               />
               <p className="text-xs text-gray-600 mt-1">Optional. Link to your website or brand logo.</p>
             </div>

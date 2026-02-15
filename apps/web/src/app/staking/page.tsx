@@ -138,7 +138,7 @@ export default function StakingPage() {
                 placeholder="Amount to stake"
                 value={stakeAmount}
                 onChange={e => setStakeAmount(e.target.value)}
-                className="flex-1 bg-chess-bg border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
+                className="flex-1 bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
                 min="0"
                 step="any"
               />
@@ -164,7 +164,7 @@ export default function StakingPage() {
                 placeholder="Amount to unstake"
                 value={unstakeAmount}
                 onChange={e => setUnstakeAmount(e.target.value)}
-                className="flex-1 bg-chess-bg border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
+                className="flex-1 bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
                 min="0"
                 step="any"
               />
