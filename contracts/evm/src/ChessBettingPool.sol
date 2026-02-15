@@ -282,11 +282,21 @@ contract ChessBettingPool {
         }
 
         pool.winningPrediction = winningPrediction;
-        pool.status = PoolStatus.Settled;
 
-        // Calculate and transfer vig
+        // Calculate totals
         uint256 totalPool = pool.totalWhiteWins + pool.totalBlackWins + pool.totalDraw;
         uint256 winningTotal = _getPoolTotal(pool, winningPrediction);
+
+        // If nobody bet on the winning side, cancel the pool so bettors can refund
+        if (winningTotal == 0) {
+            pool.status = PoolStatus.Cancelled;
+            emit BetPoolCancelled(poolId);
+            return;
+        }
+
+        pool.status = PoolStatus.Settled;
+
+        // Calculate and transfer vig from losing side
         uint256 losingTotal = totalPool - winningTotal;
 
         if (losingTotal > 0) {
