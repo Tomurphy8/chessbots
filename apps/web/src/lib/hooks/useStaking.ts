@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { createPublicClient, http, formatUnits, parseUnits, type Address, defineChain } from 'viem';
+import { createPublicClient, http, formatUnits, parseUnits, maxUint256, type Address, defineChain } from 'viem';
 import { useAccount, useWriteContract } from 'wagmi';
 import { CHAIN } from '@/lib/chains';
 import { STAKING_ABI, ERC20_ABI } from '@/lib/contracts/evm';
@@ -141,13 +141,12 @@ export function useStaking(): StakingState {
 
   const approveChess = useCallback(async (amount: string) => {
     if (!CHESS_TOKEN_ADDRESS || !STAKING_ADDRESS) return;
-    const parsedAmount = parseUnits(amount, 18);
 
     await writeContractAsync({
       address: CHESS_TOKEN_ADDRESS,
       abi: ERC20_ABI,
       functionName: 'approve',
-      args: [STAKING_ADDRESS, parsedAmount],
+      args: [STAKING_ADDRESS, maxUint256],
     });
 
     refetch();
@@ -157,16 +156,6 @@ export function useStaking(): StakingState {
     if (!STAKING_ADDRESS) return;
     const parsedAmount = parseUnits(amount, 18);
 
-    // Check if we need approval first
-    if (currentAllowance < parsedAmount) {
-      await writeContractAsync({
-        address: CHESS_TOKEN_ADDRESS,
-        abi: ERC20_ABI,
-        functionName: 'approve',
-        args: [STAKING_ADDRESS, parsedAmount],
-      });
-    }
-
     await writeContractAsync({
       address: STAKING_ADDRESS,
       abi: STAKING_ABI,
@@ -175,7 +164,7 @@ export function useStaking(): StakingState {
     });
 
     refetch();
-  }, [STAKING_ADDRESS, currentAllowance, writeContractAsync, refetch]);
+  }, [STAKING_ADDRESS, writeContractAsync, refetch]);
 
   const unstake = useCallback(async (amount: string) => {
     if (!STAKING_ADDRESS) return;

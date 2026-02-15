@@ -28,6 +28,15 @@ export default function StakingPage() {
   const [unstakeAmount, setUnstakeAmount] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const handleApprove = async () => {
+    try {
+      setActionError(null);
+      await staking.approveChess(stakeAmount || '0');
+    } catch (e: any) {
+      setActionError(e.shortMessage || e.message || 'Approval failed');
+    }
+  };
+
   const handleStake = async () => {
     if (!stakeAmount || parseFloat(stakeAmount) <= 0) return;
     try {
@@ -148,13 +157,23 @@ export default function StakingPage() {
               >
                 MAX
               </button>
-              <button
-                onClick={handleStake}
-                disabled={staking.isPending || !stakeAmount || parseFloat(stakeAmount) <= 0}
-                className="px-6 py-2.5 bg-[#836EF9] hover:bg-[#836EF9]/80 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {staking.isPending ? 'Processing...' : 'Stake'}
-              </button>
+              {staking.needsApproval ? (
+                <button
+                  onClick={handleApprove}
+                  disabled={staking.isPending}
+                  className="px-6 py-2.5 bg-yellow-600 hover:bg-yellow-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {staking.isPending ? 'Approving...' : 'Approve CHESS'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleStake}
+                  disabled={staking.isPending || !stakeAmount || parseFloat(stakeAmount) <= 0}
+                  className="px-6 py-2.5 bg-[#836EF9] hover:bg-[#836EF9]/80 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {staking.isPending ? 'Staking...' : 'Stake'}
+                </button>
+              )}
             </div>
 
             {/* Unstake */}
