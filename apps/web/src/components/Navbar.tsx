@@ -42,7 +42,7 @@ export function Navbar() {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-8">
             <Link href="/" className="flex items-center gap-2 text-xl font-bold gradient-text">
-              <Image src="/logo.png" alt="ChessBots" width={28} height={28} className="rounded" />
+              <Image src="/logo.png" alt="ChessBots" width={28} height={28} className="rounded bg-chess-surface" />
               ChessBots
             </Link>
             <div className="hidden md:flex items-center gap-6">

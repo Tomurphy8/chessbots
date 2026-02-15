@@ -92,6 +92,7 @@ async function main() {
   const stateManager = new StateManager();
   const gatewayUrl = process.env.GATEWAY_URL || '';
   const serviceKey = process.env.SERVICE_API_KEY || '';
+  const freeTierPrizeUsdc = parseFloat(process.env.FREE_TOURNAMENT_PRIZE_USDC || '0');
 
   switch (command) {
     case 'status': {
@@ -136,6 +137,7 @@ async function main() {
           baseTimeSeconds: t.baseTimeSeconds || defaults.timeControl.baseTimeSeconds,
           incrementSeconds: t.incrementSeconds || defaults.timeControl.incrementSeconds,
         },
+        freeTierPrizeUsdc: tier === 'free' ? freeTierPrizeUsdc : undefined,
       };
 
       const playerWalletsArg = process.argv[4];
@@ -249,6 +251,7 @@ async function main() {
                     baseTimeSeconds: t.baseTimeSeconds || defaults.timeControl.baseTimeSeconds,
                     incrementSeconds: t.incrementSeconds || defaults.timeControl.incrementSeconds,
                   },
+                  freeTierPrizeUsdc: tier === 'free' ? freeTierPrizeUsdc : undefined,
                 };
 
                 runningTournaments.add(id);

@@ -40,4 +40,6 @@ export interface TournamentConfig {
   minPlayers: number;
   totalRounds: number;
   timeControl: { baseTimeSeconds: number; incrementSeconds: number };
+  /** USDC amount to auto-fund free tournaments (human-readable, e.g. 100 = $100) */
+  freeTierPrizeUsdc?: number;
 }

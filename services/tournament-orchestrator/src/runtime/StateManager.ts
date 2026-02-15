@@ -32,6 +32,7 @@ export interface TournamentState {
   // TO-H1(R7): Track which rounds have had games created on-chain (for mid-round crash recovery)
   roundsCreatedOnChain: number[];
   startedOnChain: boolean;
+  fundedOnChain: boolean;
   finalized: boolean;
   // TO-H3(R7): Track prize distribution separately from finalization
   prizesDistributed: boolean;
@@ -137,6 +138,7 @@ export class StateManager {
       completedRounds: [],
       roundsCreatedOnChain: [],
       startedOnChain: false,
+      fundedOnChain: false,
       finalized: false,
       prizesDistributed: false,
       standings: [],
@@ -164,6 +166,19 @@ export class StateManager {
    */
   getStandings(tournamentId: number): PersistedStanding[] {
     return this.state.activeTournaments[tournamentId]?.standings || [];
+  }
+
+  /**
+   * Mark that a free-tier tournament has been funded on-chain with USDC.
+   * Prevents double-funding on crash recovery.
+   */
+  markFundedOnChain(tournamentId: number): void {
+    const t = this.state.activeTournaments[tournamentId];
+    if (t) {
+      t.fundedOnChain = true;
+      t.lastUpdatedAt = new Date().toISOString();
+      this.save();
+    }
   }
 
   /**

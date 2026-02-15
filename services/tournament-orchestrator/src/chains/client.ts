@@ -100,6 +100,17 @@ const TOURNAMENT_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
+  // fundTournament (authority-only: deposits USDC into tournament prize pool)
+  {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    name: 'fundTournament',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
   // protocol (read)
   {
     inputs: [],
@@ -169,6 +180,30 @@ const TOURNAMENT_ABI = [
   },
 ] as const;
 
+// Minimal ERC20 ABI for USDC approve + allowance
+const ERC20_ABI = [
+  {
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    name: 'approve',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' },
+    ],
+    name: 'allowance',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
 // ABI for the AgentJoined event to fetch registered wallets from logs
 const AGENT_JOINED_EVENT = {
   type: 'event' as const,
@@ -185,6 +220,7 @@ export class MonadClient {
   private walletClient;
   private account;
   private contractAddress: Address;
+  private usdcAddress: Address;
 
   constructor(config: ChainConfig) {
     // TO-C4: Validate private key format at startup
@@ -193,6 +229,7 @@ export class MonadClient {
     }
     this.account = privateKeyToAccount(config.privateKey as `0x${string}`);
     this.contractAddress = config.contractAddress as Address;
+    this.usdcAddress = config.usdcAddress as Address;
 
     const chain = { ...monadTestnet, rpcUrls: { default: { http: [config.rpcUrl] } } };
 
@@ -373,6 +410,53 @@ export class MonadClient {
       await this.confirmTx(hash, `distributePrizes(${tournamentId})`);
       return hash;
     }, `distributePrizes(${tournamentId})`);
+  }
+
+  /**
+   * Check USDC allowance the orchestrator wallet has granted to the tournament contract.
+   */
+  async getUsdcAllowance(): Promise<bigint> {
+    return this.publicClient.readContract({
+      address: this.usdcAddress,
+      abi: ERC20_ABI,
+      functionName: 'allowance',
+      args: [this.account.address, this.contractAddress],
+    });
+  }
+
+  /**
+   * Approve the tournament contract to spend USDC on behalf of the orchestrator wallet.
+   */
+  async approveUsdc(amount: bigint): Promise<Hash> {
+    return this.withRetry(async () => {
+      const hash = await this.walletClient.writeContract({
+        address: this.usdcAddress,
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        args: [this.contractAddress, amount],
+      });
+      await this.confirmTx(hash, `approveUsdc(${amount})`);
+      return hash;
+    }, `approveUsdc(${amount})`);
+  }
+
+  /**
+   * Fund a free-tier tournament's prize pool with USDC.
+   * Requires prior ERC20 approve() for the tournament contract.
+   * @param tournamentId On-chain tournament ID
+   * @param amount USDC amount in raw units (6 decimals, e.g. 100_000_000n = $100)
+   */
+  async fundTournament(tournamentId: bigint, amount: bigint): Promise<Hash> {
+    return this.withRetry(async () => {
+      const hash = await this.walletClient.writeContract({
+        address: this.contractAddress,
+        abi: TOURNAMENT_ABI,
+        functionName: 'fundTournament',
+        args: [tournamentId, amount],
+      });
+      await this.confirmTx(hash, `fundTournament(${tournamentId}, ${amount})`);
+      return hash;
+    }, `fundTournament(${tournamentId})`);
   }
 
   /**

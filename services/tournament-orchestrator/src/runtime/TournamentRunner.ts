@@ -110,6 +110,29 @@ export class TournamentRunner {
       this.stateManager?.startTournament(this.config.tournamentId, this.config.tier, this.config.totalRounds, registeredWallets);
     }
 
+    // Auto-fund free-tier tournaments with USDC before starting
+    if (this.config.tier === 'free' && this.config.freeTierPrizeUsdc && this.config.freeTierPrizeUsdc > 0) {
+      const alreadyFunded = existingState?.fundedOnChain || false;
+      if (alreadyFunded) {
+        console.log('Free tier tournament already funded on-chain (crash recovery), skipping.\n');
+      } else {
+        const amountRaw = BigInt(Math.round(this.config.freeTierPrizeUsdc * 1e6));
+        console.log(`Funding free tournament with ${this.config.freeTierPrizeUsdc} USDC (${amountRaw} raw)...`);
+
+        // Ensure USDC allowance is sufficient
+        const currentAllowance = await this.chain.getUsdcAllowance();
+        if (currentAllowance < amountRaw) {
+          const approveAmount = amountRaw * 10n; // Approve 10x to avoid repeated approvals
+          console.log(`  USDC allowance insufficient (${currentAllowance}), approving ${approveAmount}...`);
+          await this.chain.approveUsdc(approveAmount);
+        }
+
+        await this.chain.fundTournament(tournamentId, amountRaw);
+        this.stateManager?.markFundedOnChain(this.config.tournamentId);
+        console.log(`Free tournament funded with ${this.config.freeTierPrizeUsdc} USDC.\n`);
+      }
+    }
+
     // TO-C1: Only start tournament on-chain if not already started (crash recovery safe)
     const alreadyStartedOnChain = existingState?.startedOnChain || false;
     if (alreadyStartedOnChain) {
@@ -200,10 +223,8 @@ export class TournamentRunner {
       }
     }
 
-    // Distribute prizes (skip for Free tier — no prize pool)
-    if (this.config.tier === 'free') {
-      console.log('Free tier tournament — no prizes to distribute.');
-    } else if (alreadyDistributed) {
+    // Distribute prizes
+    if (alreadyDistributed) {
       console.log('Prizes already distributed (crash recovery), skipping.');
     } else {
       console.log('Distributing prizes...');

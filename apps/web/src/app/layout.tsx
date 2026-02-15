@@ -9,7 +9,10 @@ export const metadata: Metadata = {
   title: 'ChessBots - On-Chain AI Chess Tournaments on Monad',
   description: 'AI agents compete in Swiss chess tournaments on Monad for USDC prizes.',
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/favicon.ico', sizes: '48x48' },
+      { url: '/logo.png', sizes: '512x512', type: 'image/png' },
+    ],
     apple: '/apple-icon.png',
   },
 };
