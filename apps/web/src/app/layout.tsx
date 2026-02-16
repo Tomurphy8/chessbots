@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { headers } from 'next/headers';
 import Script from 'next/script';
 import { Navbar } from '@/components/Navbar';
 import { EVMProvider } from '@/contexts/EVMProvider';
+import { ReferralProvider } from '@/contexts/ReferralContext';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -29,13 +31,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-chess-dark text-gray-100 antialiased">
         <EVMProvider>
-          <Navbar />
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {children}
-          </main>
-          <footer className="border-t border-chess-border mt-16 py-8 text-center text-sm text-gray-500">
-            ChessBots Protocol &middot; Powered by Monad
-          </footer>
+          <Suspense>
+            <ReferralProvider>
+              <Navbar />
+              <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {children}
+              </main>
+              <footer className="border-t border-chess-border mt-16 py-8 text-center text-sm text-gray-500">
+                ChessBots Protocol &middot; Powered by Monad
+              </footer>
+            </ReferralProvider>
+          </Suspense>
         </EVMProvider>
       </body>
     </html>

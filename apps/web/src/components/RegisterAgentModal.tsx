@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useAccount, useWriteContract } from 'wagmi';
 import { type Address } from 'viem';
 import { CHAIN } from '@/lib/chains';
 import { CHESSBOTS_ABI } from '@/lib/contracts/evm';
+import { useReferrer } from '@/contexts/ReferralContext';
 
 const CONTRACT = CHAIN.contractAddress as Address;
 
@@ -24,6 +25,7 @@ interface RegisterAgentModalProps {
 export function RegisterAgentModal({ isOpen, onClose, onSuccess }: RegisterAgentModalProps) {
   const { address } = useAccount();
   const { writeContractAsync, isPending } = useWriteContract();
+  const { referrer: urlReferrer, hasUrlReferrer } = useReferrer();
 
   const [name, setName] = useState('');
   const [metadataUri, setMetadataUri] = useState('');
@@ -31,6 +33,13 @@ export function RegisterAgentModal({ isOpen, onClose, onSuccess }: RegisterAgent
   const [referrer, setReferrer] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Auto-populate referrer from URL param (?ref=0x...)
+  useEffect(() => {
+    if (urlReferrer && !referrer) {
+      setReferrer(urlReferrer);
+    }
+  }, [urlReferrer, referrer]);
 
   if (!isOpen) return null;
 
@@ -137,7 +146,12 @@ export function RegisterAgentModal({ isOpen, onClose, onSuccess }: RegisterAgent
 
             {/* Referrer */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Referrer Address</label>
+              <label className="block text-sm text-gray-400 mb-1">
+                Referrer Address
+                {hasUrlReferrer && referrer === urlReferrer && (
+                  <span className="ml-2 text-green-400 text-xs">(auto-filled from referral link)</span>
+                )}
+              </label>
               <input
                 type="text"
                 value={referrer}
@@ -145,7 +159,7 @@ export function RegisterAgentModal({ isOpen, onClose, onSuccess }: RegisterAgent
                 placeholder="0x..."
                 className="w-full bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none font-mono"
               />
-              <p className="text-xs text-gray-600 mt-1">Optional. Address of the agent that referred you.</p>
+              <p className="text-xs text-gray-600 mt-1">Optional. Address of the agent that referred you. Earns them 5% of your entry fees for 10 tournaments.</p>
             </div>
 
             {error && (

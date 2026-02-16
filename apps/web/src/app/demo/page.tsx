@@ -6,7 +6,8 @@ import { GameBoard } from '@/components/GameBoard';
 import { MoveList } from '@/components/MoveList';
 import { LiveIndicator } from '@/components/LiveIndicator';
 import { PlayerClock } from '@/components/PlayerClock';
-import { ArrowLeft, SkipBack, ChevronLeft, ChevronRight, SkipForward, Play, Pause } from 'lucide-react';
+import { SponsorBanner } from '@/components/SponsorBanner';
+import { ArrowLeft, SkipBack, ChevronLeft, ChevronRight, SkipForward, Play, Pause, Megaphone } from 'lucide-react';
 import { Chess } from 'chess.js';
 
 // ── Demo Game Data ──────────────────────────────────────────────────────────
@@ -26,6 +27,16 @@ const BLACK_NAME = 'DeepPawn Alpha';
 const WHITE_ELO = 1847;
 const BLACK_ELO = 1792;
 
+// ── Mock Betting Pool Data ──────────────────────────────────────────────────
+const MOCK_POOL = {
+  whiteWins: 450.00,
+  blackWins: 280.00,
+  draw: 120.00,
+  total: 850.00,
+  vigPct: 3,
+  minBet: '1.00',
+};
+
 // ── Responsive hook ─────────────────────────────────────────────────────────
 function useWindowWidth() {
   const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
@@ -35,6 +46,160 @@ function useWindowWidth() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   return width;
+}
+
+// ── Demo Betting Panel ──────────────────────────────────────────────────────
+// Renders the same visual structure as BettingPanel but with mock data and no
+// wallet dependency, so the full UI is visible for the demo video.
+function DemoBettingPanel() {
+  const [selectedPrediction, setSelectedPrediction] = useState<number | null>(null);
+  const [betAmount, setBetAmount] = useState('');
+
+  const wPct = (MOCK_POOL.whiteWins / MOCK_POOL.total) * 100;
+  const bPct = (MOCK_POOL.blackWins / MOCK_POOL.total) * 100;
+  const dPct = (MOCK_POOL.draw / MOCK_POOL.total) * 100;
+
+  const predictions = [
+    { id: 0, label: '\u2654 White', shortLabel: 'White' },
+    { id: 1, label: '\u265A Black', shortLabel: 'Black' },
+    { id: 2, label: '\u00BD Draw', shortLabel: 'Draw' },
+  ];
+
+  return (
+    <div className="bg-chess-surface border border-chess-border rounded-lg p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Betting Pool</h3>
+        <span className="text-xs text-gray-500">{MOCK_POOL.vigPct}% vig</span>
+      </div>
+
+      {/* Pool breakdown bar */}
+      <div className="w-full h-5 rounded-full overflow-hidden flex">
+        <div className="bg-gray-200 transition-all duration-300" style={{ width: `${wPct}%` }} title={`White: ${MOCK_POOL.whiteWins.toFixed(2)} USDC`} />
+        <div className="bg-gray-500 transition-all duration-300" style={{ width: `${dPct}%` }} title={`Draw: ${MOCK_POOL.draw.toFixed(2)} USDC`} />
+        <div className="bg-gray-800 transition-all duration-300" style={{ width: `${bPct}%` }} title={`Black: ${MOCK_POOL.blackWins.toFixed(2)} USDC`} />
+      </div>
+      <div className="flex justify-between text-xs text-gray-400">
+        <span>{'\u2654'} {MOCK_POOL.whiteWins.toFixed(2)}</span>
+        <span>{'\u00BD'} {MOCK_POOL.draw.toFixed(2)}</span>
+        <span>{'\u265A'} {MOCK_POOL.blackWins.toFixed(2)}</span>
+      </div>
+
+      {/* Total pool */}
+      <div className="flex justify-between text-sm">
+        <span className="text-gray-400">Total Pool</span>
+        <span className="font-medium">{MOCK_POOL.total.toFixed(2)} USDC</span>
+      </div>
+
+      {/* Implied odds */}
+      <div className="flex justify-between text-xs text-gray-500">
+        <span>White {wPct.toFixed(1)}%</span>
+        <span>Draw {dPct.toFixed(1)}%</span>
+        <span>Black {bPct.toFixed(1)}%</span>
+      </div>
+
+      {/* Prediction buttons */}
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-1.5">
+          {predictions.map(p => (
+            <button
+              key={p.id}
+              onClick={() => setSelectedPrediction(p.id)}
+              className={`text-xs py-2 rounded-lg border transition-colors font-medium ${
+                selectedPrediction === p.id
+                  ? 'bg-chess-accent/20 border-chess-accent text-chess-accent-light'
+                  : 'border-chess-border hover:border-chess-border/80 text-gray-300 hover:text-white'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Amount input */}
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <input
+              type="number"
+              value={betAmount}
+              onChange={(e) => setBetAmount(e.target.value)}
+              placeholder={`Min ${MOCK_POOL.minBet}`}
+              min={MOCK_POOL.minBet}
+              step="0.01"
+              className="w-full bg-chess-dark border border-chess-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-chess-accent text-white placeholder-gray-500"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">USDC</span>
+          </div>
+        </div>
+
+        {/* Place bet button */}
+        <button
+          disabled={selectedPrediction === null || !betAmount}
+          className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
+            selectedPrediction !== null && betAmount
+              ? 'bg-chess-accent hover:bg-chess-accent/80 text-white'
+              : 'bg-chess-border/50 text-gray-500 cursor-not-allowed'
+          }`}
+        >
+          Place Bet
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Demo Sponsor Form ───────────────────────────────────────────────────────
+// Static visual mockup of the SponsorModal form, rendered inline.
+function DemoSponsorForm() {
+  return (
+    <div className="bg-chess-surface border border-chess-border rounded-lg p-4 space-y-4">
+      <div className="flex items-center gap-2">
+        <Megaphone className="w-4 h-4 text-chess-accent-light" />
+        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Sponsor a Tournament</h3>
+      </div>
+
+      <div>
+        <label className="block text-sm text-gray-400 mb-1">Sponsorship Amount (USDC) *</label>
+        <input
+          type="number"
+          defaultValue="500.00"
+          className="w-full bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
+          readOnly
+        />
+        <p className="text-xs text-gray-600 mt-1">USDC contributed to the tournament prize pool.</p>
+      </div>
+
+      <div>
+        <label className="block text-sm text-gray-400 mb-1">Sponsor Name *</label>
+        <input
+          type="text"
+          defaultValue="Monad Foundation"
+          className="w-full bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
+          readOnly
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm text-gray-400 mb-1">Logo or Website URL</label>
+        <input
+          type="text"
+          defaultValue="https://monad.xyz"
+          className="w-full bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none"
+          readOnly
+        />
+        <p className="text-xs text-gray-600 mt-1">Optional. Link to your website or brand logo.</p>
+      </div>
+
+      <button
+        className="w-full py-3 bg-chess-accent hover:bg-chess-accent/80 rounded-lg text-sm font-medium transition-colors"
+      >
+        Sponsor Tournament
+      </button>
+
+      <p className="text-xs text-gray-500 text-center">
+        90% goes to the prize pool. 10% platform fee. Sponsors get brand placement on tournament and game pages.
+      </p>
+    </div>
+  );
 }
 
 // ── Demo Page ───────────────────────────────────────────────────────────────
@@ -193,6 +358,14 @@ export default function DemoGamePage() {
 
         {/* Right Column: Sidebar */}
         <div className="flex-1 space-y-4 min-w-0">
+          {/* Sponsor Banner */}
+          <SponsorBanner
+            name="Monad Foundation"
+            uri="https://monad.xyz"
+            amount="2500.00"
+            isImageUri={false}
+          />
+
           {/* Move List */}
           <MoveList
             moves={DEMO_MOVES}
@@ -200,26 +373,36 @@ export default function DemoGamePage() {
             onMoveClick={(index) => { setIsPlaying(false); goToMove(index); }}
           />
 
+          {/* Betting Panel (demo) */}
+          <DemoBettingPanel />
+
           {/* Game Info Card */}
           <div className="bg-chess-surface border border-chess-border rounded-lg p-4 space-y-3">
             <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Game Info</h3>
             <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="text-gray-400">Tournament</div>
+              <div>Weekly Blitz #42</div>
               <div className="text-gray-400">White</div>
               <div>{WHITE_NAME}</div>
               <div className="text-gray-400">Black</div>
               <div>{BLACK_NAME}</div>
               <div className="text-gray-400">Result</div>
               <div className="text-chess-gold font-medium">{isGameOver ? 'White Wins (Checkmate)' : 'In Replay'}</div>
+              <div className="text-gray-400">Prize Pool</div>
+              <div className="text-chess-gold font-medium">250.00 USDC</div>
+              <div className="text-gray-400">Entry Fee</div>
+              <div>5.00 USDC</div>
               <div className="text-gray-400">Moves</div>
               <div>{totalMoves}</div>
-              <div className="text-gray-400">Status</div>
-              <div>Completed</div>
               <div className="text-gray-400">Tier</div>
               <div>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">Free</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-[#836EF9]/20 text-[#836EF9]">Premium</span>
               </div>
             </div>
           </div>
+
+          {/* Sponsorship Demo Form */}
+          <DemoSponsorForm />
 
           {/* How It Works Card */}
           <div className="bg-chess-surface border border-chess-border rounded-lg p-4 space-y-2">
@@ -228,6 +411,8 @@ export default function DemoGamePage() {
               <li>AI agents register for tournaments with USDC</li>
               <li>Swiss-system rounds pair agents by skill</li>
               <li>Games play in real-time via the ChessBots engine</li>
+              <li>Spectators bet on outcomes via parimutuel pools</li>
+              <li>Sponsors boost prize pools and get brand placement</li>
               <li>Results are hashed and committed to Monad</li>
               <li>Winners receive USDC prizes instantly on-chain</li>
             </ul>

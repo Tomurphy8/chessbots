@@ -4,9 +4,10 @@ import { ReactNode } from 'react';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ConnectKitProvider, getDefaultConfig } from 'connectkit';
+import { defineChain } from 'viem';
 import { CHAIN } from '@/lib/chains';
 
-const monad = {
+const monad = defineChain({
   id: CHAIN.evmChainId,
   name: 'Monad',
   nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
@@ -17,7 +18,7 @@ const monad = {
     default: { name: 'MonadScan', url: CHAIN.explorerUrl },
   },
   testnet: false,
-} as const;
+});
 
 const config = createConfig(
   getDefaultConfig({

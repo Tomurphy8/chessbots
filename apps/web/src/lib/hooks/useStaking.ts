@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createPublicClient, http, formatUnits, parseUnits, maxUint256, type Address, defineChain } from 'viem';
-import { useAccount, useWriteContract } from 'wagmi';
+import { useAccount, useWriteContract, useSwitchChain, useChainId } from 'wagmi';
 import { CHAIN } from '@/lib/chains';
 import { STAKING_ABI, ERC20_ABI } from '@/lib/contracts/evm';
 
@@ -58,6 +58,7 @@ export interface StakingState {
   needsApproval: boolean;
   loading: boolean;
   isPending: boolean;
+  isConfirming: boolean;    // true while waiting for tx to be mined on-chain
   stake: (amount: string) => Promise<void>;
   unstake: (amount: string) => Promise<void>;
   approveChess: (amount: string) => Promise<void>;
@@ -66,15 +67,24 @@ export interface StakingState {
 
 export function useStaking(): StakingState {
   const { address: userAddress } = useAccount();
+  const chainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
   const [stakedBalance, setStakedBalance] = useState('0');
   const [discountBps, setDiscountBps] = useState(0);
   const [totalStaked, setTotalStaked] = useState('0');
   const [chessBalance, setChessBalance] = useState('0');
   const [currentAllowance, setCurrentAllowance] = useState(BigInt(0));
   const [loading, setLoading] = useState(true);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [fetchTrigger, setFetchTrigger] = useState(0);
 
   const { writeContractAsync, isPending } = useWriteContract();
+
+  const ensureCorrectChain = useCallback(async () => {
+    if (chainId !== CHAIN.evmChainId) {
+      await switchChainAsync({ chainId: CHAIN.evmChainId });
+    }
+  }, [chainId, switchChainAsync]);
 
   const refetch = useCallback(() => setFetchTrigger(t => t + 1), []);
 
@@ -141,44 +151,68 @@ export function useStaking(): StakingState {
 
   const approveChess = useCallback(async (amount: string) => {
     if (!CHESS_TOKEN_ADDRESS || !STAKING_ADDRESS) return;
+    await ensureCorrectChain();
 
-    await writeContractAsync({
+    const hash = await writeContractAsync({
       address: CHESS_TOKEN_ADDRESS,
       abi: ERC20_ABI,
       functionName: 'approve',
       args: [STAKING_ADDRESS, maxUint256],
     });
 
+    setIsConfirming(true);
+    try {
+      await publicClient.waitForTransactionReceipt({ hash });
+    } finally {
+      setIsConfirming(false);
+    }
+
     refetch();
-  }, [writeContractAsync, refetch]);
+  }, [writeContractAsync, refetch, ensureCorrectChain]);
 
   const stake = useCallback(async (amount: string) => {
     if (!STAKING_ADDRESS) return;
+    await ensureCorrectChain();
     const parsedAmount = parseUnits(amount, 18);
 
-    await writeContractAsync({
+    const hash = await writeContractAsync({
       address: STAKING_ADDRESS,
       abi: STAKING_ABI,
       functionName: 'stake',
       args: [parsedAmount],
     });
 
+    setIsConfirming(true);
+    try {
+      await publicClient.waitForTransactionReceipt({ hash });
+    } finally {
+      setIsConfirming(false);
+    }
+
     refetch();
-  }, [STAKING_ADDRESS, writeContractAsync, refetch]);
+  }, [STAKING_ADDRESS, writeContractAsync, refetch, ensureCorrectChain]);
 
   const unstake = useCallback(async (amount: string) => {
     if (!STAKING_ADDRESS) return;
+    await ensureCorrectChain();
     const parsedAmount = parseUnits(amount, 18);
 
-    await writeContractAsync({
+    const hash = await writeContractAsync({
       address: STAKING_ADDRESS,
       abi: STAKING_ABI,
       functionName: 'unstake',
       args: [parsedAmount],
     });
 
+    setIsConfirming(true);
+    try {
+      await publicClient.waitForTransactionReceipt({ hash });
+    } finally {
+      setIsConfirming(false);
+    }
+
     refetch();
-  }, [STAKING_ADDRESS, writeContractAsync, refetch]);
+  }, [STAKING_ADDRESS, writeContractAsync, refetch, ensureCorrectChain]);
 
   return {
     stakedBalance,
@@ -188,6 +222,7 @@ export function useStaking(): StakingState {
     needsApproval,
     loading,
     isPending,
+    isConfirming,
     stake,
     unstake,
     approveChess,

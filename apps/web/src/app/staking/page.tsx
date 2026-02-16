@@ -160,18 +160,18 @@ export default function StakingPage() {
               {staking.needsApproval ? (
                 <button
                   onClick={handleApprove}
-                  disabled={staking.isPending}
+                  disabled={staking.isPending || staking.isConfirming}
                   className="px-6 py-2.5 bg-yellow-600 hover:bg-yellow-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {staking.isPending ? 'Approving...' : 'Approve CHESS'}
+                  {staking.isConfirming ? 'Confirming...' : staking.isPending ? 'Approving...' : 'Approve CHESS'}
                 </button>
               ) : (
                 <button
                   onClick={handleStake}
-                  disabled={staking.isPending || !stakeAmount || parseFloat(stakeAmount) <= 0}
+                  disabled={staking.isPending || staking.isConfirming || !stakeAmount || parseFloat(stakeAmount) <= 0}
                   className="px-6 py-2.5 bg-[#836EF9] hover:bg-[#836EF9]/80 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {staking.isPending ? 'Staking...' : 'Stake'}
+                  {staking.isConfirming ? 'Confirming...' : staking.isPending ? 'Staking...' : 'Stake'}
                 </button>
               )}
             </div>
@@ -195,10 +195,10 @@ export default function StakingPage() {
               </button>
               <button
                 onClick={handleUnstake}
-                disabled={staking.isPending || !unstakeAmount || parseFloat(unstakeAmount) <= 0}
+                disabled={staking.isPending || staking.isConfirming || !unstakeAmount || parseFloat(unstakeAmount) <= 0}
                 className="px-6 py-2.5 bg-chess-border hover:bg-chess-border/80 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {staking.isPending ? 'Processing...' : 'Unstake'}
+                {staking.isConfirming ? 'Confirming...' : staking.isPending ? 'Processing...' : 'Unstake'}
               </button>
             </div>
           </>
