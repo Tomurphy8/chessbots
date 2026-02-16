@@ -35,16 +35,16 @@ async function main() {
   registerAuthMiddleware(app);
 
   // Initialize shared infrastructure
-  const monadTestnet = defineChain({
-    id: 10143,
-    name: 'Monad Testnet',
+  const monad = defineChain({
+    id: 143,
+    name: 'Monad',
     nativeCurrency: { name: 'Monad', symbol: 'MON', decimals: 18 },
     rpcUrls: { default: { http: [CONFIG.monadRpcUrl] } },
-    blockExplorers: { default: { name: 'Explorer', url: 'https://testnet.monadexplorer.com' } },
+    blockExplorers: { default: { name: 'MonadScan', url: 'https://monadscan.com' } },
   });
 
   const publicClient = createPublicClient({
-    chain: monadTestnet,
+    chain: monad,
     transport: http(CONFIG.monadRpcUrl),
   });
 

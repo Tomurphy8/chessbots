@@ -13,6 +13,8 @@ export interface IndexedAgent {
   totalEarnings: number;
   winRate: number;          // Computed
   registered: boolean;
+  referralEarnings: number;  // Referral V2: total USDC earned from referrals
+  referralCount: number;     // Referral V2: number of agents referred
 }
 
 // ABI for getAgent call
@@ -37,6 +39,27 @@ const GET_AGENT_ABI = [
       name: '',
       type: 'tuple',
     }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+// ABI for referralEarnings and referralCount reads
+const REFERRAL_EARNINGS_ABI = [
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'referralEarnings',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+const REFERRAL_COUNT_ABI = [
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'referralCount',
+    outputs: [{ name: '', type: 'uint16' }],
     stateMutability: 'view',
     type: 'function',
   },
@@ -150,6 +173,8 @@ export class AgentIndexer {
         }
         if (newWallets.length > 0) {
           console.log(`AgentIndexer: Found ${newWallets.length} new agents`);
+          // Fetch stats for newly discovered agents to add them to the index
+          await this.fetchAgentStats(newWallets);
         }
       }
 
@@ -174,19 +199,42 @@ export class AgentIndexer {
     for (let i = 0; i < wallets.length; i += BATCH_SIZE) {
       const batch = wallets.slice(i, i + BATCH_SIZE);
 
-      const results = await Promise.allSettled(
-        batch.map(wallet =>
-          this.publicClient.readContract({
-            address: this.contractAddress,
-            abi: GET_AGENT_ABI,
-            functionName: 'getAgent',
-            args: [wallet as Address],
-          })
-        )
-      );
+      // Fetch agent profile, referral earnings, and referral count in parallel
+      const [agentResults, earningsResults, countResults] = await Promise.all([
+        Promise.allSettled(
+          batch.map(wallet =>
+            this.publicClient.readContract({
+              address: this.contractAddress,
+              abi: GET_AGENT_ABI,
+              functionName: 'getAgent',
+              args: [wallet as Address],
+            })
+          )
+        ),
+        Promise.allSettled(
+          batch.map(wallet =>
+            this.publicClient.readContract({
+              address: this.contractAddress,
+              abi: REFERRAL_EARNINGS_ABI,
+              functionName: 'referralEarnings',
+              args: [wallet as Address],
+            })
+          )
+        ),
+        Promise.allSettled(
+          batch.map(wallet =>
+            this.publicClient.readContract({
+              address: this.contractAddress,
+              abi: REFERRAL_COUNT_ABI,
+              functionName: 'referralCount',
+              args: [wallet as Address],
+            })
+          )
+        ),
+      ]);
 
-      for (let j = 0; j < results.length; j++) {
-        const result = results[j];
+      for (let j = 0; j < agentResults.length; j++) {
+        const result = agentResults[j];
         if (result.status === 'fulfilled' && result.value) {
           const raw = result.value;
           if (!raw.registered) continue;
@@ -202,6 +250,16 @@ export class AgentIndexer {
 
           const eloRating = this.computeRating(gamesPlayed, winRate);
 
+          // Extract referral data (default to 0 if fetch failed)
+          let refEarnings = 0;
+          let refCount = 0;
+          if (earningsResults[j].status === 'fulfilled') {
+            refEarnings = parseFloat(formatUnits(BigInt(earningsResults[j].value as any), 6));
+          }
+          if (countResults[j].status === 'fulfilled') {
+            refCount = Number(countResults[j].value);
+          }
+
           this.agents.set(batch[j].toLowerCase(), {
             wallet: raw.wallet,
             name: raw.name || batch[j].slice(0, 10) + '...',
@@ -214,6 +272,8 @@ export class AgentIndexer {
             totalEarnings: parseFloat(formatUnits(BigInt(raw.totalEarnings), 6)),
             winRate,
             registered: raw.registered,
+            referralEarnings: refEarnings,
+            referralCount: refCount,
           });
         }
       }

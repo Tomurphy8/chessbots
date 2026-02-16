@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createPublicClient, http, formatUnits, parseUnits, maxUint256, type Address, defineChain } from 'viem';
-import { useAccount, useWriteContract, useSwitchChain, useChainId } from 'wagmi';
+import { useAccount, useWriteContract } from 'wagmi';
 import { CHAIN } from '@/lib/chains';
 import { STAKING_ABI, ERC20_ABI } from '@/lib/contracts/evm';
 
@@ -57,34 +57,28 @@ export interface StakingState {
   chessBalance: string;     // formatted CHESS balance
   needsApproval: boolean;
   loading: boolean;
+  error: string | null;
   isPending: boolean;
   isConfirming: boolean;    // true while waiting for tx to be mined on-chain
   stake: (amount: string) => Promise<void>;
   unstake: (amount: string) => Promise<void>;
-  approveChess: (amount: string) => Promise<void>;
+  approveChess: () => Promise<void>;
   refetch: () => void;
 }
 
 export function useStaking(): StakingState {
   const { address: userAddress } = useAccount();
-  const chainId = useChainId();
-  const { switchChainAsync } = useSwitchChain();
   const [stakedBalance, setStakedBalance] = useState('0');
   const [discountBps, setDiscountBps] = useState(0);
   const [totalStaked, setTotalStaked] = useState('0');
   const [chessBalance, setChessBalance] = useState('0');
   const [currentAllowance, setCurrentAllowance] = useState(BigInt(0));
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [fetchTrigger, setFetchTrigger] = useState(0);
 
   const { writeContractAsync, isPending } = useWriteContract();
-
-  const ensureCorrectChain = useCallback(async () => {
-    if (chainId !== CHAIN.evmChainId) {
-      await switchChainAsync({ chainId: CHAIN.evmChainId });
-    }
-  }, [chainId, switchChainAsync]);
 
   const refetch = useCallback(() => setFetchTrigger(t => t + 1), []);
 
@@ -92,13 +86,14 @@ export function useStaking(): StakingState {
     async function fetchData() {
       try {
         setLoading(true);
+        setError(null);
 
-        // Always fetch totalStaked (no wallet needed)
+        // Always fetch totalStaked (no wallet needed) — with fallback
         const total = await publicClient.readContract({
           address: STAKING_ADDRESS,
           abi: STAKING_ABI,
           functionName: 'totalStaked',
-        }) as bigint;
+        }).catch(() => BigInt(0)) as bigint;
         setTotalStaked(formatUnits(total, 18));
 
         if (!userAddress || !STAKING_ADDRESS || !CHESS_TOKEN_ADDRESS) {
@@ -112,33 +107,34 @@ export function useStaking(): StakingState {
             abi: STAKING_ABI,
             functionName: 'stakedBalance',
             args: [userAddress],
-          }) as Promise<bigint>,
+          }).catch(() => BigInt(0)) as Promise<bigint>,
           publicClient.readContract({
             address: STAKING_ADDRESS,
             abi: STAKING_ABI,
             functionName: 'getDiscount',
             args: [userAddress],
-          }) as Promise<number>,
+          }).catch(() => 0) as Promise<number>,
           publicClient.readContract({
             address: CHESS_TOKEN_ADDRESS,
             abi: ERC20_ABI,
             functionName: 'balanceOf',
             args: [userAddress],
-          }) as Promise<bigint>,
+          }).catch(() => BigInt(0)) as Promise<bigint>,
           publicClient.readContract({
             address: CHESS_TOKEN_ADDRESS,
             abi: ERC20_ABI,
             functionName: 'allowance',
             args: [userAddress, STAKING_ADDRESS],
-          }) as Promise<bigint>,
+          }).catch(() => BigInt(0)) as Promise<bigint>,
         ]);
 
         setStakedBalance(formatUnits(staked, 18));
         setDiscountBps(Number(discount));
         setChessBalance(formatUnits(balance, 18));
         setCurrentAllowance(allowance);
-      } catch (e) {
+      } catch (e: any) {
         console.error('Failed to fetch staking data:', e);
+        setError(e.message || 'Failed to load staking data');
       } finally {
         setLoading(false);
       }
@@ -147,11 +143,11 @@ export function useStaking(): StakingState {
     fetchData();
   }, [userAddress, fetchTrigger]);
 
-  const needsApproval = currentAllowance === BigInt(0);
+  // Treat as needing approval if allowance is less than 1 token (handles partial spend edge case)
+  const needsApproval = currentAllowance < parseUnits('1', 18);
 
-  const approveChess = useCallback(async (amount: string) => {
+  const approveChess = useCallback(async () => {
     if (!CHESS_TOKEN_ADDRESS || !STAKING_ADDRESS) return;
-    await ensureCorrectChain();
 
     const hash = await writeContractAsync({
       address: CHESS_TOKEN_ADDRESS,
@@ -168,11 +164,10 @@ export function useStaking(): StakingState {
     }
 
     refetch();
-  }, [writeContractAsync, refetch, ensureCorrectChain]);
+  }, [writeContractAsync, refetch]);
 
   const stake = useCallback(async (amount: string) => {
     if (!STAKING_ADDRESS) return;
-    await ensureCorrectChain();
     const parsedAmount = parseUnits(amount, 18);
 
     const hash = await writeContractAsync({
@@ -190,11 +185,10 @@ export function useStaking(): StakingState {
     }
 
     refetch();
-  }, [STAKING_ADDRESS, writeContractAsync, refetch, ensureCorrectChain]);
+  }, [writeContractAsync, refetch]);
 
   const unstake = useCallback(async (amount: string) => {
     if (!STAKING_ADDRESS) return;
-    await ensureCorrectChain();
     const parsedAmount = parseUnits(amount, 18);
 
     const hash = await writeContractAsync({
@@ -212,7 +206,7 @@ export function useStaking(): StakingState {
     }
 
     refetch();
-  }, [STAKING_ADDRESS, writeContractAsync, refetch, ensureCorrectChain]);
+  }, [writeContractAsync, refetch]);
 
   return {
     stakedBalance,
@@ -221,6 +215,7 @@ export function useStaking(): StakingState {
     chessBalance,
     needsApproval,
     loading,
+    error,
     isPending,
     isConfirming,
     stake,

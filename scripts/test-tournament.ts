@@ -16,8 +16,8 @@ import 'dotenv/config';
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
-const MONAD_RPC = process.env.MONAD_RPC || 'https://testnet-rpc.monad.xyz/';
-const CONTRACT = (process.env.MONAD_CONTRACT || '0x376714678A7B332E245b3780795fF6518d66A15c') as Address;
+const MONAD_RPC = process.env.MONAD_RPC || 'https://rpc.monad.xyz/';
+const CONTRACT = (process.env.MONAD_CONTRACT || '0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8') as Address;
 const DEPLOYER_KEY = process.env.PRIVATE_KEY || '';
 
 if (!DEPLOYER_KEY) {
@@ -25,12 +25,12 @@ if (!DEPLOYER_KEY) {
   process.exit(1);
 }
 
-const monadTestnet = defineChain({
-  id: 10143,
-  name: 'Monad Testnet',
+const monad = defineChain({
+  id: 143,
+  name: 'Monad',
   nativeCurrency: { name: 'Monad', symbol: 'MON', decimals: 18 },
   rpcUrls: { default: { http: [MONAD_RPC] } },
-  blockExplorers: { default: { name: 'Explorer', url: 'https://testnet.monadexplorer.com' } },
+  blockExplorers: { default: { name: 'MonadScan', url: 'https://monadscan.com' } },
 });
 
 const TOURNAMENT_ABI = [
@@ -48,13 +48,13 @@ const TOURNAMENT_ABI = [
 const deployerAccount = privateKeyToAccount(DEPLOYER_KEY as `0x${string}`);
 
 const publicClient = createPublicClient({
-  chain: monadTestnet,
+  chain: monad,
   transport: http(MONAD_RPC),
 });
 
 const deployerWallet = createWalletClient({
   account: deployerAccount,
-  chain: monadTestnet,
+  chain: monad,
   transport: http(MONAD_RPC),
 });
 
@@ -149,7 +149,7 @@ async function main() {
     const wallet = testWallets[i];
     const agentWallet = createWalletClient({
       account: privateKeyToAccount(wallet.key),
-      chain: monadTestnet,
+      chain: monad,
       transport: http(MONAD_RPC),
     });
 
@@ -182,7 +182,7 @@ async function main() {
     const wallet = testWallets[i];
     const agentWallet = createWalletClient({
       account: privateKeyToAccount(wallet.key),
-      chain: monadTestnet,
+      chain: monad,
       transport: http(MONAD_RPC),
     });
 
@@ -211,7 +211,7 @@ async function main() {
     console.log(`\n── Step 6: Waiting ${Math.ceil(waitMs / 1000)}s for registration deadline... ──`);
     console.log('  The orchestrator (in watch mode) will pick up the tournament automatically.');
     console.log(`  Monitor logs: railway logs --service tournament-orchestrator`);
-    console.log(`  View on-chain: ${monadTestnet.blockExplorers.default.url}/address/${CONTRACT}`);
+    console.log(`  View on-chain: ${monad.blockExplorers.default.url}/address/${CONTRACT}`);
   }
 
   console.log('\n═══════════════════════════════════════════');

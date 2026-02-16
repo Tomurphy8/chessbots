@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import "../src/ChessBotsTournament.sol";
+import "../src/interfaces/IChessBotsTournament.sol";
 import "../src/libraries/TournamentLib.sol";
 
 contract MockUSDCRef {
@@ -54,12 +55,12 @@ contract ReferralTest is Test {
         vm.prank(authority);
         tournament = new ChessBotsTournament(address(usdc), treasury, 1000, 9000, 1000);
 
-        // Fund agents
-        usdc.mint(referrer, 10000e6);
-        usdc.mint(referee1, 10000e6);
-        usdc.mint(referee2, 10000e6);
-        usdc.mint(agent3, 10000e6);
-        usdc.mint(agent4, 10000e6);
+        // Fund agents generously for multi-tournament tests
+        usdc.mint(referrer, 100000e6);
+        usdc.mint(referee1, 100000e6);
+        usdc.mint(referee2, 100000e6);
+        usdc.mint(agent3, 100000e6);
+        usdc.mint(agent4, 100000e6);
 
         // Approve
         vm.prank(referrer); usdc.approve(address(tournament), type(uint256).max);
@@ -69,10 +70,39 @@ contract ReferralTest is Test {
         vm.prank(agent4); usdc.approve(address(tournament), type(uint256).max);
     }
 
-    // ── Registration ───────────────────────────────────────────────────
+    // ── Helper: create a Rookie tournament ─────────────────────────────
+    function _createRookieTournament(uint256 index) internal {
+        vm.prank(authority);
+        tournament.createTournament(
+            TournamentLib.Tier.Rookie, 32, 4,
+            int64(int256(block.timestamp + 7200 + index * 100)),
+            int64(int256(block.timestamp + 3600 + index * 100)),
+            300, 3
+        );
+    }
+
+    // ── Helper: register N agents referred by referrer ──────────────────
+    function _registerReferredAgents(uint256 count) internal {
+        for (uint256 i = 0; i < count; i++) {
+            address a = address(uint160(100 + i));
+            usdc.mint(a, 100000e6);
+            vm.prank(a);
+            usdc.approve(address(tournament), type(uint256).max);
+            vm.prank(a);
+            tournament.registerAgentWithReferral(
+                string(abi.encodePacked("Agent", vm.toString(i))),
+                "",
+                TournamentLib.AgentType.Custom,
+                referrer
+            );
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── Registration Tests ────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
 
     function test_registerWithReferral() public {
-        // Referrer must be registered first
         vm.prank(referrer);
         tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
 
@@ -83,8 +113,8 @@ contract ReferralTest is Test {
         (,,,,,,,,,, address refBy,) = tournament.agents(referee1);
         assertEq(refBy, referrer);
 
-        // Check tournaments remaining
-        assertEq(tournament.referralTournamentsRemaining(referee1), 10);
+        // Check tournaments remaining (V2: 25 instead of 10)
+        assertEq(tournament.referralTournamentsRemaining(referee1), 25);
     }
 
     function test_registerWithoutReferral() public {
@@ -106,16 +136,35 @@ contract ReferralTest is Test {
     }
 
     function test_referrerMustBeRegistered() public {
-        // referrer is NOT registered
         vm.prank(referee1);
         vm.expectRevert("Referrer not registered");
         tournament.registerAgentWithReferral("Referee1", "", TournamentLib.AgentType.Custom, referrer);
     }
 
-    // ── Bonus Accrual ──────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+    // ── Referral Count Tests ─────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
 
-    function test_referralBonusAccrual() public {
-        // Setup referral
+    function test_referralCount_incrementsOnRegistration() public {
+        vm.prank(referrer);
+        tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
+
+        assertEq(tournament.referralCount(referrer), 0);
+
+        vm.prank(referee1);
+        tournament.registerAgentWithReferral("R1", "", TournamentLib.AgentType.Custom, referrer);
+        assertEq(tournament.referralCount(referrer), 1);
+
+        vm.prank(referee2);
+        tournament.registerAgentWithReferral("R2", "", TournamentLib.AgentType.Custom, referrer);
+        assertEq(tournament.referralCount(referrer), 2);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── Bonus Accrual Tests ──────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+
+    function test_referralBonusAccrual_bronzeTier() public {
         vm.prank(referrer);
         tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
         vm.prank(referee1);
@@ -134,13 +183,15 @@ contract ReferralTest is Test {
             300, 3
         );
 
-        // referee1 registers — should accrue 5% of 50 USDC = 2.5 USDC
+        // referee1 registers — pays 1% less (referee discount), then 5% bonus at Bronze tier
         vm.prank(referee1);
         tournament.registerForTournament(0);
 
-        uint256 expectedBonus = (50e6 * 500) / 10000; // 5% = 2.5 USDC
+        // actualFee after 1% referee discount: 50e6 - (50e6 * 100 / 10000) = 50e6 - 0.5e6 = 49.5e6
+        uint256 actualFee = 50e6 - (50e6 * 100) / 10000; // 49.5 USDC
+        uint256 expectedBonus = (actualFee * 500) / 10000; // 5% of 49.5 = 2.475 USDC
         assertEq(tournament.referralEarnings(referrer), expectedBonus);
-        assertEq(tournament.referralTournamentsRemaining(referee1), 9);
+        assertEq(tournament.referralTournamentsRemaining(referee1), 24); // 25 - 1
         assertEq(tournament.tournamentReferralBonuses(0), expectedBonus);
     }
 
@@ -162,14 +213,13 @@ contract ReferralTest is Test {
             300, 3
         );
 
-        // referee1 registered without referral
         vm.prank(referee1);
         tournament.registerForTournament(0);
 
         assertEq(tournament.referralEarnings(referrer), 0);
     }
 
-    function test_referralStopsAfter10Tournaments() public {
+    function test_referralFullRateCapsAt25Tournaments() public {
         vm.prank(referrer);
         tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
         vm.prank(referee1);
@@ -179,27 +229,310 @@ contract ReferralTest is Test {
         vm.prank(agent4);
         tournament.registerAgent("Agent4", "", TournamentLib.AgentType.Custom);
 
-        // Create 11 tournaments and register referee1 in all
-        for (uint256 i = 0; i < 11; i++) {
-            vm.prank(authority);
-            tournament.createTournament(
-                TournamentLib.Tier.Rookie, 32, 4,
-                int64(int256(block.timestamp + 7200 + i * 100)),
-                int64(int256(block.timestamp + 3600 + i * 100)),
-                300, 3
-            );
-
+        // Create 26 tournaments and register referee1 in all
+        for (uint256 i = 0; i < 26; i++) {
+            _createRookieTournament(i);
             vm.prank(referee1);
             tournament.registerForTournament(i);
         }
 
-        // 10 bonuses accrued (5% of 5 USDC = 0.25 USDC each), 11th tournament = no bonus
-        uint256 expectedBonus = (5e6 * 500 / 10000) * 10; // 10 × 0.25 USDC = 2.5 USDC
-        assertEq(tournament.referralEarnings(referrer), expectedBonus);
+        // Rookie = 5 USDC, referee discount = 1% → actualFee = 4.95 USDC
+        uint256 actualFee = 5e6 - (5e6 * 100) / 10000; // 4.95 USDC
+        // 25 tournaments at Bronze tier (5%) + 1 at long-tail (2%)
+        uint256 fullRateBonus = (actualFee * 500 / 10000) * 25; // 25 × 0.2475 USDC
+        uint256 longTailBonus = (actualFee * 200 / 10000) * 1;  // 1 × 0.099 USDC
+        uint256 expectedTotal = fullRateBonus + longTailBonus;
+        assertEq(tournament.referralEarnings(referrer), expectedTotal);
         assertEq(tournament.referralTournamentsRemaining(referee1), 0);
     }
 
-    // ── Claim Earnings ─────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+    // ── Long-tail Tests ──────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+
+    function test_longTail_2percentAfterCap() public {
+        vm.prank(referrer);
+        tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
+        vm.prank(referee1);
+        tournament.registerAgentWithReferral("Referee1", "", TournamentLib.AgentType.Custom, referrer);
+        vm.prank(agent3);
+        tournament.registerAgent("Agent3", "", TournamentLib.AgentType.Custom);
+        vm.prank(agent4);
+        tournament.registerAgent("Agent4", "", TournamentLib.AgentType.Custom);
+
+        // Exhaust full-rate period: 25 tournaments
+        for (uint256 i = 0; i < 25; i++) {
+            _createRookieTournament(i);
+            vm.prank(referee1);
+            tournament.registerForTournament(i);
+        }
+
+        uint256 earningsAfterFullRate = tournament.referralEarnings(referrer);
+        assertEq(tournament.referralTournamentsRemaining(referee1), 0);
+
+        // Tournament 26 should accrue at 2% long-tail rate
+        _createRookieTournament(25);
+        vm.prank(referee1);
+        tournament.registerForTournament(25);
+
+        uint256 actualFee = 5e6 - (5e6 * 100) / 10000; // 4.95 USDC (with referee discount)
+        uint256 longTailBonus = (actualFee * 200) / 10000; // 2% = 0.099 USDC
+        assertEq(tournament.referralEarnings(referrer), earningsAfterFullRate + longTailBonus);
+    }
+
+    function test_longTail_continuesForever() public {
+        vm.prank(referrer);
+        tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
+        vm.prank(referee1);
+        tournament.registerAgentWithReferral("Referee1", "", TournamentLib.AgentType.Custom, referrer);
+        vm.prank(agent3);
+        tournament.registerAgent("Agent3", "", TournamentLib.AgentType.Custom);
+        vm.prank(agent4);
+        tournament.registerAgent("Agent4", "", TournamentLib.AgentType.Custom);
+
+        // Exhaust full-rate: 25 tournaments
+        for (uint256 i = 0; i < 25; i++) {
+            _createRookieTournament(i);
+            vm.prank(referee1);
+            tournament.registerForTournament(i);
+        }
+
+        uint256 earningsAfterFullRate = tournament.referralEarnings(referrer);
+
+        // Play 25 more (tournaments 25-49) — all at 2% long-tail
+        for (uint256 i = 25; i < 50; i++) {
+            _createRookieTournament(i);
+            vm.prank(referee1);
+            tournament.registerForTournament(i);
+        }
+
+        uint256 actualFee = 5e6 - (5e6 * 100) / 10000;
+        uint256 longTailPer = (actualFee * 200) / 10000; // 2%
+        uint256 expectedLongTail = longTailPer * 25; // 25 long-tail tournaments
+        assertEq(tournament.referralEarnings(referrer), earningsAfterFullRate + expectedLongTail);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── Referee Discount Tests ──────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+
+    function test_refereeDiscount_reducesActualFee() public {
+        vm.prank(referrer);
+        tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
+        vm.prank(referee1);
+        tournament.registerAgentWithReferral("Referee1", "", TournamentLib.AgentType.Custom, referrer);
+        vm.prank(agent3);
+        tournament.registerAgent("Agent3", "", TournamentLib.AgentType.Custom);
+        vm.prank(agent4);
+        tournament.registerAgent("Agent4", "", TournamentLib.AgentType.Custom);
+
+        // Create Bronze tournament (50 USDC)
+        vm.prank(authority);
+        tournament.createTournament(
+            TournamentLib.Tier.Bronze, 32, 4,
+            int64(int256(block.timestamp + 7200)),
+            int64(int256(block.timestamp + 3600)),
+            300, 3
+        );
+
+        uint256 referee1Before = usdc.balanceOf(referee1);
+
+        vm.prank(referee1);
+        tournament.registerForTournament(0);
+
+        // Referee pays 1% less: 50 USDC - 0.5 USDC = 49.5 USDC
+        uint256 expectedPayment = 50e6 - (50e6 * 100) / 10000; // 49.5 USDC
+        assertEq(referee1Before - usdc.balanceOf(referee1), expectedPayment);
+        assertEq(tournament.playerPayment(0, referee1), expectedPayment);
+    }
+
+    function test_refereeDiscount_notApplied_withoutReferrer() public {
+        vm.prank(agent3);
+        tournament.registerAgent("Agent3", "", TournamentLib.AgentType.Custom);
+        vm.prank(agent4);
+        tournament.registerAgent("Agent4", "", TournamentLib.AgentType.Custom);
+        vm.prank(referee1);
+        tournament.registerAgent("Referee1NoRef", "", TournamentLib.AgentType.Custom);
+        vm.prank(referrer);
+        tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
+
+        vm.prank(authority);
+        tournament.createTournament(
+            TournamentLib.Tier.Bronze, 32, 4,
+            int64(int256(block.timestamp + 7200)),
+            int64(int256(block.timestamp + 3600)),
+            300, 3
+        );
+
+        uint256 agent3Before = usdc.balanceOf(agent3);
+
+        vm.prank(agent3);
+        tournament.registerForTournament(0);
+
+        // Non-referred agent pays full 50 USDC
+        assertEq(agent3Before - usdc.balanceOf(agent3), 50e6);
+        assertEq(tournament.playerPayment(0, agent3), 50e6);
+    }
+
+    function test_refereeDiscount_appliesEveryTournament() public {
+        vm.prank(referrer);
+        tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
+        vm.prank(referee1);
+        tournament.registerAgentWithReferral("Referee1", "", TournamentLib.AgentType.Custom, referrer);
+        vm.prank(agent3);
+        tournament.registerAgent("Agent3", "", TournamentLib.AgentType.Custom);
+        vm.prank(agent4);
+        tournament.registerAgent("Agent4", "", TournamentLib.AgentType.Custom);
+
+        // Create 30 tournaments (beyond the 25 full-rate cap)
+        for (uint256 i = 0; i < 30; i++) {
+            _createRookieTournament(i);
+        }
+
+        uint256 totalPaid = 0;
+        uint256 expectedFee = 5e6 - (5e6 * 100) / 10000; // 4.95 USDC per tournament
+
+        for (uint256 i = 0; i < 30; i++) {
+            uint256 before = usdc.balanceOf(referee1);
+            vm.prank(referee1);
+            tournament.registerForTournament(i);
+            uint256 paid = before - usdc.balanceOf(referee1);
+            assertEq(paid, expectedFee, "Referee discount should apply to every tournament");
+            totalPaid += paid;
+        }
+
+        // Total paid should be 30 × 4.95 USDC
+        assertEq(totalPaid, expectedFee * 30);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── Tier Tests ──────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+
+    function test_tierBronze_defaultRate() public {
+        vm.prank(referrer);
+        tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
+
+        // 0 referrals = Bronze tier
+        (uint8 tier, uint16 rateBps, uint16 count) = tournament.getReferrerTier(referrer);
+        assertEq(tier, 0);
+        assertEq(rateBps, 500); // 5%
+        assertEq(count, 0);
+
+        // Refer 5 agents — still Bronze
+        _registerReferredAgents(5);
+        (tier, rateBps, count) = tournament.getReferrerTier(referrer);
+        assertEq(tier, 0);
+        assertEq(rateBps, 500);
+        assertEq(count, 5);
+    }
+
+    function test_tierSilver_after10Referrals() public {
+        vm.prank(referrer);
+        tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
+
+        // Refer 10 agents → Silver
+        _registerReferredAgents(10);
+
+        (uint8 tier, uint16 rateBps, uint16 count) = tournament.getReferrerTier(referrer);
+        assertEq(tier, 1);
+        assertEq(rateBps, 700); // 7%
+        assertEq(count, 10);
+    }
+
+    function test_tierGold_after25Referrals() public {
+        vm.prank(referrer);
+        tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
+
+        // Refer 25 agents → Gold
+        _registerReferredAgents(25);
+
+        (uint8 tier, uint16 rateBps, uint16 count) = tournament.getReferrerTier(referrer);
+        assertEq(tier, 2);
+        assertEq(rateBps, 1000); // 10%
+        assertEq(count, 25);
+    }
+
+    function test_tierUpgrade_emitsEvent() public {
+        vm.prank(referrer);
+        tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
+
+        // Register 9 agents (no event yet)
+        _registerReferredAgents(9);
+
+        // 10th agent → Silver tier event
+        address tenthAgent = address(uint160(200));
+        usdc.mint(tenthAgent, 100000e6);
+        vm.prank(tenthAgent);
+        usdc.approve(address(tournament), type(uint256).max);
+
+        vm.expectEmit(true, false, false, true);
+        emit IChessBotsTournament.ReferralTierChanged(referrer, 1, 700);
+        vm.prank(tenthAgent);
+        tournament.registerAgentWithReferral("Tenth", "", TournamentLib.AgentType.Custom, referrer);
+
+        // Register agents 11-24 (no event)
+        for (uint256 i = 0; i < 14; i++) {
+            address a = address(uint160(300 + i));
+            usdc.mint(a, 100000e6);
+            vm.prank(a);
+            usdc.approve(address(tournament), type(uint256).max);
+            vm.prank(a);
+            tournament.registerAgentWithReferral(
+                string(abi.encodePacked("Fill", vm.toString(i))),
+                "",
+                TournamentLib.AgentType.Custom,
+                referrer
+            );
+        }
+
+        // 25th agent → Gold tier event
+        address twentyFifth = address(uint160(500));
+        usdc.mint(twentyFifth, 100000e6);
+        vm.prank(twentyFifth);
+        usdc.approve(address(tournament), type(uint256).max);
+
+        vm.expectEmit(true, false, false, true);
+        emit IChessBotsTournament.ReferralTierChanged(referrer, 2, 1000);
+        vm.prank(twentyFifth);
+        tournament.registerAgentWithReferral("TwentyFifth", "", TournamentLib.AgentType.Custom, referrer);
+    }
+
+    function test_silverTier_7percentBonus() public {
+        vm.prank(referrer);
+        tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
+
+        // Refer 10 agents to reach Silver tier
+        _registerReferredAgents(10);
+
+        // Now referee1 registers with this referrer
+        vm.prank(referee1);
+        tournament.registerAgentWithReferral("Referee1", "", TournamentLib.AgentType.Custom, referrer);
+
+        // Create Bronze tournament
+        vm.prank(authority);
+        tournament.createTournament(
+            TournamentLib.Tier.Bronze, 32, 4,
+            int64(int256(block.timestamp + 7200)),
+            int64(int256(block.timestamp + 3600)),
+            300, 3
+        );
+
+        uint256 earningsBefore = tournament.referralEarnings(referrer);
+
+        vm.prank(referee1);
+        tournament.registerForTournament(0);
+
+        // actualFee = 50 USDC - 1% referee discount = 49.5 USDC
+        // Silver tier bonus = 7% of 49.5 = 3.465 USDC
+        uint256 actualFee = 50e6 - (50e6 * 100) / 10000;
+        uint256 expectedBonus = (actualFee * 700) / 10000;
+        assertEq(tournament.referralEarnings(referrer) - earningsBefore, expectedBonus);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── Claim Earnings Tests ─────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
 
     function test_claimReferralEarnings() public {
         vm.prank(referrer);
@@ -243,10 +576,11 @@ contract ReferralTest is Test {
         tournament.claimReferralEarnings();
     }
 
-    // ── Referral + Prize Distribution Integration ──────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+    // ── Prize Distribution Integration ──────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
 
     function test_referralDeductedFromProtocolFee() public {
-        // Setup referral chain
         vm.prank(referrer);
         tournament.registerAgent("Referrer", "", TournamentLib.AgentType.Custom);
         vm.prank(referee1);
@@ -315,19 +649,68 @@ contract ReferralTest is Test {
         tournament.distributePrizes(0);
         vm.stopPrank();
 
-        // Prize pool = 200 USDC
-        // Player prizes = 180 USDC (90%)
-        // Protocol fee = 20 USDC (10%)
-        // Referral bonus = 2.5 USDC (5% of 50 USDC from referee1)
-        // Treasury should receive less because referral is deducted from protocol fee
-        uint256 treasuryReceived = usdc.balanceOf(treasury) - treasuryBefore;
-        // Protocol fee (20 USDC) - referral (2.5 USDC) = 17.5 USDC for buyback+treasury split
-        // Since no dexRouter, full amount goes to pendingBuyback or treasury
-        // The key assertion: total distributed = 200 USDC, contract balance = 0 (except referral held)
+        // Contract should hold referral funds
         assertTrue(usdc.balanceOf(address(tournament)) >= referralBonus, "Contract holds referral funds");
     }
 
-    // ── Free Tier: No Referral ─────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+    // ── Protocol Fee Solvency Test ──────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+
+    function test_protocolFeeSolvency_maxTier() public {
+        // Scenario: Gold tier referrer (10%) with all 16 referred players in a tournament.
+        // Protocol fee is 10%. With referee discounts (1%) reducing the pool,
+        // the referral bonuses should still fit within protocol fee.
+
+        vm.prank(referrer);
+        tournament.registerAgent("GoldReferrer", "", TournamentLib.AgentType.Custom);
+
+        // Register 25 agents to reach Gold tier
+        _registerReferredAgents(25);
+
+        (uint8 tier,,) = tournament.getReferrerTier(referrer);
+        assertEq(tier, 2, "Should be Gold tier");
+
+        // Create a Rookie tournament with 4 players (all referred by same Gold referrer)
+        // Use 4 of the referred agents
+        vm.prank(authority);
+        tournament.createTournament(
+            TournamentLib.Tier.Rookie, 32, 4,
+            int64(int256(block.timestamp + 7200)),
+            int64(int256(block.timestamp + 3600)),
+            300, 3
+        );
+
+        // Register 4 referred agents
+        for (uint256 i = 0; i < 4; i++) {
+            address a = address(uint160(100 + i));
+            vm.prank(a);
+            tournament.registerForTournament(0);
+        }
+
+        // Verify: referral bonuses should not exceed protocol fee
+        uint256 totalPool = tournament.tournamentCollected(0);
+        uint256 referralTotal = tournament.tournamentReferralBonuses(0);
+
+        // Protocol fee = 10% of pool
+        uint256 protocolFee = (totalPool * 1000) / 10000;
+
+        // Referral bonuses should be <= protocol fee
+        assertTrue(referralTotal <= protocolFee, "Referral total must not exceed protocol fee");
+
+        // Verify exact math:
+        // Each player pays: 5 USDC - 1% = 4.95 USDC
+        // Pool = 4 × 4.95 = 19.8 USDC
+        // Protocol fee = 10% of 19.8 = 1.98 USDC
+        // Each referral bonus = 10% of 4.95 = 0.495 USDC
+        // Total referral = 4 × 0.495 = 1.98 USDC
+        // Referral == protocolFee (edge case but valid, protocol gets 0)
+        assertEq(referralTotal, protocolFee, "At max tier with all referred players, referral equals protocol fee");
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── Free Tier: No Referral ───────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
 
     function test_noReferralOnFreeTournament() public {
         vm.prank(referrer);
@@ -359,6 +742,6 @@ contract ReferralTest is Test {
         // No referral bonus for free tournaments (entry fee = 0)
         assertEq(tournament.referralEarnings(referrer), 0);
         // Tournaments remaining should not decrement
-        assertEq(tournament.referralTournamentsRemaining(referee1), 10);
+        assertEq(tournament.referralTournamentsRemaining(referee1), 25);
     }
 }

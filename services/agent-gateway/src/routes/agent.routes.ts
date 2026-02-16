@@ -45,6 +45,29 @@ export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentInd
     return reply.send(agent);
   });
 
+  // GET /api/referral-leaderboard - Top referrers ranked by count
+  app.get('/api/referral-leaderboard', async (request, reply) => {
+    if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
+
+    if (!agentIndexer.isReady()) {
+      return reply.send([]);
+    }
+
+    const agents = agentIndexer.getAll();
+    const leaderboard = agents
+      .filter(a => a.referralCount > 0)
+      .sort((a, b) => b.referralCount - a.referralCount || b.referralEarnings - a.referralEarnings)
+      .slice(0, 50)
+      .map(a => ({
+        wallet: a.wallet,
+        name: a.name,
+        referralCount: a.referralCount,
+        totalEarnings: a.referralEarnings.toFixed(2),
+        tier: a.referralCount >= 25 ? 'Gold' : a.referralCount >= 10 ? 'Silver' : 'Bronze',
+      }));
+    return reply.send(leaderboard);
+  });
+
   // GET /api/agents/:wallet/games - Get game history for an agent
   app.get('/api/agents/:wallet/games', async (request, reply) => {
     if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });

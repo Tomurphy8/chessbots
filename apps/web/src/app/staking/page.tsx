@@ -31,7 +31,7 @@ export default function StakingPage() {
   const handleApprove = async () => {
     try {
       setActionError(null);
-      await staking.approveChess(stakeAmount || '0');
+      await staking.approveChess();
     } catch (e: any) {
       setActionError(e.shortMessage || e.message || 'Approval failed');
     }
@@ -59,7 +59,7 @@ export default function StakingPage() {
     }
   };
 
-  const stakedNum = parseFloat(staking.stakedBalance);
+  const stakedNum = parseFloat(staking.stakedBalance) || 0;
   const nextTier = getNextTier(stakedNum);
 
   return (
@@ -69,7 +69,7 @@ export default function StakingPage() {
         <h1 className="text-3xl font-bold">$CHESS Staking</h1>
       </div>
       <p className="text-gray-400 mb-10">
-        Stake $CHESS tokens to earn tournament entry fee discounts. No lockup period.
+        Stake $CHESS tokens to earn tournament entry fee discounts. 7-day lockup period after staking.
       </p>
 
       {/* Discount Tiers */}
@@ -88,7 +88,7 @@ export default function StakingPage() {
                 <div className="text-sm font-semibold">{tier.threshold} CHESS</div>
                 <div className="text-xs text-gray-500 mt-1">minimum stake</div>
                 {isActive && (
-                  <div className="text-xs text-white/80 mt-2 font-medium">✓ Active</div>
+                  <div className="text-xs text-white/80 mt-2 font-medium">{'\u2713'} Active</div>
                 )}
               </div>
             );
@@ -107,13 +107,23 @@ export default function StakingPage() {
           </div>
         ) : staking.loading ? (
           <p className="text-gray-500">Loading staking data...</p>
+        ) : staking.error ? (
+          <div className="text-center py-6">
+            <p className="text-red-400 text-sm mb-3">Failed to load staking data. Please refresh the page.</p>
+            <button
+              onClick={staking.refetch}
+              className="px-4 py-2 text-sm bg-chess-border hover:bg-chess-border/80 rounded-lg transition-colors"
+            >
+              Retry
+            </button>
+          </div>
         ) : (
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-6">
               <div>
                 <div className="text-sm text-gray-400 mb-1">Staked Balance</div>
                 <div className="text-2xl font-bold">
-                  {parseFloat(staking.stakedBalance).toLocaleString(undefined, { maximumFractionDigits: 2 })} CHESS
+                  {(parseFloat(staking.stakedBalance) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} CHESS
                 </div>
               </div>
               <div>
@@ -125,7 +135,7 @@ export default function StakingPage() {
               <div>
                 <div className="text-sm text-gray-400 mb-1">Wallet Balance</div>
                 <div className="text-2xl font-bold text-gray-300">
-                  {parseFloat(staking.chessBalance).toLocaleString(undefined, { maximumFractionDigits: 2 })} CHESS
+                  {(parseFloat(staking.chessBalance) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} CHESS
                 </div>
               </div>
             </div>
@@ -201,6 +211,10 @@ export default function StakingPage() {
                 {staking.isConfirming ? 'Confirming...' : staking.isPending ? 'Processing...' : 'Unstake'}
               </button>
             </div>
+
+            <p className="text-xs text-gray-600 mt-3">
+              Note: Staked tokens have a 7-day lockup before unstaking is available.
+            </p>
           </>
         )}
       </section>
@@ -215,7 +229,7 @@ export default function StakingPage() {
               <h3 className="font-semibold">Total Supply</h3>
             </div>
             <div className="text-2xl font-bold mb-1">
-              {tokenomics ? parseFloat(tokenomics.totalSupply).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}
+              {tokenomics ? (parseFloat(tokenomics.totalSupply) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '\u2014'}
             </div>
             <p className="text-sm text-gray-400">Total $CHESS tokens. No minting after launch.</p>
           </div>
@@ -225,7 +239,7 @@ export default function StakingPage() {
               <h3 className="font-semibold">Buyback & Burn</h3>
             </div>
             <div className="text-2xl font-bold text-orange-400 mb-1">
-              {tokenomics ? parseFloat(tokenomics.totalBurned).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '0'} CHESS
+              {tokenomics ? (parseFloat(tokenomics.totalBurned) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '0'} CHESS
             </div>
             <p className="text-sm text-gray-400">Total tokens burned. 90% of protocol fees buy and burn $CHESS.</p>
           </div>
@@ -235,7 +249,7 @@ export default function StakingPage() {
               <h3 className="font-semibold">Pending Buyback</h3>
             </div>
             <div className="text-2xl font-bold text-green-400 mb-1">
-              {tokenomics ? parseFloat(tokenomics.pendingBuyback).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} USDC
+              {tokenomics ? (parseFloat(tokenomics.pendingBuyback) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} USDC
             </div>
             <p className="text-sm text-gray-400">USDC accumulated for next buyback execution.</p>
           </div>
@@ -245,7 +259,7 @@ export default function StakingPage() {
               <h3 className="font-semibold">Total Staked</h3>
             </div>
             <div className="text-2xl font-bold text-[#836EF9] mb-1">
-              {parseFloat(staking.totalStaked).toLocaleString(undefined, { maximumFractionDigits: 0 })} CHESS
+              {(parseFloat(staking.totalStaked) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} CHESS
             </div>
             <p className="text-sm text-gray-400">Total tokens locked in staking contract.</p>
           </div>
@@ -266,7 +280,7 @@ export default function StakingPage() {
               <div>
                 <div className="text-sm text-gray-400 mb-1">Pending Earnings</div>
                 <div className="text-2xl font-bold text-chess-gold">
-                  {parseFloat(referrals.earnings).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC
+                  {(parseFloat(referrals.earnings) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC
                 </div>
               </div>
               <div>

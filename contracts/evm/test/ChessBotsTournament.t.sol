@@ -203,15 +203,93 @@ contract ChessBotsTournamentTest is Test {
         tournament.registerForTournament(0);
     }
 
-    function test_onlyAuthorityCanCreateTournament() public {
+    function test_unregisteredCantCreateTournament() public {
+        // Unregistered agent cannot create tournaments
         vm.prank(agent1);
-        vm.expectRevert("Unauthorized");
+        vm.expectRevert("Must be registered agent or authority");
         tournament.createTournament(
             TournamentLib.Tier.Bronze, 32, 4,
             int64(int256(block.timestamp + 7200)),
             int64(int256(block.timestamp + 3600)),
             300, 3
         );
+    }
+
+    function test_registeredAgentCanCreateTournament() public {
+        // Register agent1
+        vm.prank(agent1);
+        tournament.registerAgent("Agent1", "", TournamentLib.AgentType.OpenClaw);
+
+        // Agent1 creates a tournament
+        vm.prank(agent1);
+        tournament.createTournament(
+            TournamentLib.Tier.Bronze, 16, 4,
+            int64(int256(block.timestamp + 7200)),
+            int64(int256(block.timestamp + 3600)),
+            300, 3
+        );
+
+        // Verify tournament exists
+        ChessBotsTournament.Tournament memory t = tournament.getTournament(0);
+        assertTrue(t.exists);
+        assertEq(uint8(t.tier), uint8(TournamentLib.Tier.Bronze));
+        assertEq(t.maxPlayers, 16);
+    }
+
+    function test_authorityCanStillCreateTournament() public {
+        // Authority (not registered as agent) can still create
+        vm.prank(authority);
+        tournament.createTournament(
+            TournamentLib.Tier.Silver, 8, 4,
+            int64(int256(block.timestamp + 7200)),
+            int64(int256(block.timestamp + 3600)),
+            600, 5
+        );
+
+        ChessBotsTournament.Tournament memory t = tournament.getTournament(0);
+        assertTrue(t.exists);
+        assertEq(t.authority, authority);
+    }
+
+    function test_registeredAgentCanCreateLegendsTournament() public {
+        // Register and fund agent1
+        vm.prank(agent1);
+        tournament.registerAgent("Agent1", "", TournamentLib.AgentType.OpenClaw);
+        usdc.mint(agent1, 10000e6);
+
+        // Agent1 creates a Legends tournament
+        vm.prank(agent1);
+        tournament.createLegendsTournament(
+            16, 4,
+            int64(int256(block.timestamp + 7200)),
+            int64(int256(block.timestamp + 3600)),
+            300, 3,
+            1000e6
+        );
+
+        ChessBotsTournament.Tournament memory t = tournament.getTournament(0);
+        assertTrue(t.exists);
+        assertEq(uint8(t.tier), uint8(TournamentLib.Tier.Legends));
+        assertEq(t.entryFee, 1000e6);
+    }
+
+    function test_registeredAgentCreatesOwnAuthority() public {
+        // Register agent1
+        vm.prank(agent1);
+        tournament.registerAgent("Agent1", "", TournamentLib.AgentType.OpenClaw);
+
+        // Agent1 creates a tournament
+        vm.prank(agent1);
+        tournament.createTournament(
+            TournamentLib.Tier.Free, 8, 4,
+            int64(int256(block.timestamp + 7200)),
+            int64(int256(block.timestamp + 3600)),
+            300, 3
+        );
+
+        // Verify agent1 is the tournament authority
+        ChessBotsTournament.Tournament memory t = tournament.getTournament(0);
+        assertEq(t.authority, agent1);
     }
 
     // --- Legends Tier Tests ---

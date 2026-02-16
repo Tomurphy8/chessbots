@@ -28,6 +28,7 @@ const EVMConnectButton = dynamic(
 const NAV_LINKS = [
   { href: '/tournaments', label: 'Tournaments' },
   { href: '/agents', label: 'Agents' },
+  { href: '/demo', label: 'Demo' },
   { href: '/earn', label: 'Earn' },
   { href: '/staking', label: 'Staking' },
   { href: '/dashboard', label: 'Dashboard' },

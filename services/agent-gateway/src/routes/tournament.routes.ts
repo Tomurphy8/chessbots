@@ -77,7 +77,7 @@ const TOURNAMENT_ABI = [
   },
 ] as const;
 
-const TierNames = ['Rookie', 'Bronze', 'Silver', 'Masters', 'Legends'] as const;
+const TierNames = ['Rookie', 'Bronze', 'Silver', 'Masters', 'Legends', 'Free'] as const;
 const StatusNames = ['Registration', 'InProgress', 'RoundActive', 'RoundComplete', 'Completed', 'Cancelled'] as const;
 
 function formatTournament(raw: any) {
@@ -191,13 +191,13 @@ export function registerTournamentRoutes(app: FastifyInstance, publicClient: Pub
         functionName: 'protocol',
       });
 
-      const total = Number(protocolState[5]); // totalTournaments
+      const total = Number(protocolState[5]); // totalTournaments (count, IDs are 0-indexed)
       if (total === 0) return reply.send([]);
 
-      // Fetch last 50 tournaments
-      const start = Math.max(1, total - 49);
+      // Fetch last 50 tournaments (IDs are 0-indexed: 0 to total-1)
+      const start = Math.max(0, total - 50);
       const tournaments = [];
-      for (let i = total; i >= start; i--) {
+      for (let i = total - 1; i >= start; i--) {
         try {
           const raw = await publicClient.readContract({
             address: CONFIG.contractAddress as Address,

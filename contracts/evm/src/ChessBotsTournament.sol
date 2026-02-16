@@ -163,12 +163,24 @@ contract ChessBotsTournament is IChessBotsTournament {
     mapping(uint256 => uint256) public tournamentCollected; // Actual USDC collected per tournament
     mapping(uint256 => mapping(address => uint256)) public playerPayment; // Actual amount each player paid
 
-    // --- Referral State (Proposal A) ---
+    // --- Referral State (V2: Tiers + Extended Cap + Referee Discount) ---
     mapping(address => uint256) public referralEarnings;           // Claimable USDC per referrer
-    mapping(address => uint8) public referralTournamentsRemaining; // Decrements per paid tournament
+    mapping(address => uint16) public referralTournamentsRemaining; // Full-rate tournaments remaining
     mapping(uint256 => uint256) public tournamentReferralBonuses;  // Total referral bonuses per tournament
-    uint8 public constant REFERRAL_MAX_TOURNAMENTS = 10;
-    uint16 public constant REFERRAL_BONUS_BPS = 500;              // 5% of entry fee
+    mapping(address => uint16) public referralCount;               // How many agents this address has referred
+    mapping(uint256 => uint256) public tournamentRefereeDiscounts; // Total referee discounts per tournament
+
+    // Referral V2 constants
+    uint16 public constant REFERRAL_FULL_RATE_TOURNAMENTS = 25;   // Full tier rate for first 25 tournaments
+    uint16 public constant REFERRAL_LONG_TAIL_BPS = 200;          // 2% forever after full-rate period
+    uint16 public constant REFEREE_DISCOUNT_BPS = 100;            // 1% permanent discount for referred agents
+
+    // Tier thresholds and rates
+    uint16 public constant TIER_BRONZE_BPS = 500;                 // 5% — default (0-9 referrals)
+    uint16 public constant TIER_SILVER_BPS = 700;                 // 7% — 10+ referrals
+    uint16 public constant TIER_GOLD_BPS = 1000;                  // 10% — 25+ referrals
+    uint16 public constant TIER_SILVER_THRESHOLD = 10;
+    uint16 public constant TIER_GOLD_THRESHOLD = 25;
 
     // --- Sponsorship State (Proposal C) ---
     struct Sponsorship {
@@ -196,6 +208,14 @@ contract ChessBotsTournament is IChessBotsTournament {
 
     modifier onlyAuthority() {
         require(msg.sender == protocol.authority, "Unauthorized");
+        _;
+    }
+
+    modifier onlyRegisteredAgentOrAuthority() {
+        require(
+            agents[msg.sender].registered || msg.sender == protocol.authority,
+            "Must be registered agent or authority"
+        );
         _;
     }
 
@@ -427,7 +447,13 @@ contract ChessBotsTournament is IChessBotsTournament {
         });
 
         if (referrer != address(0)) {
-            referralTournamentsRemaining[msg.sender] = REFERRAL_MAX_TOURNAMENTS;
+            referralTournamentsRemaining[msg.sender] = REFERRAL_FULL_RATE_TOURNAMENTS;
+            referralCount[referrer]++;
+            // Emit tier change if threshold crossed
+            uint16 newCount = referralCount[referrer];
+            if (newCount == TIER_SILVER_THRESHOLD || newCount == TIER_GOLD_THRESHOLD) {
+                emit ReferralTierChanged(referrer, newCount >= TIER_GOLD_THRESHOLD ? 2 : 1, getReferrerTierBps(referrer));
+            }
             emit ReferralRegistered(msg.sender, referrer);
         }
 
@@ -444,7 +470,7 @@ contract ChessBotsTournament is IChessBotsTournament {
         int64 registrationDeadline,
         uint32 baseTimeSeconds,
         uint32 incrementSeconds
-    ) external onlyAuthority whenNotPaused {
+    ) external onlyRegisteredAgentOrAuthority whenNotPaused {
         _createTournament(tier, maxPlayers, minPlayers, startTime, registrationDeadline, baseTimeSeconds, incrementSeconds, 0);
     }
 
@@ -458,7 +484,7 @@ contract ChessBotsTournament is IChessBotsTournament {
         uint32 baseTimeSeconds,
         uint32 incrementSeconds,
         uint256 customEntryFee
-    ) external onlyAuthority whenNotPaused {
+    ) external onlyRegisteredAgentOrAuthority whenNotPaused {
         require(customEntryFee >= TournamentLib.LEGENDS_MIN_ENTRY, "Legends min 500 USDC");
         _createTournament(
             TournamentLib.Tier.Legends, maxPlayers, minPlayers,
@@ -543,17 +569,32 @@ contract ChessBotsTournament is IChessBotsTournament {
                 }
             }
 
+            // Referee discount: 1% permanent discount for referred agents
+            address referrer = agents[msg.sender].referredBy;
+            if (referrer != address(0)) {
+                uint256 refereeDiscount = (actualFee * REFEREE_DISCOUNT_BPS) / TournamentLib.BPS_DENOMINATOR;
+                actualFee -= refereeDiscount;
+                tournamentRefereeDiscounts[tournamentId] += refereeDiscount;
+            }
+
             require(usdc.transferFrom(msg.sender, address(this), actualFee), "USDC transfer failed");
             tournamentCollected[tournamentId] += actualFee;
             playerPayment[tournamentId][msg.sender] = actualFee; // Track exact amount paid for accurate refunds
 
-            // Proposal A: accrue referral bonus
-            address referrer = agents[msg.sender].referredBy;
-            if (referrer != address(0) && referralTournamentsRemaining[msg.sender] > 0) {
-                uint256 referralBonus = (actualFee * REFERRAL_BONUS_BPS) / TournamentLib.BPS_DENOMINATOR;
+            // Referral V2: tiered bonus with extended cap + long-tail
+            if (referrer != address(0)) {
+                uint16 rateBps;
+                if (referralTournamentsRemaining[msg.sender] > 0) {
+                    // Full-rate period: use referrer's tier rate
+                    rateBps = getReferrerTierBps(referrer);
+                    referralTournamentsRemaining[msg.sender]--;
+                } else {
+                    // Long-tail: 2% forever after full-rate period
+                    rateBps = REFERRAL_LONG_TAIL_BPS;
+                }
+                uint256 referralBonus = (actualFee * rateBps) / TournamentLib.BPS_DENOMINATOR;
                 referralEarnings[referrer] += referralBonus;
                 tournamentReferralBonuses[tournamentId] += referralBonus;
-                referralTournamentsRemaining[msg.sender]--;
                 emit ReferralBonusAccrued(tournamentId, referrer, msg.sender, referralBonus);
             }
         }
@@ -1102,5 +1143,24 @@ contract ChessBotsTournament is IChessBotsTournament {
 
     function getAgent(address wallet) external view returns (AgentProfile memory) {
         return agents[wallet];
+    }
+
+    // --- Referral V2 Views ---
+
+    /// @notice Get the referral bonus rate (BPS) for a referrer based on their tier
+    function getReferrerTierBps(address referrer) public view returns (uint16) {
+        uint16 count = referralCount[referrer];
+        if (count >= TIER_GOLD_THRESHOLD) return TIER_GOLD_BPS;
+        if (count >= TIER_SILVER_THRESHOLD) return TIER_SILVER_BPS;
+        return TIER_BRONZE_BPS;
+    }
+
+    /// @notice Get full referrer tier info: tier level, rate, and referral count
+    function getReferrerTier(address referrer) external view returns (uint8 tier, uint16 rateBps, uint16 count) {
+        count = referralCount[referrer];
+        rateBps = getReferrerTierBps(referrer);
+        if (count >= TIER_GOLD_THRESHOLD) tier = 2;      // Gold
+        else if (count >= TIER_SILVER_THRESHOLD) tier = 1; // Silver
+        else tier = 0;                                     // Bronze
     }
 }

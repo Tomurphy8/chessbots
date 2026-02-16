@@ -180,7 +180,7 @@ export const CHESSBOTS_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
-  // --- Referral functions (Proposal A) ---
+  // --- Referral V2 functions (Tiers + Extended Cap + Referee Discount) ---
   {
     inputs: [
       { name: 'name', type: 'string' },
@@ -203,7 +203,32 @@ export const CHESSBOTS_ABI = [
   {
     inputs: [{ name: 'account', type: 'address' }],
     name: 'referralTournamentsRemaining',
-    outputs: [{ name: '', type: 'uint8' }],
+    outputs: [{ name: '', type: 'uint16' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'referralCount',
+    outputs: [{ name: '', type: 'uint16' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'referrer', type: 'address' }],
+    name: 'getReferrerTier',
+    outputs: [
+      { name: 'tier', type: 'uint8' },
+      { name: 'rateBps', type: 'uint16' },
+      { name: 'count', type: 'uint16' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'referrer', type: 'address' }],
+    name: 'getReferrerTierBps',
+    outputs: [{ name: '', type: 'uint16' }],
     stateMutability: 'view',
     type: 'function',
   },
@@ -211,6 +236,56 @@ export const CHESSBOTS_ABI = [
     inputs: [{ name: 'tournamentId', type: 'uint256' }],
     name: 'tournamentReferralBonuses',
     outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'tournamentId', type: 'uint256' }],
+    name: 'tournamentRefereeDiscounts',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // Referral V2 constants
+  {
+    inputs: [],
+    name: 'REFERRAL_FULL_RATE_TOURNAMENTS',
+    outputs: [{ name: '', type: 'uint16' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'REFERRAL_LONG_TAIL_BPS',
+    outputs: [{ name: '', type: 'uint16' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'REFEREE_DISCOUNT_BPS',
+    outputs: [{ name: '', type: 'uint16' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'TIER_BRONZE_BPS',
+    outputs: [{ name: '', type: 'uint16' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'TIER_SILVER_BPS',
+    outputs: [{ name: '', type: 'uint16' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'TIER_GOLD_BPS',
+    outputs: [{ name: '', type: 'uint16' }],
     stateMutability: 'view',
     type: 'function',
   },

@@ -2,12 +2,12 @@ import { createPublicClient, createWalletClient, http, defineChain, type Address
 import { privateKeyToAccount } from 'viem/accounts';
 import { ChainConfig, PlayerStanding, Pairing } from '../types/index.js';
 
-const monadTestnet = defineChain({
-  id: 10143,
-  name: 'Monad Testnet',
+const monad = defineChain({
+  id: 143,
+  name: 'Monad',
   nativeCurrency: { name: 'Monad', symbol: 'MON', decimals: 18 },
-  rpcUrls: { default: { http: ['https://testnet-rpc.monad.xyz/'] } },
-  blockExplorers: { default: { name: 'Explorer', url: 'https://testnet.monadexplorer.com' } },
+  rpcUrls: { default: { http: ['https://rpc.monad.xyz/'] } },
+  blockExplorers: { default: { name: 'MonadScan', url: 'https://monadscan.com' } },
 });
 
 // Minimal ABI for tournament operations the orchestrator needs
@@ -231,7 +231,7 @@ export class MonadClient {
     this.contractAddress = config.contractAddress as Address;
     this.usdcAddress = config.usdcAddress as Address;
 
-    const chain = { ...monadTestnet, rpcUrls: { default: { http: [config.rpcUrl] } } };
+    const chain = { ...monad, rpcUrls: { default: { http: [config.rpcUrl] } } };
 
     this.publicClient = createPublicClient({
       chain,

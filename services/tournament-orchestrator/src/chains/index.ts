@@ -15,7 +15,7 @@ let _config: ChainConfig | null = null;
 export function getChainConfig(): ChainConfig {
   if (!_config) {
     _config = {
-      rpcUrl: process.env.MONAD_RPC || 'https://testnet-rpc.monad.xyz/',
+      rpcUrl: process.env.MONAD_RPC || 'https://rpc.monad.xyz/',
       contractAddress: requireEnv('MONAD_CONTRACT'),
       usdcAddress: requireEnv('MONAD_USDC'),
       chessTokenAddress: requireEnv('CHESS_TOKEN'),
