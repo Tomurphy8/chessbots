@@ -22,9 +22,11 @@ contracts/evm/out/
 contracts/evm/cache/
 contracts/evm/broadcast/
 
-# Solana (not used by backend)
+# Solana / Anchor (not used by backend services)
 programs/
 tests/
+Cargo.toml
+Cargo.lock
 
 # Scripts
 scripts/
