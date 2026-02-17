@@ -11,21 +11,6 @@ RUN npm install
 COPY tsconfig.json ./
 COPY src/ src/
 
-# Inline the base tsconfig settings since we don't have the workspace root
-RUN node -e " \
-  const fs = require('fs'); \
-  const config = JSON.parse(fs.readFileSync('tsconfig.json', 'utf8')); \
-  delete config.extends; \
-  config.compilerOptions = { \
-    target: 'ES2022', module: 'ESNext', moduleResolution: 'bundler', \
-    esModuleInterop: true, forceConsistentCasingInFileNames: true, \
-    strict: true, skipLibCheck: true, declaration: true, \
-    declarationMap: true, sourceMap: true, \
-    outDir: 'dist', rootDir: 'src' \
-  }; \
-  fs.writeFileSync('tsconfig.json', JSON.stringify(config, null, 2)); \
-"
-
 # Build TypeScript
 RUN npx tsc
 
