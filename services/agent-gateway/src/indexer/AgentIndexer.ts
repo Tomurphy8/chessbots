@@ -17,7 +17,7 @@ export interface IndexedAgent {
   referralCount: number;     // Referral V2: number of agents referred
 }
 
-// ABI for getAgent call
+// ABI for getAgent call — must match V3 AgentProfile struct exactly
 const GET_AGENT_ABI = [
   {
     inputs: [{ name: 'wallet', type: 'address' }],
@@ -34,6 +34,7 @@ const GET_AGENT_ABI = [
         { name: 'gamesDrawn', type: 'uint32' },
         { name: 'gamesLost', type: 'uint32' },
         { name: 'totalEarnings', type: 'uint64' },
+        { name: 'referredBy', type: 'address' },
         { name: 'registered', type: 'bool' },
       ],
       name: '',
@@ -65,12 +66,11 @@ const REFERRAL_COUNT_ABI = [
   },
 ] as const;
 
+// V3 contract enum: 0=OpenClaw, 1=SolanaAgentKit, 2=Custom
 const AGENT_TYPE_MAP: Record<number, string> = {
-  0: 'Custom',
-  1: 'Stockfish',
-  2: 'Neural',
-  3: 'Hybrid',
-  4: 'Random',
+  0: 'OpenClaw',
+  1: 'SolanaAgentKit',
+  2: 'Custom',
 };
 
 const AGENT_REGISTERED_EVENT = parseAbiItem(
@@ -136,8 +136,8 @@ export class AgentIndexer {
       this.initialized = true;
       console.log(`AgentIndexer: Initialized with ${this.agents.size} agents`);
 
-      // Start periodic refresh (every 60 seconds)
-      this.refreshInterval = setInterval(() => this.refresh().catch(console.error), 60_000);
+      // Start periodic refresh (every 30 seconds for live leaderboard updates)
+      this.refreshInterval = setInterval(() => this.refresh().catch(console.error), 30_000);
     } catch (err) {
       console.error('AgentIndexer: Initialization failed:', err);
     } finally {
@@ -253,11 +253,13 @@ export class AgentIndexer {
           // Extract referral data (default to 0 if fetch failed)
           let refEarnings = 0;
           let refCount = 0;
-          if (earningsResults[j].status === 'fulfilled') {
-            refEarnings = parseFloat(formatUnits(BigInt(earningsResults[j].value as any), 6));
+          const earningsResult = earningsResults[j];
+          if (earningsResult.status === 'fulfilled') {
+            refEarnings = parseFloat(formatUnits(BigInt(earningsResult.value as any), 6));
           }
-          if (countResults[j].status === 'fulfilled') {
-            refCount = Number(countResults[j].value);
+          const countResult = countResults[j];
+          if (countResult.status === 'fulfilled') {
+            refCount = Number(countResult.value);
           }
 
           this.agents.set(batch[j].toLowerCase(), {
