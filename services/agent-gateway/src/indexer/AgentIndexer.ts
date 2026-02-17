@@ -128,14 +128,10 @@ export class AgentIndexer {
       }
 
       const walletList = [...wallets];
-      console.log(`AgentIndexer: ${walletList.length} unique agents to index:`, walletList.slice(0, 3).join(', '), '...');
+      console.log(`AgentIndexer: ${walletList.length} unique agents to index`);
 
       // Fetch current stats for all agents
-      try {
-        await this.fetchAgentStats(walletList);
-      } catch (fetchErr: any) {
-        console.error('AgentIndexer: fetchAgentStats threw:', fetchErr.message || fetchErr);
-      }
+      await this.fetchAgentStats(walletList);
 
       this.lastIndexedBlock = latestBlock;
       this.initialized = true;
@@ -199,12 +195,10 @@ export class AgentIndexer {
    * Fetch on-chain stats for a list of wallets and update the index.
    */
   private async fetchAgentStats(wallets: string[]): Promise<void> {
-    console.log(`AgentIndexer: fetchAgentStats called with ${wallets.length} wallets`);
     // Batch in groups of 10 to avoid overwhelming RPC
     const BATCH_SIZE = 10;
     for (let i = 0; i < wallets.length; i += BATCH_SIZE) {
       const batch = wallets.slice(i, i + BATCH_SIZE);
-      console.log(`AgentIndexer: Processing batch ${i / BATCH_SIZE + 1}, ${batch.length} wallets`);
 
       // Fetch agent profile, referral earnings, and referral count in parallel
       const [agentResults, earningsResults, countResults] = await Promise.all([
@@ -240,25 +234,15 @@ export class AgentIndexer {
         ),
       ]);
 
-      console.log(`AgentIndexer: Got ${agentResults.length} agent results, ${earningsResults.length} earnings, ${countResults.length} counts`);
       for (let j = 0; j < agentResults.length; j++) {
         const result = agentResults[j];
-        console.log(`AgentIndexer: Agent ${j} (${batch[j]}): status=${result.status}`);
         if (result.status === 'rejected') {
           console.error(`AgentIndexer: getAgent failed for ${batch[j]}:`, result.reason?.message || result.reason);
           continue;
         }
         if (result.status === 'fulfilled') {
           const raw = result.value;
-          if (!raw) {
-            console.warn(`AgentIndexer: getAgent returned null/undefined for ${batch[j]}`);
-            continue;
-          }
-          console.log(`AgentIndexer: Agent ${batch[j]}: name=${raw.name}, registered=${raw.registered}, games=${raw.gamesPlayed}`);
-          if (!raw.registered) {
-            console.warn(`AgentIndexer: agent ${batch[j]} not registered`);
-            continue;
-          }
+          if (!raw || !raw.registered) continue;
 
           const gamesPlayed = Number(raw.gamesPlayed);
           const gamesWon = Number(raw.gamesWon);
