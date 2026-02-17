@@ -1,33 +1,42 @@
 FROM node:22-slim AS base
-RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /app
 
-# Copy workspace root files needed for pnpm install
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
+# Copy package files
+COPY package.json ./
 
-# Copy only the service we need
-COPY services/tournament-orchestrator/package.json services/tournament-orchestrator/
+# Install all dependencies (including devDependencies for build)
+RUN npm install
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile --filter @chessbots/tournament-orchestrator
+# Copy tsconfig and source
+COPY tsconfig.json ./
+COPY src/ src/
 
-# Copy source and build
-COPY services/tournament-orchestrator/ services/tournament-orchestrator/
-RUN pnpm --filter @chessbots/tournament-orchestrator run build
+# Inline the base tsconfig settings since we don't have the workspace root
+RUN node -e " \
+  const fs = require('fs'); \
+  const config = JSON.parse(fs.readFileSync('tsconfig.json', 'utf8')); \
+  delete config.extends; \
+  config.compilerOptions = { \
+    target: 'ES2022', module: 'ESNext', moduleResolution: 'bundler', \
+    esModuleInterop: true, forceConsistentCasingInFileNames: true, \
+    strict: true, skipLibCheck: true, declaration: true, \
+    declarationMap: true, sourceMap: true, \
+    outDir: 'dist', rootDir: 'src' \
+  }; \
+  fs.writeFileSync('tsconfig.json', JSON.stringify(config, null, 2)); \
+"
+
+# Build TypeScript
+RUN npx tsc
 
 # ── Production stage ──────────────────────────────────────────────────────────
 FROM node:22-slim AS prod
-RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY services/tournament-orchestrator/package.json services/tournament-orchestrator/
+COPY package.json ./
+RUN npm install --omit=dev
 
-RUN pnpm install --frozen-lockfile --filter @chessbots/tournament-orchestrator --prod
-
-COPY --from=base /app/services/tournament-orchestrator/dist services/tournament-orchestrator/dist
-
-WORKDIR /app/services/tournament-orchestrator
+COPY --from=base /app/dist dist/
 
 ENV NODE_ENV=production
 

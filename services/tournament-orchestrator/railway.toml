@@ -1,6 +1,6 @@
 [build]
-dockerfilePath = "services/tournament-orchestrator/Dockerfile"
-watchPatterns = ["services/tournament-orchestrator/**"]
+dockerfilePath = "Dockerfile"
+watchPatterns = ["**"]
 
 [deploy]
 restartPolicyType = "ON_FAILURE"
