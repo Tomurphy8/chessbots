@@ -235,6 +235,10 @@ export class AgentIndexer {
 
       for (let j = 0; j < agentResults.length; j++) {
         const result = agentResults[j];
+        if (result.status === 'rejected') {
+          console.error(`AgentIndexer: getAgent failed for ${batch[j]}:`, result.reason?.message || result.reason);
+          continue;
+        }
         if (result.status === 'fulfilled' && result.value) {
           const raw = result.value;
           if (!raw.registered) continue;
