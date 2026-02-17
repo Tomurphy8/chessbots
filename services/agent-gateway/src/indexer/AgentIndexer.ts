@@ -239,9 +239,16 @@ export class AgentIndexer {
           console.error(`AgentIndexer: getAgent failed for ${batch[j]}:`, result.reason?.message || result.reason);
           continue;
         }
-        if (result.status === 'fulfilled' && result.value) {
+        if (result.status === 'fulfilled') {
           const raw = result.value;
-          if (!raw.registered) continue;
+          if (!raw) {
+            console.warn(`AgentIndexer: getAgent returned null/undefined for ${batch[j]}`);
+            continue;
+          }
+          if (!raw.registered) {
+            console.warn(`AgentIndexer: agent ${batch[j]} not registered (registered=${raw.registered})`);
+            continue;
+          }
 
           const gamesPlayed = Number(raw.gamesPlayed);
           const gamesWon = Number(raw.gamesWon);
