@@ -211,68 +211,85 @@ async function main() {
               continue;
             }
 
-            // Skip tournaments not in registration status — they're already started/completed
-            if (t.status !== 0) {
+            // Skip completed/cancelled tournaments (4 = Completed, 5 = Cancelled)
+            if (t.status >= 4) {
               completedTournaments.add(id);
               continue;
             }
 
-            // Check if tournament has enough players and deadline has passed
-            if (t.registeredCount >= t.minPlayers) {
-              const deadline = Number(t.registrationDeadline);
-              const now = Math.floor(Date.now() / 1000);
-              if (deadline > 0 && now >= deadline) {
-                log('info', `Tournament #${id} ready — launching runner`, {
+            // Also skip RoundComplete (3) — waiting for on-chain advancement
+            if (t.status === 3) {
+              continue;
+            }
+
+            // Helper: build config and launch runner for a tournament
+            const launchRunner = async (reason: string) => {
+              log('info', `Tournament #${id} ${reason} — launching runner`, {
+                tournamentId: id,
+                status: t.status,
+                playerCount: t.registeredCount,
+                tier: t.tier,
+              });
+
+              const wallets = await chain.getRegisteredWallets(BigInt(id), t.registeredCount);
+              if (wallets.length < t.minPlayers) {
+                log('warn', `Tournament #${id}: found ${wallets.length} wallets but need ${t.minPlayers}, skipping`, {
                   tournamentId: id,
-                  playerCount: t.registeredCount,
-                  tier: t.tier,
                 });
-
-                // Fetch registered wallets from on-chain events
-                const wallets = await chain.getRegisteredWallets(BigInt(id), t.registeredCount);
-                if (wallets.length < t.minPlayers) {
-                  log('warn', `Tournament #${id}: found ${wallets.length} wallets but need ${t.minPlayers}, skipping`, {
-                    tournamentId: id,
-                  });
-                  continue;
-                }
-
-                const TIER_NAMES: TournamentTier[] = ['rookie', 'bronze', 'silver', 'masters', 'legends', 'free'];
-                const tier = TIER_NAMES[t.tier] || 'rookie';
-                const defaults = TIER_DEFAULTS[tier];
-
-                const config: TournamentConfig = {
-                  tournamentId: id,
-                  tier,
-                  maxPlayers: t.maxPlayers,
-                  minPlayers: t.minPlayers,
-                  totalRounds: t.totalRounds,
-                  timeControl: {
-                    baseTimeSeconds: t.baseTimeSeconds || defaults.timeControl.baseTimeSeconds,
-                    incrementSeconds: t.incrementSeconds || defaults.timeControl.incrementSeconds,
-                  },
-                  freeTierPrizeUsdc: tier === 'free' ? freeTierPrizeUsdc : undefined,
-                };
-
-                runningTournaments.add(id);
-                completedTournaments.add(id);
-
-                // Run tournament (blocking — one at a time for safety)
-                try {
-                  const runner = new TournamentRunner(chain, engine, config, stateManager, gatewayUrl, serviceKey);
-                  await runner.run(wallets);
-                  log('info', `Tournament #${id} completed successfully`, { tournamentId: id });
-                } catch (err: any) {
-                  log('error', `Tournament #${id} failed`, {
-                    tournamentId: id,
-                    error: err.message,
-                    stack: err.stack,
-                  });
-                } finally {
-                  runningTournaments.delete(id);
-                }
+                return;
               }
-              // Don't mark as completed if deadline hasn't passed — re-check next poll
+
+              const TIER_NAMES: TournamentTier[] = ['rookie', 'bronze', 'silver', 'masters', 'legends', 'free'];
+              const tier = TIER_NAMES[t.tier] || 'rookie';
+              const defaults = TIER_DEFAULTS[tier];
+
+              const config: TournamentConfig = {
+                tournamentId: id,
+                tier,
+                maxPlayers: t.maxPlayers,
+                minPlayers: t.minPlayers,
+                totalRounds: t.totalRounds,
+                timeControl: {
+                  baseTimeSeconds: t.baseTimeSeconds || defaults.timeControl.baseTimeSeconds,
+                  incrementSeconds: t.incrementSeconds || defaults.timeControl.incrementSeconds,
+                },
+                freeTierPrizeUsdc: tier === 'free' ? freeTierPrizeUsdc : undefined,
+              };
+
+              runningTournaments.add(id);
+              completedTournaments.add(id);
+
+              try {
+                const runner = new TournamentRunner(chain, engine, config, stateManager, gatewayUrl, serviceKey);
+                await runner.run(wallets);
+                log('info', `Tournament #${id} completed successfully`, { tournamentId: id });
+              } catch (err: any) {
+                log('error', `Tournament #${id} failed`, {
+                  tournamentId: id,
+                  error: err.message,
+                  stack: err.stack,
+                });
+              } finally {
+                runningTournaments.delete(id);
+              }
+            };
+
+            // Registration (status 0): wait for deadline + enough players, then start
+            if (t.status === 0) {
+              if (t.registeredCount >= t.minPlayers) {
+                const deadline = Number(t.registrationDeadline);
+                const now = Math.floor(Date.now() / 1000);
+                if (deadline > 0 && now >= deadline) {
+                  await launchRunner('ready');
+                }
+                // Don't mark as completed if deadline hasn't passed — re-check next poll
+              }
+              continue;
+            }
+
+            // InProgress (1) or RoundActive (2): resume — tournament was started but runner isn't running
+            if (t.status === 1 || t.status === 2) {
+              await launchRunner(`needs resume (status=${t.status}, round=${t.currentRound}/${t.totalRounds})`);
             }
           }
         } catch (err: any) {
