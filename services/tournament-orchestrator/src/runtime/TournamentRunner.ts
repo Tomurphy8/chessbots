@@ -110,11 +110,15 @@ export class TournamentRunner {
       this.stateManager?.startTournament(this.config.tournamentId, this.config.tier, this.config.totalRounds, registeredWallets);
     }
 
+    // Check on-chain status to determine if funding/starting has already happened
+    const onChainState = await this.chain.getTournament(tournamentId);
+    const alreadyStartedOnChain = existingState?.startedOnChain || onChainState.status >= 2;
+    const alreadyFunded = existingState?.fundedOnChain || onChainState.status >= 2;
+
     // Auto-fund free-tier tournaments with USDC before starting
     if (this.config.tier === 'free' && this.config.freeTierPrizeUsdc && this.config.freeTierPrizeUsdc > 0) {
-      const alreadyFunded = existingState?.fundedOnChain || false;
       if (alreadyFunded) {
-        console.log('Free tier tournament already funded on-chain (crash recovery), skipping.\n');
+        console.log('Free tier tournament already funded on-chain, skipping.\n');
       } else {
         const amountRaw = BigInt(Math.round(this.config.freeTierPrizeUsdc * 1e6));
         console.log(`Funding free tournament with ${this.config.freeTierPrizeUsdc} USDC (${amountRaw} raw)...`);
@@ -134,9 +138,8 @@ export class TournamentRunner {
     }
 
     // TO-C1: Only start tournament on-chain if not already started (crash recovery safe)
-    const alreadyStartedOnChain = existingState?.startedOnChain || false;
     if (alreadyStartedOnChain) {
-      console.log('Tournament already started on-chain (crash recovery), skipping startTournament call.\n');
+      console.log('Tournament already started on-chain, skipping startTournament call.\n');
     } else {
       console.log('Starting tournament on-chain...');
       try {
