@@ -1,6 +1,6 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "services/agent-gateway/Dockerfile"
+dockerfilePath = "Dockerfile"
 watchPatterns = ["services/agent-gateway/**"]
 
 [deploy]
