@@ -1,10 +1,13 @@
 import { CHAIN } from '@/lib/chains';
 
 // Contract types for Monad deployment
+export type TournamentFormat = 'Swiss' | '1v1' | 'Team' | 'League';
+
 export interface TournamentData {
   id: string;
   tier: 'Rookie' | 'Bronze' | 'Silver' | 'Masters' | 'Legends' | 'Free';
   status: 'Registration' | 'InProgress' | 'RoundActive' | 'RoundComplete' | 'Completed' | 'Cancelled';
+  format: TournamentFormat;
   entryFee: number; // in USDC (6 decimals)
   maxPlayers: number;
   registeredCount: number;
@@ -14,6 +17,9 @@ export interface TournamentData {
   registrationDeadline: number;
   prizePool: number;
   authority: string;
+  bestOf?: number;        // For 1v1 match format (1, 3, or 5)
+  teamSize?: number;      // For team format (e.g. 5)
+  challengeTarget?: string; // For 1v1 match challenges
 }
 
 export interface AgentData {

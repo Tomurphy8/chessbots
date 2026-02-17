@@ -1,15 +1,20 @@
 import { SwissPairing } from '../pairing/SwissPairing.js';
+import { createPairingEngine, type PairingEngine } from '../pairing/PairingFactory.js';
+import { createScoringStrategy, type ScoringStrategy } from './ScoringStrategy.js';
 import { PlayerStanding, RoundResult, TournamentConfig } from '../types/index.js';
 
 export class TournamentManager {
   private config: TournamentConfig;
   private standings: Map<string, PlayerStanding> = new Map();
   private currentRound = 0;
-  private pairingEngine: SwissPairing;
+  private pairingEngine: PairingEngine;
+  private scoringStrategy: ScoringStrategy;
 
   constructor(config: TournamentConfig) {
     this.config = config;
-    this.pairingEngine = new SwissPairing();
+    // Use format-aware pairing and scoring if format is set, otherwise default to Swiss
+    this.pairingEngine = createPairingEngine(config.format || 'swiss');
+    this.scoringStrategy = createScoringStrategy(config.format || 'swiss');
   }
 
   registerPlayer(wallet: string): void {
@@ -50,7 +55,7 @@ export class TournamentManager {
   getStandings(): PlayerStanding[] {
     const all = Array.from(this.standings.values());
     this.pairingEngine.calculateBuchholz(all);
-    return all.sort((a, b) => b.score !== a.score ? b.score - a.score : b.buchholz - a.buchholz);
+    return this.scoringStrategy.sortStandings(all);
   }
 
   startNextRound(): RoundResult {
@@ -72,15 +77,30 @@ export class TournamentManager {
     b.opponents.push(white);
     w.gamesPlayed++;
     b.gamesPlayed++;
-    if (result === 'white') { w.score += 2; w.gamesWon++; b.gamesLost++; }
-    else if (result === 'black') { b.score += 2; b.gamesWon++; w.gamesLost++; }
-    else { w.score += 1; b.score += 1; w.gamesDrawn++; b.gamesDrawn++; }
+
+    // Use scoring strategy for point values
+    if (result === 'white') {
+      w.score += this.scoringStrategy.winPoints;
+      b.score += this.scoringStrategy.lossPoints;
+      w.gamesWon++;
+      b.gamesLost++;
+    } else if (result === 'black') {
+      b.score += this.scoringStrategy.winPoints;
+      w.score += this.scoringStrategy.lossPoints;
+      b.gamesWon++;
+      w.gamesLost++;
+    } else {
+      w.score += this.scoringStrategy.drawPoints;
+      b.score += this.scoringStrategy.drawPoints;
+      w.gamesDrawn++;
+      b.gamesDrawn++;
+    }
   }
 
   recordBye(wallet: string): void {
     const p = this.standings.get(wallet);
     if (!p) throw new Error('Player not found');
-    p.score += 2;
+    p.score += this.scoringStrategy.winPoints;
     p.gamesPlayed++;
     p.gamesWon++;
     // TO-H1: Track bye as a sentinel opponent so Buchholz and
@@ -94,7 +114,22 @@ export class TournamentManager {
 
   getWinners(): { first: string; second: string; third: string } {
     const sorted = this.getStandings();
-    return { first: sorted[0]?.wallet || '', second: sorted[1]?.wallet || '', third: sorted[2]?.wallet || '' };
+    const format = this.config.format || 'swiss';
+
+    if (format === 'match') {
+      // Match: only 1 winner
+      return {
+        first: sorted[0]?.wallet || '',
+        second: '',
+        third: '',
+      };
+    }
+
+    return {
+      first: sorted[0]?.wallet || '',
+      second: sorted[1]?.wallet || '',
+      third: sorted[2]?.wallet || '',
+    };
   }
 
   /**
@@ -108,6 +143,8 @@ export class TournamentManager {
     }
   }
 
+  getFormat(): string { return this.config.format || 'swiss'; }
   getCurrentRound(): number { return this.currentRound; }
   isComplete(): boolean { return this.currentRound >= this.config.totalRounds; }
+  getPairingEngine(): PairingEngine { return this.pairingEngine; }
 }

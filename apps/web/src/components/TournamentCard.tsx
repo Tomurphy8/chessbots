@@ -8,6 +8,7 @@ interface TournamentCardProps {
   id: number;
   tier: 'rookie' | 'bronze' | 'silver' | 'masters' | 'legends';
   status: string;
+  format?: 'swiss' | '1v1' | 'team' | 'league';
   entryFee: number;
   registeredCount: number;
   maxPlayers: number;
@@ -17,7 +18,7 @@ interface TournamentCardProps {
 }
 
 export function TournamentCard({
-  id, tier, status, entryFee, registeredCount, maxPlayers,
+  id, tier, status, format, entryFee, registeredCount, maxPlayers,
   currentRound, totalRounds, prizePool,
 }: TournamentCardProps) {
   return (
@@ -27,9 +28,16 @@ export function TournamentCard({
         tierBorderColor(tier),
       )}>
         <div className="flex items-center justify-between mb-3">
-          <span className={cn('text-sm font-semibold uppercase tracking-wide', tierColor(tier))}>
-            {tier}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className={cn('text-sm font-semibold uppercase tracking-wide', tierColor(tier))}>
+              {tier}
+            </span>
+            {format && format !== 'swiss' && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-chess-border/50 text-gray-300 uppercase">
+                {format}
+              </span>
+            )}
+          </div>
           <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', statusBadgeColor(status))}>
             {status.replace('_', ' ')}
           </span>

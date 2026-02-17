@@ -12,10 +12,11 @@ const monad = defineChain({
 
 // Minimal ABI for tournament operations the orchestrator needs
 const TOURNAMENT_ABI = [
-  // createTournament
+  // createTournament (V3: includes format param)
   {
     inputs: [
       { name: 'tier', type: 'uint8' },
+      { name: 'format', type: 'uint8' },
       { name: 'maxPlayers', type: 'uint8' },
       { name: 'minPlayers', type: 'uint8' },
       { name: 'startTime', type: 'int64' },
@@ -128,7 +129,7 @@ const TOURNAMENT_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
-  // getTournament (read)
+  // getTournament (read) — V3 struct with format, teamSize, bestOf, challengeTarget
   {
     inputs: [{ name: 'tournamentId', type: 'uint256' }],
     name: 'getTournament',
@@ -137,6 +138,7 @@ const TOURNAMENT_ABI = [
         { name: 'id', type: 'uint256' },
         { name: 'authority', type: 'address' },
         { name: 'tier', type: 'uint8' },
+        { name: 'format', type: 'uint8' },
         { name: 'entryFee', type: 'uint256' },
         { name: 'status', type: 'uint8' },
         { name: 'maxPlayers', type: 'uint8' },
@@ -144,6 +146,8 @@ const TOURNAMENT_ABI = [
         { name: 'registeredCount', type: 'uint8' },
         { name: 'currentRound', type: 'uint8' },
         { name: 'totalRounds', type: 'uint8' },
+        { name: 'teamSize', type: 'uint8' },
+        { name: 'bestOf', type: 'uint8' },
         { name: 'startTime', type: 'int64' },
         { name: 'registrationDeadline', type: 'int64' },
         { name: 'baseTimeSeconds', type: 'uint32' },
@@ -152,6 +156,7 @@ const TOURNAMENT_ABI = [
         { name: 'resultsUri', type: 'string' },
         { name: 'prizeDistributed', type: 'bool' },
         { name: 'exists', type: 'bool' },
+        { name: 'challengeTarget', type: 'address' },
       ],
       name: '',
       type: 'tuple',
@@ -171,6 +176,103 @@ const TOURNAMENT_ABI = [
         { name: 'agent', type: 'address' },
         { name: 'tournamentId', type: 'uint256' },
         { name: 'exists', type: 'bool' },
+      ],
+      name: '',
+      type: 'tuple',
+    }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // V3: createMatchChallenge (1v1 with bestOf + optional opponent targeting)
+  {
+    inputs: [
+      { name: 'tier', type: 'uint8' },
+      { name: 'startTime', type: 'int64' },
+      { name: 'registrationDeadline', type: 'int64' },
+      { name: 'baseTimeSeconds', type: 'uint32' },
+      { name: 'incrementSeconds', type: 'uint32' },
+      { name: 'bestOf', type: 'uint8' },
+      { name: 'opponent', type: 'address' },
+    ],
+    name: 'createMatchChallenge',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // V3: createTeamTournament
+  {
+    inputs: [
+      { name: 'tier', type: 'uint8' },
+      { name: 'maxTeams', type: 'uint8' },
+      { name: 'minTeams', type: 'uint8' },
+      { name: 'startTime', type: 'int64' },
+      { name: 'registrationDeadline', type: 'int64' },
+      { name: 'baseTimeSeconds', type: 'uint32' },
+      { name: 'incrementSeconds', type: 'uint32' },
+      { name: 'teamSize', type: 'uint8' },
+    ],
+    name: 'createTeamTournament',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // V3: getTeamRoster (read)
+  {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: '_teamId', type: 'uint8' },
+    ],
+    name: 'getTeamRoster',
+    outputs: [{ name: '', type: 'address[]' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // V3: getTeamCount (read)
+  {
+    inputs: [{ name: 'tournamentId', type: 'uint256' }],
+    name: 'getTeamCount',
+    outputs: [{ name: '', type: 'uint8' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // registerAgent
+  {
+    inputs: [
+      { name: 'name', type: 'string' },
+      { name: 'metadataUri', type: 'string' },
+      { name: 'agentType', type: 'uint8' },
+    ],
+    name: 'registerAgent',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // registerForTournament
+  {
+    inputs: [{ name: 'tournamentId', type: 'uint256' }],
+    name: 'registerForTournament',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // getAgent (read)
+  {
+    inputs: [{ name: 'wallet', type: 'address' }],
+    name: 'getAgent',
+    outputs: [{
+      components: [
+        { name: 'wallet', type: 'address' },
+        { name: 'name', type: 'string' },
+        { name: 'metadataUri', type: 'string' },
+        { name: 'agentType', type: 'uint8' },
+        { name: 'eloRating', type: 'uint16' },
+        { name: 'gamesPlayed', type: 'uint32' },
+        { name: 'gamesWon', type: 'uint32' },
+        { name: 'gamesDrawn', type: 'uint32' },
+        { name: 'gamesLost', type: 'uint32' },
+        { name: 'totalEarnings', type: 'uint64' },
+        { name: 'referredBy', type: 'address' },
+        { name: 'registered', type: 'bool' },
       ],
       name: '',
       type: 'tuple',
@@ -300,7 +402,7 @@ export class MonadClient {
   }
 
   async createTournament(
-    tier: number, maxPlayers: number, minPlayers: number,
+    tier: number, format: number, maxPlayers: number, minPlayers: number,
     startTime: bigint, registrationDeadline: bigint,
     baseTimeSeconds: number, incrementSeconds: number,
   ): Promise<Hash> {
@@ -308,7 +410,7 @@ export class MonadClient {
       address: this.contractAddress,
       abi: TOURNAMENT_ABI,
       functionName: 'createTournament',
-      args: [tier, maxPlayers, minPlayers, startTime, registrationDeadline, baseTimeSeconds, incrementSeconds],
+      args: [tier, format, maxPlayers, minPlayers, startTime, registrationDeadline, baseTimeSeconds, incrementSeconds],
     });
     await this.confirmTx(hash, 'createTournament');
     return hash;
@@ -459,6 +561,82 @@ export class MonadClient {
     }, `fundTournament(${tournamentId})`);
   }
 
+  // ── V3: Format-specific tournament creation ──────────────────────────────
+
+  async createMatchChallenge(
+    tier: number, startTime: bigint, registrationDeadline: bigint,
+    baseTimeSeconds: number, incrementSeconds: number,
+    bestOf: number, opponent: Address,
+  ): Promise<Hash> {
+    const hash = await this.walletClient.writeContract({
+      address: this.contractAddress,
+      abi: TOURNAMENT_ABI,
+      functionName: 'createMatchChallenge',
+      args: [tier, startTime, registrationDeadline, baseTimeSeconds, incrementSeconds, bestOf, opponent],
+    });
+    await this.confirmTx(hash, 'createMatchChallenge');
+    return hash;
+  }
+
+  async createTeamTournament(
+    tier: number, maxTeams: number, minTeams: number,
+    startTime: bigint, registrationDeadline: bigint,
+    baseTimeSeconds: number, incrementSeconds: number,
+    teamSize: number,
+  ): Promise<Hash> {
+    const hash = await this.walletClient.writeContract({
+      address: this.contractAddress,
+      abi: TOURNAMENT_ABI,
+      functionName: 'createTeamTournament',
+      args: [tier, maxTeams, minTeams, startTime, registrationDeadline, baseTimeSeconds, incrementSeconds, teamSize],
+    });
+    await this.confirmTx(hash, 'createTeamTournament');
+    return hash;
+  }
+
+  // ── V3: Team roster reading ─────────────────────────────────────────────
+
+  async getTeamCount(tournamentId: bigint): Promise<number> {
+    const count = await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: TOURNAMENT_ABI,
+      functionName: 'getTeamCount',
+      args: [tournamentId],
+    });
+    return Number(count);
+  }
+
+  async getTeamRoster(tournamentId: bigint, teamId: number): Promise<Address[]> {
+    const roster = await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: TOURNAMENT_ABI,
+      functionName: 'getTeamRoster',
+      args: [tournamentId, teamId],
+    });
+    return [...roster]; // Copy from readonly to mutable
+  }
+
+  /**
+   * Load all teams for a tournament. Returns team info with members and captain.
+   * Captain is members[0] (the on-chain captain is msg.sender of registerTeam,
+   * but members[0] is used as the prize recipient for simplicity).
+   */
+  async loadAllTeams(tournamentId: bigint): Promise<Array<{ teamId: number; captain: string; members: Address[] }>> {
+    const count = await this.getTeamCount(tournamentId);
+    const teams: Array<{ teamId: number; captain: string; members: Address[] }> = [];
+
+    for (let i = 0; i < count; i++) {
+      const members = await this.getTeamRoster(tournamentId, i);
+      teams.push({
+        teamId: i,
+        captain: members[0] || '0x0000000000000000000000000000000000000000',
+        members: [...members],
+      });
+    }
+
+    return teams;
+  }
+
   /**
    * Discover registered wallets for a tournament by reading AgentJoined event logs.
    * Uses binary search to find the approximate block range, then scans in chunks.
@@ -527,6 +705,39 @@ export class MonadClient {
 
     console.log(`  Found ${wallets.length} registered wallets for tournament #${tournamentId}`);
     return wallets;
+  }
+
+  // ── Agent registration ────────────────────────────────────────────────────
+
+  async registerAgent(name: string, metadataUri: string, agentType: number): Promise<Hash> {
+    const hash = await this.walletClient.writeContract({
+      address: this.contractAddress,
+      abi: TOURNAMENT_ABI,
+      functionName: 'registerAgent',
+      args: [name, metadataUri, agentType],
+    });
+    await this.confirmTx(hash, `registerAgent(${name})`);
+    return hash;
+  }
+
+  async registerForTournament(tournamentId: bigint): Promise<Hash> {
+    const hash = await this.walletClient.writeContract({
+      address: this.contractAddress,
+      abi: TOURNAMENT_ABI,
+      functionName: 'registerForTournament',
+      args: [tournamentId],
+    });
+    await this.confirmTx(hash, `registerForTournament(${tournamentId})`);
+    return hash;
+  }
+
+  async getAgent(wallet: Address) {
+    return this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: TOURNAMENT_ABI,
+      functionName: 'getAgent',
+      args: [wallet],
+    });
   }
 
   getAddress(): Address {

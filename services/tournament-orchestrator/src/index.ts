@@ -6,12 +6,21 @@ import { SwissPairing } from './pairing/SwissPairing.js';
 import { TournamentRunner } from './runtime/TournamentRunner.js';
 import { ChessEngineClient } from './runtime/ChessEngineClient.js';
 import { StateManager } from './runtime/StateManager.js';
-import type { TournamentConfig, TournamentTier } from './types/index.js';
+import type { TournamentConfig, TournamentTier, TournamentFormat } from './types/index.js';
+import { MatchPairing } from './pairing/MatchPairing.js';
+import { RoundRobinPairing } from './pairing/RoundRobinPairing.js';
+import { TeamPairing } from './pairing/TeamPairing.js';
+import { createPairingEngine } from './pairing/PairingFactory.js';
+import { createScoringStrategy } from './lifecycle/ScoringStrategy.js';
 
 // Re-export for library usage
 export { TournamentManager, SwissPairing, MonadClient, TournamentRunner, ChessEngineClient, StateManager };
+export { MatchPairing, RoundRobinPairing, TeamPairing, createPairingEngine, createScoringStrategy };
 export { getChainConfig, isDeployed };
 export * from './types/index.js';
+
+// Format mapping: on-chain uint8 → string
+const FORMAT_NAMES: TournamentFormat[] = ['swiss', 'match', 'team', 'league'];
 
 // TO-LOG1: Structured logger helper
 function log(level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) {
@@ -74,6 +83,13 @@ async function main() {
     console.log('  orchestrator watch              - Watch for tournaments and run them');
     console.log('  orchestrator run <id> <wallets>  - Run a specific tournament');
     console.log('  orchestrator status              - Show protocol state');
+    console.log('  orchestrator create <format> [options]  - Create a tournament on-chain');
+    console.log('');
+    console.log('Create formats:');
+    console.log('  create swiss  --tier <tier> --max <N> --min <N>');
+    console.log('  create league --tier <tier> --max <N> --min <N>');
+    console.log('  create match  --tier <tier> --best-of <1|3|5> [--opponent <addr>]');
+    console.log('  create team   --tier <tier> --max-teams <N> --min-teams <N> --team-size <N>');
     console.log('');
     return;
   }
@@ -125,11 +141,13 @@ async function main() {
 
       const TIER_NAMES: TournamentTier[] = ['rookie', 'bronze', 'silver', 'masters', 'legends', 'free'];
       const tier = TIER_NAMES[t.tier] || 'rookie';
+      const format = FORMAT_NAMES[t.format ?? 0] || 'swiss';
       const defaults = TIER_DEFAULTS[tier];
 
       const config: TournamentConfig = {
         tournamentId,
         tier,
+        format,
         maxPlayers: t.maxPlayers,
         minPlayers: t.minPlayers,
         totalRounds: t.totalRounds,
@@ -138,6 +156,8 @@ async function main() {
           incrementSeconds: t.incrementSeconds || defaults.timeControl.incrementSeconds,
         },
         freeTierPrizeUsdc: tier === 'free' ? freeTierPrizeUsdc : undefined,
+        bestOf: t.bestOf,
+        teamSize: t.teamSize,
       };
 
       const playerWalletsArg = process.argv[4];
@@ -241,11 +261,13 @@ async function main() {
 
               const TIER_NAMES: TournamentTier[] = ['rookie', 'bronze', 'silver', 'masters', 'legends', 'free'];
               const tier = TIER_NAMES[t.tier] || 'rookie';
+              const format = FORMAT_NAMES[t.format ?? 0] || 'swiss';
               const defaults = TIER_DEFAULTS[tier];
 
               const config: TournamentConfig = {
                 tournamentId: id,
                 tier,
+                format,
                 maxPlayers: t.maxPlayers,
                 minPlayers: t.minPlayers,
                 totalRounds: t.totalRounds,
@@ -254,6 +276,8 @@ async function main() {
                   incrementSeconds: t.incrementSeconds || defaults.timeControl.incrementSeconds,
                 },
                 freeTierPrizeUsdc: tier === 'free' ? freeTierPrizeUsdc : undefined,
+                bestOf: t.bestOf,
+                teamSize: t.teamSize,
               };
 
               runningTournaments.add(id);
@@ -300,6 +324,94 @@ async function main() {
       }
 
       log('info', 'Watch mode stopped gracefully');
+      break;
+    }
+
+    case 'create': {
+      const format = process.argv[3] as TournamentFormat | undefined;
+      if (!format || !FORMAT_NAMES.includes(format)) {
+        log('error', `Invalid format: ${format}. Must be one of: ${FORMAT_NAMES.join(', ')}`);
+        process.exit(1);
+      }
+
+      // Parse --key value args
+      const args = process.argv.slice(4);
+      const getArg = (key: string, fallback?: string): string | undefined => {
+        const idx = args.indexOf(`--${key}`);
+        return idx >= 0 && idx + 1 < args.length ? args[idx + 1] : fallback;
+      };
+
+      const TIER_NAMES: TournamentTier[] = ['rookie', 'bronze', 'silver', 'masters', 'legends', 'free'];
+      const tierName = (getArg('tier', 'free') || 'free') as TournamentTier;
+      const tierIndex = TIER_NAMES.indexOf(tierName);
+      if (tierIndex === -1) {
+        log('error', `Invalid tier: ${tierName}. Must be one of: ${TIER_NAMES.join(', ')}`);
+        process.exit(1);
+      }
+
+      const defaults = TIER_DEFAULTS[tierName];
+      const now = Math.floor(Date.now() / 1000);
+      const startTime = BigInt(now + 600); // 10 minutes from now
+      const registrationDeadline = BigInt(now + 540); // 9 minutes from now
+      const baseTime = parseInt(getArg('base-time') || String(defaults.timeControl.baseTimeSeconds));
+      const increment = parseInt(getArg('increment') || String(defaults.timeControl.incrementSeconds));
+
+      const formatIndex = FORMAT_NAMES.indexOf(format);
+
+      let txHash: string;
+
+      switch (format) {
+        case 'swiss':
+        case 'league': {
+          const maxPlayers = parseInt(getArg('max', '8')!);
+          const minPlayers = parseInt(getArg('min', '4')!);
+          txHash = await chain.createTournament(
+            tierIndex, formatIndex, maxPlayers, minPlayers,
+            startTime, registrationDeadline, baseTime, increment,
+          );
+          log('info', `Created ${format} tournament`, {
+            tier: tierName, maxPlayers, minPlayers, txHash,
+          });
+          break;
+        }
+
+        case 'match': {
+          const bestOf = parseInt(getArg('best-of', '3')!);
+          const opponent = (getArg('opponent') || '0x0000000000000000000000000000000000000000') as `0x${string}`;
+          txHash = await chain.createMatchChallenge(
+            tierIndex, startTime, registrationDeadline,
+            baseTime, increment, bestOf, opponent,
+          );
+          log('info', `Created match challenge`, {
+            tier: tierName, bestOf, opponent, txHash,
+          });
+          break;
+        }
+
+        case 'team': {
+          const maxTeams = parseInt(getArg('max-teams', '4')!);
+          const minTeams = parseInt(getArg('min-teams', '2')!);
+          const teamSize = parseInt(getArg('team-size', '5')!);
+          txHash = await chain.createTeamTournament(
+            tierIndex, maxTeams, minTeams,
+            startTime, registrationDeadline, baseTime, increment, teamSize,
+          );
+          log('info', `Created team tournament`, {
+            tier: tierName, maxTeams, minTeams, teamSize, txHash,
+          });
+          break;
+        }
+      }
+
+      // Read back the tournament to confirm
+      const protocol = await chain.getProtocolState();
+      const newId = Number(protocol[5]) - 1;
+      console.log(`\nTournament created successfully!`);
+      console.log(`  ID: ${newId}`);
+      console.log(`  Format: ${format}`);
+      console.log(`  Tier: ${tierName}`);
+      console.log(`  Registration deadline: ${new Date(Number(registrationDeadline) * 1000).toISOString()}`);
+      console.log(`  Start time: ${new Date(Number(startTime) * 1000).toISOString()}`);
       break;
     }
 

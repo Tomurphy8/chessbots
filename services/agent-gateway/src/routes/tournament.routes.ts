@@ -29,6 +29,10 @@ const TOURNAMENT_ABI = [
         { name: 'resultsUri', type: 'string' },
         { name: 'prizeDistributed', type: 'bool' },
         { name: 'exists', type: 'bool' },
+        { name: 'format', type: 'uint8' },
+        { name: 'teamSize', type: 'uint8' },
+        { name: 'bestOf', type: 'uint8' },
+        { name: 'challengeTarget', type: 'address' },
       ],
       name: '',
       type: 'tuple',
@@ -79,6 +83,7 @@ const TOURNAMENT_ABI = [
 
 const TierNames = ['Rookie', 'Bronze', 'Silver', 'Masters', 'Legends', 'Free'] as const;
 const StatusNames = ['Registration', 'InProgress', 'RoundActive', 'RoundComplete', 'Completed', 'Cancelled'] as const;
+const FormatNames = ['Swiss', '1v1', 'Team', 'League'] as const;
 
 function formatTournament(raw: any) {
   return {
@@ -100,6 +105,10 @@ function formatTournament(raw: any) {
     resultsUri: raw.resultsUri,
     prizeDistributed: raw.prizeDistributed,
     exists: raw.exists,
+    format: FormatNames[raw.format] || 'Swiss',
+    teamSize: raw.teamSize || 0,
+    bestOf: raw.bestOf || 0,
+    challengeTarget: raw.challengeTarget || '0x0000000000000000000000000000000000000000',
   };
 }
 
@@ -146,7 +155,7 @@ export function registerTournamentRoutes(app: FastifyInstance, publicClient: Pub
 
   // Standings cache: { tournamentId -> { data, timestamp } }
   const standingsCache = new Map<number, { data: any; timestamp: number }>();
-  const STANDINGS_CACHE_TTL = 120_000; // 2 minutes
+  const STANDINGS_CACHE_TTL = 30_000; // 30 seconds — keep fresh for live tournament updates
   // Dedup: if a standings scan is already running for a tournament, share the result
   const pendingStandings = new Map<number, Promise<any>>();
 

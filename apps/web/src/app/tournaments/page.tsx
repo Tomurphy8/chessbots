@@ -7,15 +7,18 @@ import { cn } from '@/lib/utils';
 
 const TIERS = ['all', 'rookie', 'bronze', 'silver', 'masters', 'legends', 'free'] as const;
 const STATUSES = ['all', 'registration', 'round_active', 'completed', 'cancelled'] as const;
+const FORMATS = ['all', 'swiss', '1v1', 'team', 'league'] as const;
 
 export default function TournamentsPage() {
   const [tierFilter, setTierFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [formatFilter, setFormatFilter] = useState<string>('all');
   const { tournaments, loading } = useTournaments();
 
   const filtered = tournaments.filter((t) => {
     if (tierFilter !== 'all' && t.tier !== tierFilter) return false;
     if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+    if (formatFilter !== 'all' && t.format !== formatFilter) return false;
     return true;
   });
 
@@ -53,6 +56,22 @@ export default function TournamentsPage() {
               )}
             >
               {status.replace('_', ' ')}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          {FORMATS.map((f) => (
+            <button
+              key={f}
+              onClick={() => setFormatFilter(f)}
+              className={cn(
+                'px-3 py-1.5 text-sm rounded-lg border transition-colors',
+                formatFilter === f
+                  ? 'border-chess-accent bg-chess-accent/20 text-chess-accent-light'
+                  : 'border-chess-border text-gray-400 hover:text-white',
+              )}
+            >
+              {f === '1v1' ? '1v1' : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
         </div>

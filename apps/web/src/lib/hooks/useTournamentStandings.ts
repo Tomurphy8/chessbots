@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { CHAIN } from '@/lib/chains';
+
+const STANDINGS_POLL_INTERVAL = 30_000; // 30 seconds
 
 export interface Standing {
   rank: number;
@@ -18,11 +20,13 @@ export interface Standing {
 /**
  * Fetches tournament standings from the gateway API.
  * Returns standings sorted by score (desc) and buchholz (desc).
+ * Auto-polls every 30 seconds for live updates.
  */
 export function useTournamentStandings(tournamentId: number) {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchStandings = useCallback(async () => {
     if (tournamentId < 0) return;
@@ -45,6 +49,12 @@ export function useTournamentStandings(tournamentId: number) {
 
   useEffect(() => {
     fetchStandings();
+
+    // Poll every 30s for live updates
+    intervalRef.current = setInterval(fetchStandings, STANDINGS_POLL_INTERVAL);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [fetchStandings]);
 
   return { standings, loading, error, refresh: fetchStandings };

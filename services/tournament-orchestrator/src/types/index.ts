@@ -32,14 +32,42 @@ export interface ChainConfig {
 }
 
 export type TournamentTier = 'rookie' | 'bronze' | 'silver' | 'masters' | 'legends' | 'free';
+export type TournamentFormat = 'swiss' | 'match' | 'team' | 'league';
 
 export interface TournamentConfig {
   tournamentId: number;
   tier: TournamentTier;
+  format: TournamentFormat;
   maxPlayers: number;
   minPlayers: number;
   totalRounds: number;
   timeControl: { baseTimeSeconds: number; incrementSeconds: number };
   /** USDC amount to auto-fund free tournaments (human-readable, e.g. 100 = $100) */
   freeTierPrizeUsdc?: number;
+  /** For match format: number of games in the series (1, 3, or 5) */
+  bestOf?: number;
+  /** For team format: number of players per team */
+  teamSize?: number;
+}
+
+/** Team standing for team tournaments */
+export interface TeamStanding {
+  teamId: number;
+  captain: string;
+  members: string[];
+  matchesWon: number;
+  matchesDrawn: number;
+  matchesLost: number;
+  boardPoints: number;
+  points: number;
+  /** Opponent team IDs (for Swiss pairing at team level) */
+  opponents: number[];
+  /** Team "color" for each round (for Swiss color-balancing) */
+  colors: ('white' | 'black')[];
+}
+
+/** League standing extends player standing with league-specific points */
+export interface LeagueStanding extends PlayerStanding {
+  /** League points: 3 for win, 1 for draw, 0 for loss */
+  leaguePoints: number;
 }

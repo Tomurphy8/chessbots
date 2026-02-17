@@ -50,6 +50,43 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
 
   const t = tournament;
 
+  // Format-aware prize breakdown
+  function getPrizeBreakdown(format: string, prizePool: number) {
+    switch (format) {
+      case '1v1':
+        return [
+          { label: 'Winner', pct: 0.90, color: 'text-chess-gold' },
+          { label: 'Protocol Fee', pct: 0.10, color: 'text-gray-500' },
+        ];
+      case 'league':
+        return [
+          { label: '1st Place', pct: 0.45, color: 'text-chess-gold' },
+          { label: '2nd Place', pct: 0.27, color: 'text-chess-silver' },
+          { label: '3rd Place', pct: 0.18, color: 'text-chess-bronze' },
+          { label: 'Protocol Fee', pct: 0.10, color: 'text-gray-500' },
+        ];
+      case 'team':
+        return [
+          { label: '1st Place (Captain)', pct: 0.63, color: 'text-chess-gold' },
+          { label: '2nd Place (Captain)', pct: 0.18, color: 'text-chess-silver' },
+          { label: '3rd Place (Captain)', pct: 0.09, color: 'text-chess-bronze' },
+          { label: 'Protocol Fee', pct: 0.10, color: 'text-gray-500' },
+        ];
+      default: // swiss
+        return [
+          { label: '1st Place', pct: 0.63, color: 'text-chess-gold' },
+          { label: '2nd Place', pct: 0.18, color: 'text-chess-silver' },
+          { label: '3rd Place', pct: 0.09, color: 'text-chess-bronze' },
+          { label: 'Protocol Fee', pct: 0.10, color: 'text-gray-500' },
+        ];
+    }
+  }
+
+  const prizeBreakdown = getPrizeBreakdown(t.format, t.prizePool);
+  const is1v1 = t.format === '1v1';
+  const isTeam = t.format === 'team';
+  const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
+
   return (
     <div>
       <Link href="/tournaments" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
@@ -59,14 +96,25 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-3xl font-bold">Tournament #{id}</h1>
+            <h1 className="text-3xl font-bold">
+              {is1v1 ? 'Match' : isTeam ? 'Team Tournament' : t.format === 'league' ? 'League' : 'Tournament'} #{id}
+            </h1>
             <span className={cn('text-sm font-semibold uppercase', tierColor(t.tier))}>{t.tier}</span>
+            {t.format && t.format !== 'swiss' && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-chess-border/50 text-gray-300 uppercase">
+                {t.format}
+              </span>
+            )}
             <span className={cn('text-xs px-2 py-0.5 rounded-full', statusBadgeColor(t.status))}>
               {t.status.replace('_', ' ')}
             </span>
           </div>
           <p className="text-gray-400">
-            Round {t.currentRound} of {t.totalRounds} &middot; {t.registeredCount} players registered
+            {is1v1 && t.bestOf > 0
+              ? <>Best of {t.bestOf} &middot; Game {t.currentRound} of {t.totalRounds}</>
+              : <>Round {t.currentRound} of {t.totalRounds}</>
+            }
+            {' '}&middot; {t.registeredCount} {isTeam ? 'teams' : 'players'} registered
             &middot; {t.baseTimeSeconds / 60}+{t.incrementSeconds}s time control
           </p>
           {hasSponsor && sponsor && (
@@ -172,21 +220,29 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
             <div className="border border-chess-border rounded-xl p-5 bg-chess-surface">
               <h3 className="text-sm text-gray-400 mb-2">Tournament Details</h3>
               <div className="space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-gray-500">Format</span><span className="capitalize">{t.format === '1v1' ? '1v1 Match' : t.format}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Entry Fee</span><span>{t.entryFee.toFixed(2)} USDC</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Players</span><span>{t.registeredCount} / {t.maxPlayers}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Min Players</span><span>{t.minPlayers}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Rounds</span><span>{t.totalRounds}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">{isTeam ? 'Teams' : 'Players'}</span><span>{t.registeredCount} / {t.maxPlayers}</span></div>
+                {!is1v1 && <div className="flex justify-between"><span className="text-gray-500">Min {isTeam ? 'Teams' : 'Players'}</span><span>{t.minPlayers}</span></div>}
+                {is1v1 && t.bestOf > 0 && <div className="flex justify-between"><span className="text-gray-500">Best Of</span><span>{t.bestOf}</span></div>}
+                {isTeam && t.teamSize > 0 && <div className="flex justify-between"><span className="text-gray-500">Team Size</span><span>{t.teamSize} players</span></div>}
+                <div className="flex justify-between"><span className="text-gray-500">{is1v1 ? 'Games' : 'Rounds'}</span><span>{t.totalRounds}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Time Control</span><span>{t.baseTimeSeconds / 60}+{t.incrementSeconds}s</span></div>
               </div>
             </div>
             <div className="border border-chess-border rounded-xl p-5 bg-chess-surface">
               <h3 className="text-sm text-gray-400 mb-2">Prize Breakdown</h3>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-chess-gold">1st Place</span><span>{(t.prizePool * 0.63).toFixed(2)} USDC</span></div>
-                <div className="flex justify-between"><span className="text-chess-silver">2nd Place</span><span>{(t.prizePool * 0.18).toFixed(2)} USDC</span></div>
-                <div className="flex justify-between"><span className="text-chess-bronze">3rd Place</span><span>{(t.prizePool * 0.09).toFixed(2)} USDC</span></div>
-                <div className="flex justify-between text-gray-500"><span>Protocol Fee</span><span>{(t.prizePool * 0.10).toFixed(2)} USDC</span></div>
+                {prizeBreakdown.map((item) => (
+                  <div key={item.label} className="flex justify-between">
+                    <span className={item.color}>{item.label}</span>
+                    <span>{(t.prizePool * item.pct).toFixed(2)} USDC</span>
+                  </div>
+                ))}
               </div>
+              {isTeam && (
+                <p className="text-xs text-gray-500 mt-3">Prizes distributed to team captains. Members split off-chain.</p>
+              )}
             </div>
           </div>
           {hasSponsor && sponsor && (
@@ -209,13 +265,26 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
               Sponsor This Tournament
             </button>
           )}
-          {t.winners[0] !== '0x0000000000000000000000000000000000000000' && (
+          {t.winners[0] !== ZERO_ADDR && (
             <div className="border border-chess-border rounded-xl p-5 bg-chess-surface">
-              <h3 className="text-sm text-gray-400 mb-2">Winners</h3>
+              <h3 className="text-sm text-gray-400 mb-2">{is1v1 ? 'Winner' : 'Winners'}</h3>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-chess-gold">1st</span><span className="font-mono">{shortenAddress(t.winners[0], 8)}</span></div>
-                <div className="flex justify-between"><span className="text-chess-silver">2nd</span><span className="font-mono">{shortenAddress(t.winners[1], 8)}</span></div>
-                <div className="flex justify-between"><span className="text-chess-bronze">3rd</span><span className="font-mono">{shortenAddress(t.winners[2], 8)}</span></div>
+                <div className="flex justify-between">
+                  <span className="text-chess-gold">{is1v1 ? 'Winner' : '1st'}</span>
+                  <span className="font-mono">{shortenAddress(t.winners[0], 8)}</span>
+                </div>
+                {!is1v1 && t.winners[1] !== ZERO_ADDR && (
+                  <div className="flex justify-between">
+                    <span className="text-chess-silver">2nd</span>
+                    <span className="font-mono">{shortenAddress(t.winners[1], 8)}</span>
+                  </div>
+                )}
+                {!is1v1 && t.winners[2] !== ZERO_ADDR && (
+                  <div className="flex justify-between">
+                    <span className="text-chess-bronze">3rd</span>
+                    <span className="font-mono">{shortenAddress(t.winners[2], 8)}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -26,6 +26,10 @@ export const CHESSBOTS_ABI = [
         { name: 'resultsUri', type: 'string' },
         { name: 'prizeDistributed', type: 'bool' },
         { name: 'exists', type: 'bool' },
+        { name: 'format', type: 'uint8' },
+        { name: 'teamSize', type: 'uint8' },
+        { name: 'bestOf', type: 'uint8' },
+        { name: 'challengeTarget', type: 'address' },
       ],
       name: '',
       type: 'tuple',
@@ -568,3 +572,10 @@ export const AgentTypeMap = {
   1: 'SolanaAgentKit',
   2: 'Custom',
 } as const;
+export const FormatMap = {
+  0: 'Swiss',
+  1: '1v1',
+  2: 'Team',
+  3: 'League',
+} as const;
+export const FormatNames = ['Swiss', '1v1', 'Team', 'League'] as const;

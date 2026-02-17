@@ -5,6 +5,7 @@ import type { TournamentConfig } from '../types/index.js';
 const CONFIG: TournamentConfig = {
   tournamentId: 1,
   tier: 'rookie',
+  format: 'swiss',
   maxPlayers: 8,
   minPlayers: 4,
   totalRounds: 3,
