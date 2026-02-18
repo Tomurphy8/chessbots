@@ -37,11 +37,68 @@ export async function initEngine(): Promise<void> {
   const sfPath = require.resolve('stockfish/src/stockfish-nnue-16-single.js');
   const wasmPath = join(dirname(sfPath), 'stockfish-nnue-16-single.wasm');
 
-  // The module exports a factory function
-  const Stockfish = require(sfPath) as (opts?: Record<string, unknown>) => Promise<StockfishEngine>;
+  // The module exports a factory function. In CJS it's the default export.
+  // Calling it with options returns an engine object with a .ready Promise.
+  // addMessageListener is set up during WASM init, so we must await .ready.
+  const Stockfish = require(sfPath) as (opts?: Record<string, unknown>) => StockfishEngine & { ready: Promise<unknown> };
 
-  engine = await Stockfish({
-    locateFile: (file: string) => (file.endsWith('.wasm') ? wasmPath : file),
+  // CRITICAL: The Stockfish WASM module nullifies global `fetch` during init
+  // ("undefined" != typeof fetch && (fetch = null)). Save and restore it so viem works.
+  const savedFetch = globalThis.fetch;
+
+  // The stockfish package has a double-wrapper pattern:
+  //   require() returns outer factory → call() returns inner factory → call(opts) returns engine
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let result: any = Stockfish;
+
+  // Unwrap nested factory functions until we get an object with addMessageListener
+  for (let i = 0; i < 3; i++) {
+    if (typeof result === 'function') {
+      console.log(`Calling factory (depth ${i})...`);
+      const opts = i === 0 ? undefined : {
+        locateFile: (file: string) => (file.endsWith('.wasm') ? wasmPath : file),
+      };
+      const next = result(opts);
+      // If it returns a promise, await it
+      if (next && typeof next.then === 'function') {
+        result = await next;
+      } else {
+        result = next;
+      }
+      console.log(`Result (depth ${i}):`, typeof result, result?.addMessageListener ? 'has AML' : 'no AML');
+    } else {
+      break;
+    }
+    // Check if we have our engine
+    if (result && typeof result.addMessageListener === 'function') {
+      break;
+    }
+  }
+
+  // Wait for .ready if it exists
+  if (result && result.ready && typeof result.ready.then === 'function') {
+    console.log('Awaiting .ready promise...');
+    await result.ready;
+    console.log('.ready resolved, engine should be active');
+    // Give the engine a moment to start its main loop
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  if (!result || typeof result.addMessageListener !== 'function') {
+    throw new Error(`Failed to initialize Stockfish engine. Got: ${typeof result}`);
+  }
+
+  engine = result as StockfishEngine;
+
+  // Restore global fetch that Stockfish nullified during WASM init
+  if (!globalThis.fetch && savedFetch) {
+    globalThis.fetch = savedFetch;
+    console.log('Restored global fetch after Stockfish init');
+  }
+
+  // Debug: log all engine output
+  engine.addMessageListener((line: string) => {
+    console.log(`← Engine: ${line}`);
   });
 
   // Initialize UCI protocol
@@ -65,7 +122,19 @@ export async function initEngine(): Promise<void> {
 
 function sendCommand(cmd: string): void {
   if (!engine) throw new Error('Engine not initialized');
-  engine.postMessage(cmd);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const e = engine as any;
+  // In single-threaded WASM mode, postMessage/postCustomMessage is a no-op because
+  // PThread is undefined. We must use onCustomMessage() directly to put commands
+  // in the engine's internal queue (which asyncify reads from).
+  if (e.__IS_SINGLE_THREADED__ && typeof e.onCustomMessage === 'function') {
+    e.onCustomMessage(cmd);
+  } else if (typeof e.postMessage === 'function') {
+    e.postMessage(cmd);
+  } else {
+    throw new Error('No message method found on engine');
+  }
+  console.log(`→ Sent: ${cmd}`);
 }
 
 function uciCommand(cmd: string, waitFor: string): Promise<string> {
@@ -77,7 +146,7 @@ function uciCommand(cmd: string, waitFor: string): Promise<string> {
         engine!.removeMessageListener(handler);
         reject(new Error(`UCI timeout waiting for "${waitFor}"`));
       },
-      10_000,
+      30_000,
     );
 
     const handler: MessageHandler = (line: string) => {
