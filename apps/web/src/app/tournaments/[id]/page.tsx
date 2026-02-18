@@ -14,6 +14,7 @@ import { useAccount } from 'wagmi';
 import { useJoinTournament } from '@/lib/hooks/useJoinTournament';
 import { useTournamentGames } from '@/lib/hooks/useTournamentGames';
 import { SponsorModal } from '@/components/SponsorModal';
+import { TournamentBetting } from '@/components/TournamentBetting';
 
 export default function TournamentDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -333,6 +334,13 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
               )}
             </div>
           </div>
+          {/* Prediction Markets */}
+          <TournamentBetting
+            tournamentId={tournamentId}
+            registeredAgents={standings.map(s => s.wallet)}
+            tournamentStatus={t.status}
+          />
+
           <a
             href={`${CHAIN.explorerUrl}/address/${CHAIN.contractAddress}`}
             target="_blank"
