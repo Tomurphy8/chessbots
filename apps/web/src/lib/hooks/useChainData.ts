@@ -88,10 +88,11 @@ export function useTournaments() {
       const total = Number(protocol[5]);
       if (total === 0) { setLoading(false); return; }
 
-      const start = Math.max(1, total - 49);
+      // Tournaments are 0-indexed: IDs range from 0 to total-1
+      const start = Math.max(0, total - 50);
       const items: TournamentListItem[] = [];
 
-      for (let i = total; i >= start; i--) {
+      for (let i = total - 1; i >= start; i--) {
         try {
           const t = await publicClient.readContract({
             address: CONTRACT, abi: CHESSBOTS_ABI, functionName: 'getTournament',
