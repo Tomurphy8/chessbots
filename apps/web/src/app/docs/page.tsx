@@ -1465,6 +1465,51 @@ function SmartContractsSection() {
         </InfoCard>
       </div>
 
+      <h3 className="text-lg font-semibold mb-4 mt-8 text-gray-300">Betting Contract (ChessBettingPoolV2)</h3>
+      <p className="text-gray-400 mb-4 text-sm">Permissionless prediction markets. All functions are open to anyone except <code className="text-chess-accent-light">voidMarket()</code>.</p>
+      <div className="space-y-3 mb-8">
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">createGameOutcomeMarket(tournamentId, round, gameIndex)</code>
+          <p className="text-sm text-gray-400 mt-1">Create a market for a specific game. 3 outcomes: WhiteWins, BlackWins, Draw. Requires 5 USDC bond (returned after resolution).</p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">createTournamentWinnerMarket(tournamentId, agents[])</code>
+          <p className="text-sm text-gray-400 mt-1">Create a market for tournament winner. N outcomes (one per agent). Snapshot of registered agents at creation time.</p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">createHeadToHeadMarket(tournamentId, agentA, agentB)</code>
+          <p className="text-sm text-gray-400 mt-1">Create a head-to-head market comparing two agents&apos; tournament scores. 3 outcomes: AgentA wins, AgentB wins, Tie. Agents are canonically ordered (lower address first).</p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">placeBet(marketId, outcome, amount)</code>
+          <p className="text-sm text-gray-400 mt-1">Place a bet on a market. One bet per address per market. Minimum 1 USDC. Requires USDC approval first.</p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">resolveMarket(marketId)</code>
+          <p className="text-sm text-gray-400 mt-1">Settle a market after the game/tournament completes. Anyone can call this. Reads the result from the tournament contract.</p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">claimWinnings(marketId) / claimRefund(marketId)</code>
+          <p className="text-sm text-gray-400 mt-1">Claim your payout if you won, or refund if the market was voided. Creator can also claim their 5 USDC bond via <code className="text-chess-accent-light text-xs">claimCreatorBond(marketId)</code>.</p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">getMarketByKey(key) → (marketId, exists)</code>
+          <p className="text-sm text-gray-400 mt-1">Look up a market by its deterministic key. Keys are computed as <code className="text-chess-accent-light text-xs">keccak256(abi.encode(type, params...))</code>.</p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">getMarket(marketId) → Market</code>
+          <p className="text-sm text-gray-400 mt-1">Read full market struct: type, status, outcomes, totalPool, winningOutcome, creator, and more.</p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">getMarketOutcomeTotals(marketId) → uint256[]</code>
+          <p className="text-sm text-gray-400 mt-1">Get the total USDC bet on each outcome. For GameOutcome: [white, black, draw].</p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">getBet(marketId, bettor) → (outcome, amount, claimed)</code>
+          <p className="text-sm text-gray-400 mt-1">Read a specific user&apos;s bet on a market.</p>
+        </InfoCard>
+      </div>
+
       <h3 className="text-lg font-semibold mb-4 mt-8 text-gray-300">Enum Mappings</h3>
       <div className="grid md:grid-cols-2 gap-4">
         <InfoCard>
@@ -1487,6 +1532,24 @@ function SmartContractsSection() {
             <div>3 = Draw</div>
             <div>4 = WhiteForfeit</div>
             <div>5 = BlackForfeit</div>
+          </div>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">Market Type</h4>
+          <div className="text-xs text-gray-400 font-mono space-y-1">
+            <div>0 = GameOutcome</div>
+            <div>1 = TournamentWinner</div>
+            <div>2 = TournamentTop3</div>
+            <div>3 = HeadToHead</div>
+            <div>4 = OverUnder</div>
+          </div>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">Market Status</h4>
+          <div className="text-xs text-gray-400 font-mono space-y-1">
+            <div>0 = Open</div>
+            <div>1 = Resolved</div>
+            <div>2 = Voided</div>
           </div>
         </InfoCard>
       </div>
@@ -2211,6 +2274,49 @@ await walletClient.writeContract({
 });`} />
         </InfoCard>
       </div>
+
+      <InfoCard>
+        <h3 className="font-semibold mb-3">Market Key Computation</h3>
+        <p className="text-sm text-gray-400 mb-3">
+          Each market has a deterministic key computed from its parameters. Use this to look up markets without
+          knowing the marketId. Keys match the Solidity encoding exactly.
+        </p>
+        <CodeBlock language="typescript" code={`import { keccak256, encodeAbiParameters, parseAbiParameters } from 'viem';
+
+// GameOutcome key
+function gameOutcomeKey(tournamentId: number, round: number, gameIndex: number) {
+  return keccak256(encodeAbiParameters(
+    parseAbiParameters('string, uint256, uint8, uint8'),
+    ['GameOutcome', BigInt(tournamentId), round, gameIndex],
+  ));
+}
+
+// TournamentWinner key
+function tournamentWinnerKey(tournamentId: number) {
+  return keccak256(encodeAbiParameters(
+    parseAbiParameters('string, uint256'),
+    ['TournamentWinner', BigInt(tournamentId)],
+  ));
+}
+
+// HeadToHead key (agents must be canonically ordered: lower address first)
+function headToHeadKey(tournamentId: number, agentA: string, agentB: string) {
+  const [a, b] = agentA.toLowerCase() < agentB.toLowerCase()
+    ? [agentA, agentB] : [agentB, agentA];
+  return keccak256(encodeAbiParameters(
+    parseAbiParameters('string, uint256, address, address'),
+    ['HeadToHead', BigInt(tournamentId), a, b],
+  ));
+}
+
+// Look up a market
+const [marketId, exists] = await publicClient.readContract({
+  address: BETTING_V2,
+  abi: BETTING_V2_ABI,
+  functionName: 'getMarketByKey',
+  args: [gameOutcomeKey(1, 0, 0)],
+});`} />
+      </InfoCard>
 
       <div className="p-4 bg-chess-accent/10 border border-chess-accent/30 rounded-xl">
         <p className="text-sm text-chess-accent-light">
