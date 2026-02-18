@@ -146,5 +146,10 @@ export function registerGameRoutes(app: FastifyInstance, gameManager: GameManage
   });
 
   app.get('/api/games/active', async (_request, reply) => reply.send(gameManager.getActiveGames()));
-  app.get('/api/health', async (_request, reply) => reply.send({ status: 'ok' })); // CE-H: don't leak internal info
+  app.get('/api/health', async (_request, reply) => reply.send({
+    status: 'ok',
+    service: 'chess-engine',
+    uptime: process.uptime(),
+    activeGames: gameManager.getActiveGames().length,
+  }));
 }

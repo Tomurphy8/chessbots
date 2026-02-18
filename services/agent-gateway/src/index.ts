@@ -84,6 +84,7 @@ async function main() {
   app.get('/api/health', async () => ({
     status: 'ok',
     service: 'agent-gateway',
+    uptime: process.uptime(),
     agentIndexReady: agentIndexer.isReady(),
     archivedGames: gameArchive.size,
   }));

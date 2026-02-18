@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import http from 'node:http';
 import { getChainConfig, isDeployed } from './chains/index.js';
 import { MonadClient } from './chains/client.js';
 import { TournamentManager } from './lifecycle/TournamentManager.js';
@@ -191,6 +192,36 @@ async function main() {
         process.exit(1);
       }
 
+      // Track tournaments currently being run so we don't double-trigger
+      const runningTournaments = new Set<number>();
+      // Track tournaments that are done (non-registration status or already ran)
+      const completedTournaments = new Set<number>();
+
+      // ── Health check HTTP server for Railway liveness probes ──
+      const healthPort = parseInt(process.env.HEALTH_PORT || process.env.PORT || '3003');
+      const startedAt = new Date().toISOString();
+      const healthServer = http.createServer((req, res) => {
+        if (req.url === '/api/health' && req.method === 'GET') {
+          const payload = JSON.stringify({
+            status: 'ok',
+            service: 'tournament-orchestrator',
+            mode: 'watch',
+            uptime: process.uptime(),
+            startedAt,
+            runningTournaments: runningTournaments.size,
+            completedTournaments: completedTournaments.size,
+          });
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(payload);
+        } else {
+          res.writeHead(404);
+          res.end();
+        }
+      });
+      healthServer.listen(healthPort, '0.0.0.0', () => {
+        log('info', `Health endpoint listening on :${healthPort}/api/health`);
+      });
+
       // TO-SM: Check for recoverable tournaments on startup
       const recoverable = stateManager.getRecoverableTournaments();
       if (recoverable.length > 0) {
@@ -207,11 +238,6 @@ async function main() {
       if (rawPollInterval !== pollInterval) {
         log('warn', `POLL_INTERVAL_MS clamped to ${pollInterval}ms (was ${process.env.POLL_INTERVAL_MS})`, { pollInterval });
       }
-
-      // Track tournaments currently being run so we don't double-trigger
-      const runningTournaments = new Set<number>();
-      // Track tournaments that are done (non-registration status or already ran)
-      const completedTournaments = new Set<number>();
 
       while (!isShuttingDown) {
         try {
