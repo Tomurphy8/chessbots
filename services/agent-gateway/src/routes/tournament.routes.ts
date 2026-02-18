@@ -1,10 +1,16 @@
 import { type FastifyInstance } from 'fastify';
+import { timingSafeEqual } from 'node:crypto';
 import { type PublicClient, formatUnits, parseAbiItem, type Address } from 'viem';
 import { CONFIG } from '../config.js';
 import { checkPublicRateLimit } from '../middleware/rateLimit.js';
 import { EventScanner } from '../indexer/EventScanner.js';
 import type { AgentIndexer } from '../indexer/AgentIndexer.js';
 import type { TournamentWatcher } from '../indexer/TournamentWatcher.js';
+
+function safeKeyCheck(provided: string, expected: string): boolean {
+  if (!provided || !expected || provided.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+}
 
 const TOURNAMENT_ABI = [
   {
@@ -434,8 +440,8 @@ export function registerTournamentRoutes(app: FastifyInstance, publicClient: Pub
 
   // POST /api/internal/tournament-notify — Fast-path trigger from orchestrator
   app.post('/api/internal/tournament-notify', async (request, reply) => {
-    const serviceKey = (request.headers as any)['x-service-key'];
-    if (serviceKey !== CONFIG.serviceApiKey) {
+    const serviceKey = (request.headers as any)['x-service-key'] as string;
+    if (!serviceKey || !CONFIG.serviceApiKey || !safeKeyCheck(serviceKey, CONFIG.serviceApiKey)) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
 

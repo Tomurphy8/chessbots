@@ -1,4 +1,5 @@
 import { type FastifyInstance } from 'fastify';
+import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { checkMoveRateLimit, checkPublicRateLimit } from '../middleware/rateLimit.js';
@@ -11,6 +12,25 @@ const GAME_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
 const MoveSchema = z.object({
   move: z.string().min(2).max(10),
 });
+
+const ArchiveSchema = z.object({
+  gameId: z.string().min(1).max(64),
+  tournamentId: z.number().int().min(0).default(0),
+  round: z.number().int().min(0).default(0),
+  gameIndex: z.number().int().min(0).default(0),
+  white: z.string().default(''),
+  black: z.string().default(''),
+  pgn: z.string().default(''),
+  moves: z.array(z.string()).default([]),
+  result: z.string().default(''),
+  moveCount: z.number().int().min(0).default(0),
+  fen: z.string().default(''),
+});
+
+function safeServiceKeyCheck(provided: string, expected: string): boolean {
+  if (provided.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+}
 
 function validateGameId(gameId: string): boolean {
   return typeof gameId === 'string' && GAME_ID_REGEX.test(gameId);
@@ -45,34 +65,20 @@ export function registerGameRoutes(app: FastifyInstance, gameArchive: GameArchiv
     const { gameId } = request.params as { gameId: string };
     if (!validateGameId(gameId)) return reply.status(400).send({ error: 'Invalid game ID' });
 
-    // Service-key auth: only the orchestrator can archive games
+    // Service-key auth: only the orchestrator can archive games (timing-safe)
     const serviceKey = request.headers['x-service-key'] as string;
-    if (!serviceKey || serviceKey !== CONFIG.serviceApiKey) {
+    if (!serviceKey || !CONFIG.serviceApiKey || !safeServiceKeyCheck(serviceKey, CONFIG.serviceApiKey)) {
       return reply.status(403).send({ error: 'Unauthorized' });
     }
 
     try {
-      const body = request.body as any;
-      if (!body || !body.gameId) {
-        return reply.status(400).send({ error: 'Missing game data' });
-      }
-
-      gameArchive.store({
-        gameId: body.gameId,
-        tournamentId: body.tournamentId || 0,
-        round: body.round || 0,
-        gameIndex: body.gameIndex || 0,
-        white: body.white || '',
-        black: body.black || '',
-        pgn: body.pgn || '',
-        moves: body.moves || [],
-        result: body.result || '',
-        moveCount: body.moveCount || 0,
-        fen: body.fen || '',
-      });
-
+      const parsed = ArchiveSchema.parse(request.body);
+      gameArchive.store(parsed);
       return reply.send({ ok: true });
-    } catch {
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Invalid archive data', details: err.issues });
+      }
       return reply.status(400).send({ error: 'Invalid archive data' });
     }
   });
