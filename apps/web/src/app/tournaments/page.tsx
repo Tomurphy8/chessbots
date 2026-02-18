@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
+import { useAccount } from 'wagmi';
 import { TournamentCard } from '@/components/TournamentCard';
+import { CreateTournamentModal } from '@/components/CreateTournamentModal';
 import { useTournaments } from '@/lib/hooks/useChainData';
 import { cn } from '@/lib/utils';
 
@@ -10,10 +13,12 @@ const STATUSES = ['all', 'registration', 'round_active', 'completed', 'cancelled
 const FORMATS = ['all', 'swiss', '1v1', 'team', 'league'] as const;
 
 export default function TournamentsPage() {
+  const { address } = useAccount();
   const [tierFilter, setTierFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [formatFilter, setFormatFilter] = useState<string>('all');
-  const { tournaments, loading } = useTournaments();
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const { tournaments, loading, refetch } = useTournaments();
 
   const filtered = tournaments.filter((t) => {
     if (tierFilter !== 'all' && t.tier !== tierFilter) return false;
@@ -24,7 +29,18 @@ export default function TournamentsPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-6">Tournaments</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">Tournaments</h1>
+        {address && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-chess-accent hover:bg-chess-accent/80 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create Tournament
+          </button>
+        )}
+      </div>
 
       <div className="flex flex-wrap gap-4 mb-8">
         <div className="flex gap-2">
@@ -108,6 +124,12 @@ export default function TournamentsPage() {
           ))}
         </div>
       )}
+
+      <CreateTournamentModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => refetch?.()}
+      />
     </div>
   );
 }

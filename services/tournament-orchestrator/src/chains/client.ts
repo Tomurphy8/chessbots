@@ -125,8 +125,18 @@ const TOURNAMENT_ABI = [
       { name: 'totalTournaments', type: 'uint64' },
       { name: 'totalPrizeDistributed', type: 'uint64' },
       { name: 'paused', type: 'bool' },
+      { name: 'sponsoredFreeTournaments', type: 'uint8' },
+      { name: 'maxFreeTournaments', type: 'uint8' },
     ],
     stateMutability: 'view',
+    type: 'function',
+  },
+  // setFreeTournamentLimit (write) — authority only
+  {
+    inputs: [{ name: '_newLimit', type: 'uint8' }],
+    name: 'setFreeTournamentLimit',
+    outputs: [],
+    stateMutability: 'nonpayable',
     type: 'function',
   },
   // getTournament (read) — V3 struct with format, teamSize, bestOf, challengeTarget
@@ -390,6 +400,17 @@ export class MonadClient {
       abi: TOURNAMENT_ABI,
       functionName: 'protocol',
     });
+  }
+
+  async setFreeTournamentLimit(newLimit: number) {
+    const hash = await this.walletClient.writeContract({
+      address: this.contractAddress,
+      abi: TOURNAMENT_ABI,
+      functionName: 'setFreeTournamentLimit',
+      args: [newLimit],
+    });
+    await this.publicClient.waitForTransactionReceipt({ hash, timeout: 30_000 });
+    return hash;
   }
 
   async getTournament(tournamentId: bigint) {

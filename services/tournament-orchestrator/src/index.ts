@@ -298,15 +298,20 @@ async function main() {
               }
             };
 
-            // Registration (status 0): wait for deadline + enough players, then start
+            // Registration (status 0): start when full immediately, or when deadline passes
             if (t.status === 0) {
               if (t.registeredCount >= t.minPlayers) {
+                // Start immediately if FULL — no more players can join anyway
+                if (t.registeredCount >= t.maxPlayers) {
+                  await launchRunner('full — starting immediately');
+                  continue;
+                }
+                // Otherwise wait for deadline (allows more players to join up to maxPlayers)
                 const deadline = Number(t.registrationDeadline);
                 const now = Math.floor(Date.now() / 1000);
                 if (deadline > 0 && now >= deadline) {
-                  await launchRunner('ready');
+                  await launchRunner('deadline reached');
                 }
-                // Don't mark as completed if deadline hasn't passed — re-check next poll
               }
               continue;
             }
@@ -318,6 +323,47 @@ async function main() {
           }
         } catch (err: any) {
           log('error', 'Poll error', { error: err.message });
+        }
+
+        // ── Auto-bump free tournament cap if nearing limit ──
+        try {
+          const proto = await chain.getProtocolState();
+          const sponsoredFree = Number(proto[8]); // sponsoredFreeTournaments
+          const maxFree = Number(proto[9]);        // maxFreeTournaments
+          if (maxFree > 0 && maxFree - sponsoredFree <= 2) {
+            const newLimit = Math.min(maxFree + 20, 255); // uint8 max = 255
+            log('info', `Free tournament cap near limit (${sponsoredFree}/${maxFree}), bumping to ${newLimit}`);
+            await chain.setFreeTournamentLimit(newLimit);
+          }
+        } catch (err: any) {
+          log('warn', 'Failed to check/bump free tournament limit', { error: err.message });
+        }
+
+        // ── Auto-create: ensure there's always a tournament in registration ──
+        try {
+          const proto = await chain.getProtocolState();
+          const totalTournaments = Number(proto[5]);
+          let hasRegistrationTournament = false;
+          for (let id = Math.max(0, totalTournaments - 10); id < totalTournaments; id++) {
+            if (completedTournaments.has(id) || runningTournaments.has(id)) continue;
+            const t = await chain.getTournament(BigInt(id));
+            if (t.exists && t.status === 0) {
+              hasRegistrationTournament = true;
+              break;
+            }
+          }
+          if (!hasRegistrationTournament) {
+            const now = Math.floor(Date.now() / 1000);
+            await chain.createTournament(
+              5, 0, 8, 4,                          // Free tier, Swiss, max=8, min=4
+              BigInt(now + 180),                    // startTime: 3 min
+              BigInt(now + 120),                    // deadline: 2 min
+              300, 3,                               // 5 min + 3s increment
+            );
+            log('info', 'Auto-created free Swiss tournament (no registration tournaments found)');
+          }
+        } catch (err: any) {
+          log('warn', 'Auto-create check failed', { error: err.message });
         }
 
         await new Promise(resolve => setTimeout(resolve, pollInterval));
@@ -351,8 +397,8 @@ async function main() {
 
       const defaults = TIER_DEFAULTS[tierName];
       const now = Math.floor(Date.now() / 1000);
-      const startTime = BigInt(now + 600); // 10 minutes from now
-      const registrationDeadline = BigInt(now + 540); // 9 minutes from now
+      const startTime = BigInt(now + 180); // 3 minutes from now
+      const registrationDeadline = BigInt(now + 120); // 2 minutes from now
       const baseTime = parseInt(getArg('base-time') || String(defaults.timeControl.baseTimeSeconds));
       const increment = parseInt(getArg('increment') || String(defaults.timeControl.incrementSeconds));
 

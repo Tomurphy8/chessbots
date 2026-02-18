@@ -145,7 +145,7 @@ export function useTournaments() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchTournaments]);
 
-  return { tournaments, loading };
+  return { tournaments, loading, refetch: fetchTournaments };
 }
 
 // ─── Single Tournament ───────────────────────────────────────────────────────

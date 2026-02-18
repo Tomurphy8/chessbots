@@ -329,6 +329,39 @@ export const CHESSBOTS_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  // createTournament (write) — Swiss, League, or Team
+  {
+    inputs: [
+      { name: 'tier', type: 'uint8' },
+      { name: 'format', type: 'uint8' },
+      { name: 'maxPlayers', type: 'uint8' },
+      { name: 'minPlayers', type: 'uint8' },
+      { name: 'startTime', type: 'int64' },
+      { name: 'registrationDeadline', type: 'int64' },
+      { name: 'baseTimeSeconds', type: 'uint32' },
+      { name: 'incrementSeconds', type: 'uint32' },
+    ],
+    name: 'createTournament',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // createMatchChallenge (write) — 1v1 match
+  {
+    inputs: [
+      { name: 'tier', type: 'uint8' },
+      { name: 'startTime', type: 'int64' },
+      { name: 'registrationDeadline', type: 'int64' },
+      { name: 'baseTimeSeconds', type: 'uint32' },
+      { name: 'incrementSeconds', type: 'uint32' },
+      { name: 'bestOf', type: 'uint8' },
+      { name: 'opponent', type: 'address' },
+    ],
+    name: 'createMatchChallenge',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
 ] as const;
 
 // ERC20 ABI subset for USDC and CHESS
