@@ -70,12 +70,36 @@ export function BettingPanel({ pool, gameStatus, gameResult }: BettingPanelProps
   const [betAmount, setBetAmount] = useState('');
   const [error, setError] = useState('');
 
-  // If no pool exists
+  // If no market exists, offer to create one
   if (!pool.poolExists && !pool.loading) {
     return (
       <div className="bg-chess-surface border border-chess-border rounded-lg p-4">
         <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-2">Betting</h3>
-        <p className="text-sm text-gray-500">No betting pool for this game.</p>
+        {address && gameStatus < 2 ? (
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500">No betting market for this game yet.</p>
+            <button
+              onClick={async () => {
+                setError('');
+                try {
+                  await pool.createMarket();
+                } catch (e: any) {
+                  setError(e.message?.includes('User rejected') ? 'Transaction cancelled' : 'Failed to create market');
+                }
+              }}
+              disabled={pool.isPending}
+              className="w-full py-2 rounded-lg text-sm font-medium bg-chess-accent hover:bg-chess-accent/80 text-white transition-colors"
+            >
+              {pool.isPending ? 'Creating...' : 'Create Market (5 USDC bond)'}
+            </button>
+            <p className="text-xs text-gray-500 text-center">Bond is returned when the market resolves</p>
+            {error && <p className="text-xs text-red-400 text-center">{error}</p>}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">
+            {gameStatus >= 2 ? 'Game has ended — no market was created.' : 'Connect wallet to create a betting market.'}
+          </p>
+        )}
       </div>
     );
   }
@@ -90,9 +114,11 @@ export function BettingPanel({ pool, gameStatus, gameResult }: BettingPanelProps
   }
 
   const total = parseFloat(pool.totalPool);
-  const isPoolOpen = gameStatus < 2; // Pending or InProgress
-  const isSettled = gameStatus === 2;
-  const isCancelled = gameStatus === 3;
+  // V2: also check market status (0=Open, 1=Resolved, 2=Voided)
+  const mStatus = 'marketStatus' in pool ? (pool as any).marketStatus : undefined;
+  const isPoolOpen = gameStatus < 2 && (mStatus === undefined || mStatus === 0);
+  const isSettled = gameStatus === 2 || mStatus === 1;
+  const isCancelled = gameStatus === 3 || mStatus === 2;
 
   // Determine if user won
   const userWon = pool.userBet && isSettled && gameResult !== undefined && (

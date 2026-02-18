@@ -448,23 +448,68 @@ export const STAKING_ABI = [
   },
 ] as const;
 
-// ChessBettingPool ABI (Proposal B — Spectator Betting)
+// ChessBettingPoolV2 ABI — Permissionless Prediction Markets
 export const BETTING_ABI = [
+  // ── Market Creation ──
   {
     inputs: [
       { name: 'tournamentId', type: 'uint256' },
       { name: 'round', type: 'uint8' },
       { name: 'gameIndex', type: 'uint8' },
     ],
-    name: 'createBetPool',
-    outputs: [{ name: 'poolId', type: 'uint256' }],
+    name: 'createGameOutcomeMarket',
+    outputs: [{ name: 'marketId', type: 'uint256' }],
     stateMutability: 'nonpayable',
     type: 'function',
   },
   {
     inputs: [
-      { name: 'poolId', type: 'uint256' },
-      { name: 'prediction', type: 'uint8' },
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'agents', type: 'address[]' },
+    ],
+    name: 'createTournamentWinnerMarket',
+    outputs: [{ name: 'marketId', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'agent', type: 'address' },
+    ],
+    name: 'createTournamentTop3Market',
+    outputs: [{ name: 'marketId', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'agentA', type: 'address' },
+      { name: 'agentB', type: 'address' },
+    ],
+    name: 'createHeadToHeadMarket',
+    outputs: [{ name: 'marketId', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'round', type: 'uint8' },
+      { name: 'gameIndex', type: 'uint8' },
+      { name: 'moveThreshold', type: 'uint16' },
+    ],
+    name: 'createOverUnderMarket',
+    outputs: [{ name: 'marketId', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // ── Betting ──
+  {
+    inputs: [
+      { name: 'marketId', type: 'uint256' },
+      { name: 'outcome', type: 'uint8' },
       { name: 'amount', type: 'uint256' },
     ],
     name: 'placeBet',
@@ -472,42 +517,86 @@ export const BETTING_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
+  // ── Resolution ──
   {
-    inputs: [{ name: 'poolId', type: 'uint256' }],
-    name: 'settleBets',
+    inputs: [{ name: 'marketId', type: 'uint256' }],
+    name: 'resolveMarket',
     outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',
   },
   {
-    inputs: [{ name: 'poolId', type: 'uint256' }],
+    inputs: [{ name: 'marketId', type: 'uint256' }],
+    name: 'voidMarket',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // ── Claims ──
+  {
+    inputs: [{ name: 'marketId', type: 'uint256' }],
     name: 'claimWinnings',
     outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',
   },
   {
-    inputs: [{ name: 'poolId', type: 'uint256' }],
+    inputs: [{ name: 'marketId', type: 'uint256' }],
     name: 'claimRefund',
     outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',
   },
   {
-    inputs: [{ name: 'poolId', type: 'uint256' }],
-    name: 'getPoolTotal',
-    outputs: [{ name: '', type: 'uint256' }],
+    inputs: [{ name: 'marketId', type: 'uint256' }],
+    name: 'claimCreatorBond',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // ── Views ──
+  {
+    inputs: [{ name: 'marketId', type: 'uint256' }],
+    name: 'getMarket',
+    outputs: [{
+      name: '',
+      type: 'tuple',
+      components: [
+        { name: 'marketType', type: 'uint8' },
+        { name: 'status', type: 'uint8' },
+        { name: 'tournamentId', type: 'uint256' },
+        { name: 'round', type: 'uint8' },
+        { name: 'gameIndex', type: 'uint8' },
+        { name: 'agentA', type: 'address' },
+        { name: 'agentB', type: 'address' },
+        { name: 'threshold', type: 'uint16' },
+        { name: 'numOutcomes', type: 'uint8' },
+        { name: 'winningOutcome', type: 'uint8' },
+        { name: 'creator', type: 'address' },
+        { name: 'totalPool', type: 'uint256' },
+        { name: 'vigCollected', type: 'uint256' },
+        { name: 'bondClaimed', type: 'bool' },
+        { name: 'exists', type: 'bool' },
+      ],
+    }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'marketId', type: 'uint256' }],
+    name: 'getMarketOutcomeTotals',
+    outputs: [{ name: '', type: 'uint256[]' }],
     stateMutability: 'view',
     type: 'function',
   },
   {
     inputs: [
-      { name: 'poolId', type: 'uint256' },
+      { name: 'marketId', type: 'uint256' },
       { name: 'bettor', type: 'address' },
     ],
     name: 'getBet',
     outputs: [
-      { name: 'prediction', type: 'uint8' },
+      { name: 'outcome', type: 'uint8' },
       { name: 'amount', type: 'uint256' },
       { name: 'claimed', type: 'bool' },
     ],
@@ -515,30 +604,23 @@ export const BETTING_ABI = [
     type: 'function',
   },
   {
-    inputs: [{ name: 'poolId', type: 'uint256' }],
-    name: 'getPoolBreakdown',
+    inputs: [{ name: 'key', type: 'bytes32' }],
+    name: 'getMarketByKey',
     outputs: [
-      { name: 'whiteWins', type: 'uint256' },
-      { name: 'blackWins', type: 'uint256' },
-      { name: 'draw', type: 'uint256' },
-    ],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [
-      { name: 'tournamentId', type: 'uint256' },
-      { name: 'round', type: 'uint8' },
-      { name: 'gameIndex', type: 'uint8' },
-    ],
-    name: 'getPoolIdForGame',
-    outputs: [
-      { name: 'poolId', type: 'uint256' },
+      { name: 'marketId', type: 'uint256' },
       { name: 'exists', type: 'bool' },
     ],
     stateMutability: 'view',
     type: 'function',
   },
+  {
+    inputs: [{ name: 'marketId', type: 'uint256' }],
+    name: 'getMarketAgents',
+    outputs: [{ name: '', type: 'address[]' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // ── State Variables ──
   {
     inputs: [],
     name: 'vigBps',
@@ -553,7 +635,44 @@ export const BETTING_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  {
+    inputs: [],
+    name: 'CREATION_BOND',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'nextMarketId',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'paused',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const;
+
+// Market types enum matching V2 contract
+export const MarketType = {
+  GameOutcome: 0,
+  TournamentWinner: 1,
+  TournamentTop3: 2,
+  HeadToHead: 3,
+  OverUnder: 4,
+} as const;
+
+// Market status enum
+export const MarketStatus = {
+  Open: 0,
+  Resolved: 1,
+  Voided: 2,
+} as const;
 
 export const BetPredictionMap = {
   0: 'WhiteWins',
