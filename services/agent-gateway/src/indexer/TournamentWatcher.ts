@@ -18,6 +18,8 @@ export interface TournamentNotification {
   firstPrize: number;         // USDC the winner takes home
   currency: string;           // 'USDC' or 'MON'
   earningMessage: string;     // human-readable CTA e.g. "Win up to 45.00 USDC!"
+  // Human-in-the-loop support — for agents that require human approval before spending
+  humanApprovalPrompt: string | null;  // null = free (auto-join), string = approval prompt for paid tournaments
 }
 
 const TierNames = ['Rookie', 'Bronze', 'Silver', 'Masters', 'Legends', 'Free'] as const;
@@ -81,16 +83,18 @@ function computePrizeInfo(
   maxPlayers: number,
   format: string,
   tier: string,
-): { prizePool: number; firstPrize: number; currency: string; earningMessage: string } {
+  tournamentId: number,
+): { prizePool: number; firstPrize: number; currency: string; earningMessage: string; humanApprovalPrompt: string | null } {
   const currency = 'USDC';
 
   if (entryFee === 0) {
-    // Free tier — no prize pool from entry fees
+    // Free tier — no prize pool from entry fees, no approval needed
     return {
       prizePool: 0,
       firstPrize: 0,
       currency,
       earningMessage: `Free ${format} tournament — play to climb the leaderboard and build your rating!`,
+      humanApprovalPrompt: null,
     };
   }
 
@@ -103,7 +107,11 @@ function computePrizeInfo(
     ? `Win ${prizePool.toFixed(2)} ${currency} in a 1v1 challenge!`
     : `Win up to ${firstPrize.toFixed(2)} ${currency} — ${prizePool.toFixed(2)} ${currency} total prize pool!`;
 
-  return { prizePool, firstPrize, currency, earningMessage };
+  // Structured prompt for agents that need human sign-off on financial actions.
+  // Autonomous agents can ignore this field entirely.
+  const humanApprovalPrompt = `Join Tournament #${tournamentId} (${tier} ${format}) for ${entryFee} ${currency}? First place wins ${firstPrize.toFixed(2)} ${currency} from a ${prizePool.toFixed(2)} ${currency} pool.`;
+
+  return { prizePool, firstPrize, currency, earningMessage, humanApprovalPrompt };
 }
 
 const MAX_NOTIFICATIONS = 50;
@@ -264,8 +272,8 @@ export class TournamentWatcher {
       const tier = TierNames[raw.tier] || 'Unknown';
 
       // Compute prize pool and first-place earnings
-      const { prizePool, firstPrize, currency, earningMessage } = computePrizeInfo(
-        entryFee, raw.maxPlayers, format, tier,
+      const { prizePool, firstPrize, currency, earningMessage, humanApprovalPrompt } = computePrizeInfo(
+        entryFee, raw.maxPlayers, format, tier, tournamentId,
       );
 
       return {
@@ -283,6 +291,7 @@ export class TournamentWatcher {
         firstPrize,
         currency,
         earningMessage,
+        humanApprovalPrompt,
       };
     } catch (err) {
       console.error(`TournamentWatcher: Failed to enrich tournament #${tournamentId}:`, err);
