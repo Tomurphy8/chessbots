@@ -6,6 +6,7 @@ import { parseUnits, type Address } from 'viem';
 import { CHAIN } from '@/lib/chains';
 import { CHESSBOTS_ABI } from '@/lib/contracts/evm';
 import { useUsdcApproval } from '@/lib/hooks/useUsdcApproval';
+import { track, Events } from '@/lib/analytics';
 
 const CONTRACT = CHAIN.contractAddress as Address;
 
@@ -58,6 +59,7 @@ export function useJoinTournament(tournamentId: number, entryFee: number): JoinT
         functionName: 'registerForTournament',
         args: [BigInt(tournamentId)],
       });
+      track(Events.TOURNAMENT_JOINED, { tournamentId, entryFee });
       setSuccess(true);
     } catch (e: any) {
       setError(e.shortMessage || e.message || 'Registration failed');

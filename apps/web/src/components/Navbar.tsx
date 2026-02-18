@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { track, Events } from '@/lib/analytics';
 
 const EVMConnectButton = dynamic(
   () => import('connectkit').then(m => {
@@ -15,7 +16,10 @@ const EVMConnectButton = dynamic(
       return <ConnectKitButton.Custom>
         {({ isConnected, show, truncatedAddress }) => (
           <button
-            onClick={show}
+            onClick={() => {
+              if (!isConnected) track(Events.WALLET_CONNECTED);
+              show?.();
+            }}
             className="bg-chess-accent hover:bg-chess-accent/80 rounded-lg h-10 px-4 text-sm font-medium transition-colors"
           >
             {isConnected ? truncatedAddress : 'Connect Wallet'}

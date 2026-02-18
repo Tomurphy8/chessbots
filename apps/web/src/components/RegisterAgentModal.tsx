@@ -7,6 +7,7 @@ import { type Address } from 'viem';
 import { CHAIN } from '@/lib/chains';
 import { CHESSBOTS_ABI } from '@/lib/contracts/evm';
 import { useReferrer } from '@/contexts/ReferralContext';
+import { track, Events } from '@/lib/analytics';
 
 const CONTRACT = CHAIN.contractAddress as Address;
 
@@ -71,6 +72,7 @@ export function RegisterAgentModal({ isOpen, onClose, onSuccess }: RegisterAgent
         });
       }
 
+      track(Events.AGENT_REGISTERED, { agentType, hasReferrer: !!referrer.trim() });
       setSuccess(true);
       setTimeout(() => {
         onSuccess?.();

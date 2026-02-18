@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { cn } from '@/lib/utils';
+import { track, Events } from '@/lib/analytics';
 import type { BettingPoolResult } from '@/lib/hooks/useBettingPool';
 
 interface BettingPanelProps {
@@ -83,6 +84,7 @@ export function BettingPanel({ pool, gameStatus, gameResult }: BettingPanelProps
                 setError('');
                 try {
                   await pool.createMarket();
+                  track(Events.MARKET_CREATED, { type: 'GameOutcome' });
                 } catch (e: any) {
                   setError(e.message?.includes('User rejected') ? 'Transaction cancelled' : 'Failed to create market');
                 }
@@ -141,6 +143,7 @@ export function BettingPanel({ pool, gameStatus, gameResult }: BettingPanelProps
 
     try {
       await pool.placeBet(selectedPrediction, betAmount);
+      track(Events.BET_PLACED, { prediction: selectedPrediction, amount: parseFloat(betAmount) });
       setBetAmount('');
       setSelectedPrediction(null);
     } catch (e: any) {

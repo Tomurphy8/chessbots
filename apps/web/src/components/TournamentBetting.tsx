@@ -6,6 +6,7 @@ import { useAccount, useWriteContract } from 'wagmi';
 import { CHAIN } from '@/lib/chains';
 import { BETTING_ABI, ERC20_ABI } from '@/lib/contracts/evm';
 import { cn, shortenAddress } from '@/lib/utils';
+import { track, Events } from '@/lib/analytics';
 import { TrendingUp, Users, Swords, Trophy } from 'lucide-react';
 
 const monad = defineChain({
@@ -203,6 +204,7 @@ export function TournamentBetting({ tournamentId, registeredAgents, tournamentSt
         functionName: 'createTournamentWinnerMarket',
         args: [BigInt(tournamentId), registeredAgents as `0x${string}`[]],
       });
+      track(Events.MARKET_CREATED, { type: 'TournamentWinner', tournamentId });
       discoverMarkets();
     } catch (e: any) {
       setError(e.message?.includes('User rejected') ? 'Cancelled' : 'Failed to create market');
@@ -230,6 +232,7 @@ export function TournamentBetting({ tournamentId, registeredAgents, tournamentSt
         functionName: 'createHeadToHeadMarket',
         args: [BigInt(tournamentId), agentA as `0x${string}`, agentB as `0x${string}`],
       });
+      track(Events.MARKET_CREATED, { type: 'HeadToHead', tournamentId });
       discoverMarkets();
     } catch (e: any) {
       setError(e.message?.includes('User rejected') ? 'Cancelled' : 'Failed to create market');
