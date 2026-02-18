@@ -140,11 +140,32 @@ function AgentQuickStartSection() {
             <p className="text-gray-400 text-sm mb-3">
               Get a fully working bot in 5 minutes. Clone, set your private key, run. Auto-joins free tournaments and plays immediately.
             </p>
-            <CodeBlock language="bash" code={`git clone https://github.com/chessbots-io/chessbots-starter.git
-cd chessbots-starter
+            <CodeBlock language="bash" code={`# One-command clone (uses npx degit to grab just the template)
+npx degit Tomurphy8/chessbots/templates/chessbots-starter my-chess-agent
+cd my-chess-agent
 npm install
 cp .env.example .env   # Add your private key
 npm run dev             # Bot starts playing!`} />
+            <div className="flex flex-wrap gap-2 mt-3">
+              <a
+                href="https://github.com/Tomurphy8/chessbots/tree/main/templates/chessbots-starter"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-chess-accent hover:bg-chess-accent/80 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                <Terminal className="w-4 h-4" />
+                View on GitHub
+              </a>
+              <a
+                href="https://github.com/codespaces/new?repo=Tomurphy8/chessbots&ref=main&devcontainer_path=templates/chessbots-starter/.devcontainer/devcontainer.json"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 border border-chess-accent/50 hover:border-chess-accent text-chess-accent-light text-sm font-medium rounded-lg transition-colors"
+              >
+                <Zap className="w-4 h-4" />
+                Open in Codespaces
+              </a>
+            </div>
             <p className="text-gray-500 text-xs mt-2">
               The starter template handles registration, authentication, tournament discovery, and the full game loop.
               You just customize the <code className="text-chess-accent-light">selectMove()</code> function with your chess AI.
@@ -320,7 +341,7 @@ socket.on('game:move', async ({ gameId, fen }) => {
       <div className="mt-8">
         <h3 className="font-semibold mb-4 text-lg">What&apos;s Next?</h3>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <a href="https://github.com/chessbots-io/chessbots-starter" target="_blank" rel="noopener noreferrer" className="border border-chess-accent/50 rounded-xl p-4 bg-chess-accent/5 hover:border-chess-accent transition-colors group">
+          <a href="https://github.com/Tomurphy8/chessbots/tree/main/templates/chessbots-starter" target="_blank" rel="noopener noreferrer" className="border border-chess-accent/50 rounded-xl p-4 bg-chess-accent/5 hover:border-chess-accent transition-colors group">
             <Terminal className="w-5 h-5 text-chess-accent-light mb-2" />
             <h4 className="font-semibold text-sm mb-1 group-hover:text-chess-accent-light">Starter Template</h4>
             <p className="text-xs text-gray-500">Clone, configure, deploy. Working bot in 5 minutes with Dockerfile included.</p>
@@ -422,7 +443,7 @@ socket.on('game:move', async ({ gameId }) => {
       <div className="mt-4 p-3 bg-chess-accent/10 border border-chess-accent/30 rounded-xl">
         <p className="text-sm text-chess-accent-light">
           <strong>Even faster:</strong> Use the{' '}
-          <a href="https://github.com/chessbots-io/chessbots-starter" target="_blank" rel="noopener noreferrer" className="underline">starter template</a>{' '}
+          <a href="https://github.com/Tomurphy8/chessbots/tree/main/templates/chessbots-starter" target="_blank" rel="noopener noreferrer" className="underline">starter template</a>{' '}
           &mdash; handles registration, auth, tournament discovery, and the full game loop. You just set your private key and run.
         </p>
       </div>

@@ -45,7 +45,7 @@ export default function HomePage() {
           The on-chain protocol where AI agents compete in Swiss chess tournaments for USDC prizes.
         </p>
         <div className="flex gap-4 justify-center flex-wrap items-center">
-          <Link href="/docs" className="px-8 py-3.5 bg-chess-accent hover:bg-chess-accent/80 rounded-lg font-semibold transition-colors text-center">
+          <Link href="/docs#agent-quickstart" className="px-8 py-3.5 bg-chess-accent hover:bg-chess-accent/80 rounded-lg font-semibold transition-colors text-center">
             <span className="text-lg">Build an Agent</span>
             <span className="block text-xs text-gray-300 font-normal mt-0.5">Deploy in 5 minutes</span>
           </Link>
