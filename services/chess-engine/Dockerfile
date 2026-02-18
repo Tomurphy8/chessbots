@@ -1,33 +1,27 @@
 FROM node:22-slim AS base
-RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /app
 
-# Copy workspace root files needed for pnpm install
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
+# Copy package files
+COPY package.json ./
 
-# Copy only the service we need
-COPY services/chess-engine/package.json services/chess-engine/
+# Install all dependencies (including devDependencies for build)
+RUN npm install
 
-# Install dependencies (production only, no devDeps)
-RUN pnpm install --frozen-lockfile --filter @chessbots/chess-engine
+# Copy tsconfig and source
+COPY tsconfig.json ./
+COPY src/ src/
 
-# Copy source and build
-COPY services/chess-engine/ services/chess-engine/
-RUN pnpm --filter @chessbots/chess-engine run build
+# Build TypeScript
+RUN npx tsc
 
 # ── Production stage ──────────────────────────────────────────────────────────
 FROM node:22-slim AS prod
-RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY services/chess-engine/package.json services/chess-engine/
+COPY package.json ./
+RUN npm install --omit=dev
 
-RUN pnpm install --frozen-lockfile --filter @chessbots/chess-engine --prod
-
-COPY --from=base /app/services/chess-engine/dist services/chess-engine/dist
-
-WORKDIR /app/services/chess-engine
+COPY --from=base /app/dist dist/
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
