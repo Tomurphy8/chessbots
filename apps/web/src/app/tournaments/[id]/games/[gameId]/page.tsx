@@ -54,9 +54,9 @@ export default function GameViewerPage({ params }: { params: { id: string; gameI
   // Chain data
   const { game: chainGame, whiteName, whiteElo, blackName, blackElo, loading: gameLoading, error: gameError } = useGameData(tournamentId, round, gameIndex);
 
-  // Live game state from gateway polling
-  const liveEnabled = chainGame !== null && (chainGame.status === 0 || chainGame.status === 1);
-  const liveState = useGameSocket(gameId, { enabled: liveEnabled });
+  // Game state from gateway — enabled for live AND completed games (archive fallback provides moves for replay)
+  const gameStateEnabled = chainGame !== null && (chainGame.status === 0 || chainGame.status === 1 || chainGame.status === 2);
+  const liveState = useGameSocket(gameId, { enabled: gameStateEnabled, completed: chainGame?.status === 2 });
 
   // Sponsor data
   const { sponsor, hasSponsor, isImageUri } = useSponsor(tournamentId);
@@ -254,7 +254,15 @@ export default function GameViewerPage({ params }: { params: { id: string; gameI
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setIsPlaying(!isPlaying)}
+                onClick={() => {
+                  if (moveIndex >= totalMoves - 1) {
+                    // At end — reset to start and auto-play
+                    goToMove(-1);
+                    setTimeout(() => setIsPlaying(true), 100);
+                  } else {
+                    setIsPlaying(!isPlaying);
+                  }
+                }}
                 className="p-2 rounded bg-chess-accent/20 hover:bg-chess-accent/30"
                 title={isPlaying ? 'Pause' : 'Play'}
               >
@@ -290,6 +298,18 @@ export default function GameViewerPage({ params }: { params: { id: string; gameI
             <div className="bg-chess-surface border border-chess-border rounded-lg p-4">
               <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-2">Moves</h3>
               <p className="text-sm text-gray-500">Game has not started yet.</p>
+            </div>
+          )}
+          {totalMoves === 0 && !isLive && isCompleted && liveState.loading && (
+            <div className="bg-chess-surface border border-chess-border rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-2">Moves</h3>
+              <p className="text-sm text-gray-500">Loading replay data...</p>
+            </div>
+          )}
+          {totalMoves === 0 && !isLive && isCompleted && !liveState.loading && (
+            <div className="bg-chess-surface border border-chess-border rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-2">Moves</h3>
+              <p className="text-sm text-gray-500">Move data not available for this game.</p>
             </div>
           )}
 

@@ -34,9 +34,10 @@ const INITIAL_STATE: LiveGameState = {
  * Connects to the gateway's /spectator WebSocket namespace for real-time game updates.
  * Falls back to HTTP polling if WebSocket fails to connect within 5 seconds.
  */
-export function useGameSocket(gameId: string | null, options?: { enabled?: boolean }): LiveGameState {
+export function useGameSocket(gameId: string | null, options?: { enabled?: boolean; completed?: boolean }): LiveGameState {
   const [state, setState] = useState<LiveGameState>(INITIAL_STATE);
   const enabled = options?.enabled !== false;
+  const completed = options?.completed === true;
   const socketRef = useRef<Socket | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const usingPollingRef = useRef(false);
@@ -96,6 +97,12 @@ export function useGameSocket(gameId: string | null, options?: { enabled?: boole
     // Reset state on new gameId
     setState(INITIAL_STATE);
     usingPollingRef.current = false;
+
+    // For completed games, skip WebSocket — just fetch once from the archive
+    if (completed) {
+      fetchGameState();
+      return;
+    }
 
     // Try WebSocket first
     const socket = io(`${CHAIN.gatewayUrl}/spectator`, {
@@ -185,7 +192,7 @@ export function useGameSocket(gameId: string | null, options?: { enabled?: boole
       }
       usingPollingRef.current = false;
     };
-  }, [gameId, enabled, fetchGameState, startPolling]);
+  }, [gameId, enabled, completed, fetchGameState, startPolling]);
 
   return state;
 }
