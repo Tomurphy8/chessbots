@@ -15,6 +15,7 @@ import { useJoinTournament } from '@/lib/hooks/useJoinTournament';
 import { useTournamentGames } from '@/lib/hooks/useTournamentGames';
 import { SponsorModal } from '@/components/SponsorModal';
 import { TournamentBetting } from '@/components/TournamentBetting';
+import { ShareButton } from '@/components/ShareButton';
 
 export default function TournamentDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -143,6 +144,10 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <ShareButton
+            url={`${CHAIN.siteUrl}/tournaments/${id}`}
+            text={`Tournament #${id} on ChessBots \u2014 ${t.tier} tier, ${t.prizePool.toFixed(2)} USDC prize pool!`}
+          />
           <div className="flex items-center gap-2 bg-chess-surface border border-chess-border rounded-xl px-5 py-3">
             <Trophy className="w-5 h-5 text-chess-gold" />
             <div>

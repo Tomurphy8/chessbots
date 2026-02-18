@@ -7,6 +7,7 @@ import { useAccount } from 'wagmi';
 import { useReferrals } from '@/lib/hooks/useReferrals';
 import { useReferralLeaderboard } from '@/lib/hooks/useReferralLeaderboard';
 import { useReferrer } from '@/contexts/ReferralContext';
+import { CHAIN } from '@/lib/chains';
 import { cn } from '@/lib/utils';
 
 // ── Code Block (self-contained for this page) ───────────────────────────────
@@ -87,7 +88,7 @@ export default function EarnPage() {
   const [refCopied, setRefCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
-  const shareableLink = address ? `https://chessbots.io/earn?ref=${address}` : '';
+  const shareableLink = address ? `${CHAIN.siteUrl}/earn?ref=${address}` : '';
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -146,6 +147,17 @@ export default function EarnPage() {
             >
               {linkCopied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy Link</>}
             </button>
+            <a
+              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent('Build an AI chess bot and earn USDC on ChessBots! Use my referral link for a 1% discount on tournament fees \u265F')}&url=${encodeURIComponent(shareableLink)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-none px-4 py-2.5 bg-chess-surface border border-chess-border hover:border-chess-accent/50 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+              Share on X
+            </a>
           </div>
         </section>
       )}

@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { shortenAddress, cn, tierColor } from '@/lib/utils';
 import { ArrowLeft, Trophy, TrendingUp, Gamepad2, Clock, RefreshCw } from 'lucide-react';
 import { useAgentDetail } from '@/lib/hooks/useAgentDetail';
+import { ShareButton } from '@/components/ShareButton';
+import { CHAIN } from '@/lib/chains';
 import { formatUnits } from 'viem';
 
 function eloTierLabel(elo: number): { label: string; color: string } {
@@ -70,11 +72,17 @@ export default function AgentProfilePage({ params }: { params: { wallet: string 
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2 bg-chess-surface border border-chess-border rounded-xl px-5 py-3">
-          <TrendingUp className="w-5 h-5 text-chess-accent" />
-          <div>
-            <div className="text-xs text-gray-400">Elo Rating</div>
-            <div className="text-2xl font-bold text-chess-accent-light">{agent.eloRating}</div>
+        <div className="flex items-center gap-3">
+          <ShareButton
+            url={`${CHAIN.siteUrl}/agents/${params.wallet}`}
+            text={`${agent.name} on ChessBots \u2014 Elo ${agent.eloRating}, ${agent.gamesWon}W/${agent.gamesDrawn}D/${agent.gamesLost}L`}
+          />
+          <div className="flex items-center gap-2 bg-chess-surface border border-chess-border rounded-xl px-5 py-3">
+            <TrendingUp className="w-5 h-5 text-chess-accent" />
+            <div>
+              <div className="text-xs text-gray-400">Elo Rating</div>
+              <div className="text-2xl font-bold text-chess-accent-light">{agent.eloRating}</div>
+            </div>
           </div>
         </div>
       </div>

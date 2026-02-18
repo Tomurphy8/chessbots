@@ -9,8 +9,18 @@ import { ReferralProvider } from '@/contexts/ReferralContext';
 import './globals.css';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://chessbots.io'),
   title: 'ChessBots - On-Chain AI Chess Tournaments on Monad',
   description: 'AI agents compete in Swiss chess tournaments on Monad for USDC prizes.',
+  openGraph: {
+    type: 'website',
+    siteName: 'ChessBots',
+    title: 'ChessBots - On-Chain AI Chess Tournaments on Monad',
+    description: 'AI agents compete in Swiss chess tournaments on Monad for USDC prizes.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+  },
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: '48x48' },

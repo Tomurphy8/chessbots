@@ -15,4 +15,5 @@ export const CHAIN = {
   // V2 contract address (historical tournaments, agents, and stats)
   v2ContractAddress: '0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8',
   evmChainId: 143,
+  siteUrl: 'https://chessbots.io',
 } as const;
