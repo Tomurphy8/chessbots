@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Flame, Coins, TrendingDown, Lock, Wallet, Gift } from 'lucide-react';
+import { Flame, Coins, TrendingDown, Lock, Wallet, Gift, ArrowRight, Info, AlertTriangle, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { useAccount } from 'wagmi';
 import { useStaking, getDiscountLabel, getNextTier } from '@/lib/hooks/useStaking';
@@ -69,8 +69,95 @@ export default function StakingPage() {
         <h1 className="text-3xl font-bold">$CHESS Staking</h1>
       </div>
       <p className="text-gray-400 mb-10">
-        Stake $CHESS tokens to earn tournament entry fee discounts. 7-day lockup period after staking.
+        Stake $CHESS tokens to reduce tournament entry fees by up to 25%. Any wallet can stake &mdash; no registration required.
       </p>
+
+      {/* Why Stake? */}
+      <section className="mb-12">
+        <h2 className="text-xl font-bold mb-4">Why Stake $CHESS?</h2>
+        <p className="text-gray-400 mb-4">
+          Staking directly reduces your tournament entry fees on-chain. The more you stake, the less you pay per tournament &mdash; compounding your ROI over time.
+        </p>
+        <div className="grid md:grid-cols-3 gap-4 mb-6">
+          <div className="border border-chess-border rounded-xl p-5 bg-chess-surface">
+            <div className="text-sm text-gray-400 mb-1">Bronze Tier ($50 entry)</div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-green-400">Save $2.50</span>
+              <span className="text-sm text-gray-500">per tournament</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">Stake 50K CHESS &rarr; 5% discount &rarr; pay $47.50 instead of $50</p>
+          </div>
+          <div className="border border-chess-border rounded-xl p-5 bg-chess-surface">
+            <div className="text-sm text-gray-400 mb-1">Silver Tier ($100 entry)</div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-green-400">Save $18</span>
+              <span className="text-sm text-gray-500">per tournament</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">Stake 1M CHESS &rarr; 18% discount &rarr; pay $82 instead of $100</p>
+          </div>
+          <div className="border border-chess-border rounded-xl p-5 bg-chess-surface">
+            <div className="text-sm text-gray-400 mb-1">Masters Tier ($250 entry)</div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-green-400">Save $62.50</span>
+              <span className="text-sm text-gray-500">per tournament</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">Stake 5M CHESS &rarr; 25% discount &rarr; pay $187.50 instead of $250</p>
+          </div>
+        </div>
+        <div className="p-4 bg-chess-accent/10 border border-chess-accent/30 rounded-xl">
+          <p className="text-sm text-chess-accent-light">
+            <strong>Example:</strong> An agent playing 20 Masters tournaments per month at 25% discount saves <strong>$1,250/month</strong> in entry fees.
+            The discount is enforced on-chain &mdash; your fee is automatically reduced when you register for a tournament.
+          </p>
+        </div>
+      </section>
+
+      {/* How to Stake — Step by Step */}
+      <section className="mb-12">
+        <h2 className="text-xl font-bold mb-4">How to Stake</h2>
+        <div className="space-y-4">
+          <div className="flex gap-4 items-start">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#836EF9]/20 border border-[#836EF9]/40 flex items-center justify-center text-sm font-bold text-[#836EF9]">1</div>
+            <div>
+              <h3 className="font-semibold mb-1">Get $CHESS Tokens</h3>
+              <p className="text-sm text-gray-400">
+                Acquire $CHESS on a Monad DEX. The token contract is{' '}
+                <code className="text-xs bg-chess-dark px-1.5 py-0.5 rounded">0xC138...1fa</code>.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-4 items-start">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#836EF9]/20 border border-[#836EF9]/40 flex items-center justify-center text-sm font-bold text-[#836EF9]">2</div>
+            <div>
+              <h3 className="font-semibold mb-1">Connect Your Wallet</h3>
+              <p className="text-sm text-gray-400">
+                Click &ldquo;Connect Wallet&rdquo; in the top-right corner. MetaMask, Phantom, and any EVM wallet are supported.
+                Make sure you&rsquo;re on the Monad network (chain 143).
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-4 items-start">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#836EF9]/20 border border-[#836EF9]/40 flex items-center justify-center text-sm font-bold text-[#836EF9]">3</div>
+            <div>
+              <h3 className="font-semibold mb-1">Approve $CHESS Spending</h3>
+              <p className="text-sm text-gray-400">
+                On your first stake, you&rsquo;ll be asked to approve the staking contract to transfer your CHESS tokens.
+                This is a one-time transaction.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-4 items-start">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#836EF9]/20 border border-[#836EF9]/40 flex items-center justify-center text-sm font-bold text-[#836EF9]">4</div>
+            <div>
+              <h3 className="font-semibold mb-1">Stake Your Tokens</h3>
+              <p className="text-sm text-gray-400">
+                Enter the amount and click &ldquo;Stake&rdquo;. Your discount tier activates instantly after the transaction confirms.
+                Use the form below to stake.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Discount Tiers */}
       <section className="mb-12">
@@ -212,9 +299,14 @@ export default function StakingPage() {
               </button>
             </div>
 
-            <p className="text-xs text-gray-600 mt-3">
-              Note: Staked tokens have a 7-day lockup before unstaking is available.
-            </p>
+            <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex gap-2">
+              <AlertTriangle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-yellow-300/90">
+                <strong>Lockup notice:</strong> Staked tokens have a 7-day lockup before unstaking. Adding more tokens
+                resets the lockup timer on your entire position. Plan your staking to avoid extending your lockup
+                unintentionally.
+              </div>
+            </div>
           </>
         )}
       </section>

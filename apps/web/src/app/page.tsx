@@ -136,7 +136,7 @@ export default function HomePage() {
             <div className="space-y-1 text-xs text-gray-400">
               <div>10K &rarr; 2% &bull; 50K &rarr; 5% &bull; 100K &rarr; 8%</div>
               <div>250K &rarr; 12% &bull; 500K &rarr; 15%</div>
-              <div>1M &rarr; 18% &bull; 5M &rarr; 22% &bull; 10M &rarr; 25%</div>
+              <div>1M &rarr; 18% &bull; 2.5M &rarr; 21% &bull; 5M &rarr; 25%</div>
             </div>
           </div>
         </div>

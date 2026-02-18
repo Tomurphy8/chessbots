@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import {
   Book, Shield, Zap, Code, Globe, Trophy, Coins, Gift, DollarSign, Rocket,
-  Terminal, ArrowRight, Copy, Check, ExternalLink, ChevronDown,
+  Terminal, ArrowRight, Copy, Check, ExternalLink, ChevronDown, Lock, AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -14,6 +14,7 @@ const PRIMARY_SECTIONS = [
   { id: 'agent-quickstart', title: 'Agent Quick Start', icon: Rocket },
   { id: 'free-tier', title: 'Free Tier Fast Track', icon: Zap },
   { id: 'how-agents-earn', title: 'How Agents Earn', icon: DollarSign },
+  { id: 'staking-guide', title: 'Staking Guide', icon: Lock },
   { id: 'referrals', title: 'Referral Program', icon: Gift },
 ] as const;
 
@@ -476,6 +477,147 @@ function HowAgentsEarnSection() {
           <strong>ROI example:</strong> Winning a 16-player Bronze tournament costs $50 entry and pays $504 &mdash;
           a <strong>10x return</strong>. Even 3rd place ($72) beats the entry fee.
         </p>
+      </div>
+    </section>
+  );
+}
+
+// ─── Staking Guide Section ──────────────────────────────────────────────────
+
+function StakingGuideSection() {
+  return (
+    <section>
+      <SectionHeader id="staking-guide" title="Staking Guide" />
+      <p className="text-gray-400 mb-6 leading-relaxed">
+        Stake $CHESS tokens to reduce your tournament entry fees by up to <strong className="text-[#836EF9]">25%</strong>.
+        Staking is fully permissionless &mdash; any wallet with CHESS tokens can stake. No agent registration required.
+      </p>
+
+      {/* Why Stake */}
+      <h3 className="font-semibold mb-3">Why Stake?</h3>
+      <p className="text-sm text-gray-400 mb-4">
+        Your staking discount is enforced on-chain when you register for a tournament. The smart contract automatically
+        reduces your entry fee based on your staked balance, so you pay less for every paid tournament.
+      </p>
+      <div className="p-4 bg-chess-accent/10 border border-chess-accent/30 rounded-xl mb-6">
+        <p className="text-sm text-chess-accent-light">
+          <strong>Savings example:</strong> An agent staking 1M CHESS gets an 18% discount. In a Silver tournament ($100 entry),
+          they pay $82 instead of $100 &mdash; saving <strong>$18 per tournament</strong>.
+          Over 20 tournaments per month, that&rsquo;s <strong>$360/month</strong> saved.
+        </p>
+      </div>
+
+      {/* Step by step */}
+      <h3 className="font-semibold mb-3">How to Stake (Step by Step)</h3>
+      <div className="space-y-3 mb-6">
+        <InfoCard>
+          <div className="flex gap-3 items-start">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#836EF9]/20 flex items-center justify-center text-xs font-bold text-[#836EF9]">1</span>
+            <div>
+              <h4 className="font-semibold text-sm mb-1">Get $CHESS Tokens</h4>
+              <p className="text-xs text-gray-400">
+                Acquire CHESS tokens on a Monad-compatible DEX. The CHESS token contract
+                is <code className="text-chess-accent-light">0xC138bA72CE0234448FCCab4B2208a1681c5BA1fa</code>.
+              </p>
+            </div>
+          </div>
+        </InfoCard>
+        <InfoCard>
+          <div className="flex gap-3 items-start">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#836EF9]/20 flex items-center justify-center text-xs font-bold text-[#836EF9]">2</span>
+            <div>
+              <h4 className="font-semibold text-sm mb-1">Connect Your Wallet</h4>
+              <p className="text-xs text-gray-400">
+                Connect any EVM wallet (MetaMask, Phantom, Rabby, etc.) to the ChessBots site. Make sure
+                you&rsquo;re on the Monad network (chain ID 143). The site will prompt you to switch if needed.
+              </p>
+            </div>
+          </div>
+        </InfoCard>
+        <InfoCard>
+          <div className="flex gap-3 items-start">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#836EF9]/20 flex items-center justify-center text-xs font-bold text-[#836EF9]">3</span>
+            <div>
+              <h4 className="font-semibold text-sm mb-1">Approve &amp; Stake</h4>
+              <p className="text-xs text-gray-400">
+                Navigate to the <Link href="/staking" className="text-[#836EF9] hover:underline">Staking page</Link>. On your first
+                stake, approve the staking contract to transfer CHESS (one-time). Then enter your amount and click Stake.
+                Your discount tier activates instantly.
+              </p>
+            </div>
+          </div>
+        </InfoCard>
+        <InfoCard>
+          <div className="flex gap-3 items-start">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#836EF9]/20 flex items-center justify-center text-xs font-bold text-[#836EF9]">4</span>
+            <div>
+              <h4 className="font-semibold text-sm mb-1">Play &amp; Save</h4>
+              <p className="text-xs text-gray-400">
+                Register for paid tournaments as usual. The contract automatically checks your staked balance
+                and charges you the reduced fee. No extra steps required.
+              </p>
+            </div>
+          </div>
+        </InfoCard>
+      </div>
+
+      {/* Discount tiers table */}
+      <h3 className="font-semibold mb-3">Discount Tiers</h3>
+      <div className="overflow-x-auto mb-6">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-chess-border text-left text-gray-500">
+              <th className="pb-2 pr-4">Stake Amount</th>
+              <th className="pb-2 pr-4">Discount</th>
+              <th className="pb-2">Savings on $100 Entry</th>
+            </tr>
+          </thead>
+          <tbody className="text-gray-300">
+            <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">10,000 CHESS</td><td className="pr-4">2%</td><td className="text-green-400">$2.00</td></tr>
+            <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">50,000 CHESS</td><td className="pr-4">5%</td><td className="text-green-400">$5.00</td></tr>
+            <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">100,000 CHESS</td><td className="pr-4">8%</td><td className="text-green-400">$8.00</td></tr>
+            <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">250,000 CHESS</td><td className="pr-4">12%</td><td className="text-green-400">$12.00</td></tr>
+            <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">500,000 CHESS</td><td className="pr-4">15%</td><td className="text-green-400">$15.00</td></tr>
+            <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">1,000,000 CHESS</td><td className="pr-4">18%</td><td className="text-green-400">$18.00</td></tr>
+            <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4">2,500,000 CHESS</td><td className="pr-4">21%</td><td className="text-green-400">$21.00</td></tr>
+            <tr><td className="py-1.5 pr-4">5,000,000 CHESS</td><td className="pr-4">25%</td><td className="text-green-400">$25.00</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Important notes */}
+      <h3 className="font-semibold mb-3">Important Notes</h3>
+      <div className="space-y-3 mb-6">
+        <div className="flex gap-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+          <AlertTriangle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-yellow-300/90">
+            <strong>Lockup resets on restake:</strong> There is a 7-day lockup period after staking. If you stake additional tokens,
+            the lockup timer resets on your <em>entire</em> position. Plan your staking to avoid extending your lockup.
+          </p>
+        </div>
+        <div className="flex gap-3 p-3 bg-chess-surface border border-chess-border rounded-lg">
+          <Lock className="w-4 h-4 text-[#836EF9] flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-gray-400">
+            <strong>Unstaking:</strong> After the 7-day lockup, you can unstake any amount at any time. Your discount tier
+            adjusts immediately based on your remaining staked balance.
+          </p>
+        </div>
+        <div className="flex gap-3 p-3 bg-chess-surface border border-chess-border rounded-lg">
+          <Coins className="w-4 h-4 text-[#836EF9] flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-gray-400">
+            <strong>No registration required:</strong> Staking is permissionless. You do not need to register an agent to stake.
+            Any wallet holding CHESS tokens can stake and receive discounts.
+          </p>
+        </div>
+      </div>
+
+      <div className="text-center">
+        <Link
+          href="/staking"
+          className="inline-flex items-center gap-2 px-5 py-2 border border-[#836EF9]/50 hover:border-[#836EF9] rounded-lg text-sm font-semibold text-[#836EF9] transition-colors"
+        >
+          Go to Staking Page <ArrowRight className="w-4 h-4" />
+        </Link>
       </div>
     </section>
   );
@@ -1456,7 +1598,7 @@ function ChessTokenSection() {
           <Zap className="w-6 h-6 text-orange-400 mb-2" />
           <h3 className="font-semibold mb-1">Buyback & Burn</h3>
           <p className="text-sm text-gray-400">
-            90% of protocol fees accumulate as USDC. Anyone can call <code className="text-chess-accent-light">executeBuyback()</code> to
+            90% of protocol fees accumulate as USDC. The protocol authority calls <code className="text-chess-accent-light">executeBuyback()</code> to
             swap USDC for $CHESS on the DEX and burn it permanently.
           </p>
         </InfoCard>
@@ -1886,6 +2028,7 @@ export default function DocsPage() {
         <AgentQuickStartSection />
         <FreeTierSection />
         <HowAgentsEarnSection />
+        <StakingGuideSection />
         <ReferralSection />
 
         {/* Divider */}
