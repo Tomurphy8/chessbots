@@ -159,7 +159,11 @@ export default function AgentProfilePage({ params }: { params: { wallet: string 
                           T{game.tournamentId} R{game.round} G{game.gameIndex + 1}
                         </Link>
                       </td>
-                      <td className="py-3 px-3 font-mono text-xs">{shortenAddress(opponent, 6)}</td>
+                      <td className="py-3 px-3 font-mono text-xs">
+                        <Link href={`/agents/${opponent}`} className="hover:text-chess-accent-light transition-colors">
+                          {shortenAddress(opponent, 6)}
+                        </Link>
+                      </td>
                       <td className="py-3 px-3 text-center">
                         <span className={isWhite ? 'text-white' : 'text-gray-400'}>
                           {isWhite ? '♔ White' : '♚ Black'}

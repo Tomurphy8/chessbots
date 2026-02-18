@@ -6,7 +6,7 @@ import { Trophy, Users, Clock } from 'lucide-react';
 
 interface TournamentCardProps {
   id: number;
-  tier: 'rookie' | 'bronze' | 'silver' | 'masters' | 'legends';
+  tier: 'rookie' | 'bronze' | 'silver' | 'masters' | 'legends' | 'free';
   status: string;
   format?: 'swiss' | '1v1' | 'team' | 'league';
   entryFee: number;

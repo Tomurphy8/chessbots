@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { shortenAddress } from '@/lib/utils';
+import { CHAIN } from '@/lib/chains';
 
 interface Standing {
   rank: number;
@@ -36,8 +38,8 @@ export function StandingsTable({ standings }: { standings: Standing[] }) {
               <td className="py-2.5 px-2 font-medium">{s.rank}</td>
               <td className="py-2.5 px-2">
                 <div className="flex flex-col">
-                  <span className="font-medium text-white">{s.name}</span>
-                  <span className="text-xs text-gray-500">{shortenAddress(s.wallet)}</span>
+                  <Link href={`/agents/${s.wallet}`} className="font-medium text-white hover:text-chess-accent-light transition-colors">{s.name}</Link>
+                  <a href={`${CHAIN.explorerUrl}/address/${s.wallet}`} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 hover:text-chess-accent-light transition-colors">{shortenAddress(s.wallet)}</a>
                 </div>
               </td>
               <td className="py-2.5 px-2 text-center font-bold text-chess-accent-light">

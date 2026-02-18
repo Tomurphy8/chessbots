@@ -361,6 +361,18 @@ async function main() {
               300, 3,                               // 5 min + 3s increment
             );
             log('info', 'Auto-created free Swiss tournament (no registration tournaments found)');
+
+            // Notify agent-gateway to broadcast to connected agents (fast-path)
+            if (gatewayUrl) {
+              const newProto = await chain.getProtocolState();
+              const newId = Number(newProto[5]) - 1;
+              fetch(`${gatewayUrl}/api/internal/tournament-notify`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-service-key': serviceKey },
+                body: JSON.stringify({ tournamentId: newId }),
+                signal: AbortSignal.timeout(5000),
+              }).catch(err => log('warn', 'Failed to notify gateway of new tournament', { error: (err as Error).message }));
+            }
           }
         } catch (err: any) {
           log('warn', 'Auto-create check failed', { error: err.message });

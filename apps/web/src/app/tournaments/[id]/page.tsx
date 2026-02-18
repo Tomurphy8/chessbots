@@ -8,14 +8,16 @@ import { useTournamentStandings } from '@/lib/hooks/useTournamentStandings';
 import { SponsorBanner } from '@/components/SponsorBanner';
 import { StandingsTable } from '@/components/StandingsTable';
 import { cn, tierColor, statusBadgeColor, shortenAddress } from '@/lib/utils';
-import { Trophy, ArrowLeft, RefreshCw, UserPlus, CheckCircle, Megaphone } from 'lucide-react';
+import { Trophy, ArrowLeft, RefreshCw, UserPlus, CheckCircle, Megaphone, ExternalLink, Play } from 'lucide-react';
+import { CHAIN } from '@/lib/chains';
 import { useAccount } from 'wagmi';
 import { useJoinTournament } from '@/lib/hooks/useJoinTournament';
+import { useTournamentGames } from '@/lib/hooks/useTournamentGames';
 import { SponsorModal } from '@/components/SponsorModal';
 
 export default function TournamentDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
-  const [activeTab, setActiveTab] = useState<'standings' | 'info'>('standings');
+  const [activeTab, setActiveTab] = useState<'standings' | 'games' | 'info'>('standings');
   const [showSponsorModal, setShowSponsorModal] = useState(false);
   const tournamentId = parseInt(id);
   const { address } = useAccount();
@@ -23,6 +25,20 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
   const { sponsor, hasSponsor, isImageUri } = useSponsor(tournamentId);
   const { standings, loading: standingsLoading, refresh: refreshStandings } = useTournamentStandings(tournamentId);
   const joinTournament = useJoinTournament(tournamentId, tournament?.entryFee ?? 0);
+
+  const hasGames = !!tournament && tournament.currentRound > 0;
+  const { games: tournamentGames, loading: gamesLoading } = useTournamentGames(
+    tournamentId,
+    tournament?.currentRound ?? 0,
+    tournament?.registeredCount ?? 0,
+    hasGames,
+  );
+
+  // Group games by round
+  const gamesByRound = tournamentGames.reduce<Record<number, typeof tournamentGames>>((acc, g) => {
+    (acc[g.round] ??= []).push(g);
+    return acc;
+  }, {});
 
   const canJoin = address && tournament && tournament.status === 'registration' && tournament.registeredCount < tournament.maxPlayers;
 
@@ -89,6 +105,13 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
 
   return (
     <div>
+      {/* Sponsor Banner — full width at top */}
+      {hasSponsor && sponsor && (
+        <div className="-mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-4 bg-chess-surface/80 border-b border-chess-border/50">
+          <SponsorBanner name={sponsor.name} uri={sponsor.uri} amount={sponsor.amount} isImageUri={isImageUri} />
+        </div>
+      )}
+
       <Link href="/tournaments" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
         <ArrowLeft className="w-4 h-4" /> Back to tournaments
       </Link>
@@ -117,11 +140,6 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
             {' '}&middot; {t.registeredCount} {isTeam ? 'teams' : 'players'} registered
             &middot; {t.baseTimeSeconds / 60}+{t.incrementSeconds}s time control
           </p>
-          {hasSponsor && sponsor && (
-            <div className="mt-2">
-              <SponsorBanner name={sponsor.name} uri={sponsor.uri} amount={sponsor.amount} isImageUri={isImageUri} compact />
-            </div>
-          )}
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-chess-surface border border-chess-border rounded-xl px-5 py-3">
@@ -169,7 +187,7 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
 
       {/* Tabs */}
       <div className="flex gap-4 border-b border-chess-border mb-6">
-        {(['standings', 'info'] as const).map((tab) => (
+        {(['standings', 'games', 'info'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -214,6 +232,76 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
             </div>
           )}
         </div>
+      ) : activeTab === 'games' ? (
+        <div>
+          {!hasGames ? (
+            <div className="text-center py-12 text-gray-500">
+              <p>No games have been played yet.</p>
+            </div>
+          ) : gamesLoading ? (
+            <div className="text-center py-12 text-gray-500">
+              <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-chess-accent" />
+              <p>Loading games...</p>
+            </div>
+          ) : tournamentGames.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <p>No game data available yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {Object.keys(gamesByRound)
+                .map(Number)
+                .sort((a, b) => b - a)
+                .map(round => (
+                  <div key={round}>
+                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                      Round {round}
+                    </h3>
+                    <div className="space-y-2">
+                      {gamesByRound[round].map(game => {
+                        const resultLabel =
+                          game.resultName === 'WhiteWins' || game.resultName === 'BlackForfeit' ? '1 - 0'
+                          : game.resultName === 'BlackWins' || game.resultName === 'WhiteForfeit' ? '0 - 1'
+                          : game.resultName === 'Draw' ? '\u00BD - \u00BD'
+                          : game.status === 1 ? 'In Progress'
+                          : game.status === 0 ? 'Pending'
+                          : '\u2014';
+                        const isFinished = game.status === 2;
+                        return (
+                          <Link
+                            key={game.gameId}
+                            href={`/tournaments/${id}/games/${game.gameId}`}
+                            className="flex items-center justify-between bg-chess-surface border border-chess-border rounded-lg px-4 py-3 hover:border-chess-accent/50 transition-colors group"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="text-xs text-gray-500 w-6 shrink-0">G{game.gameIndex + 1}</span>
+                              <span className="text-sm truncate">
+                                <span className="text-white">{shortenAddress(game.white)}</span>
+                                <span className="text-gray-500 mx-2">vs</span>
+                                <span className="text-white">{shortenAddress(game.black)}</span>
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="text-xs text-gray-500">{game.moveCount} moves</span>
+                              <span className={cn(
+                                'text-sm font-medium',
+                                isFinished ? 'text-chess-gold' : 'text-gray-400',
+                              )}>
+                                {resultLabel}
+                              </span>
+                              {isFinished && (
+                                <Play className="w-4 h-4 text-chess-accent-light opacity-0 group-hover:opacity-100 transition-opacity" />
+                              )}
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
       ) : (
         <div className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
@@ -245,17 +333,15 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
               )}
             </div>
           </div>
-          {hasSponsor && sponsor && (
-            <div className="border border-chess-border rounded-xl p-5 bg-chess-surface">
-              <h3 className="text-sm text-gray-400 mb-3">Sponsor</h3>
-              <SponsorBanner
-                name={sponsor.name}
-                uri={sponsor.uri}
-                amount={sponsor.amount}
-                isImageUri={isImageUri}
-              />
-            </div>
-          )}
+          <a
+            href={`${CHAIN.explorerUrl}/address/${CHAIN.contractAddress}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 py-3 bg-chess-surface border border-chess-border hover:border-chess-accent rounded-xl text-sm font-medium text-gray-400 hover:text-white transition-colors"
+          >
+            <ExternalLink className="w-4 h-4" />
+            View Tournament Results On-Chain
+          </a>
           {address && !hasSponsor && (
             <button
               onClick={() => setShowSponsorModal(true)}
@@ -271,18 +357,24 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-chess-gold">{is1v1 ? 'Winner' : '1st'}</span>
-                  <span className="font-mono">{shortenAddress(t.winners[0], 8)}</span>
+                  <a href={`${CHAIN.explorerUrl}/address/${t.winners[0]}`} target="_blank" rel="noopener noreferrer" className="font-mono text-chess-accent-light hover:text-white transition-colors inline-flex items-center gap-1">
+                    {shortenAddress(t.winners[0], 8)} <ExternalLink className="w-3 h-3" />
+                  </a>
                 </div>
                 {!is1v1 && t.winners[1] !== ZERO_ADDR && (
                   <div className="flex justify-between">
                     <span className="text-chess-silver">2nd</span>
-                    <span className="font-mono">{shortenAddress(t.winners[1], 8)}</span>
+                    <a href={`${CHAIN.explorerUrl}/address/${t.winners[1]}`} target="_blank" rel="noopener noreferrer" className="font-mono text-chess-accent-light hover:text-white transition-colors inline-flex items-center gap-1">
+                      {shortenAddress(t.winners[1], 8)} <ExternalLink className="w-3 h-3" />
+                    </a>
                   </div>
                 )}
                 {!is1v1 && t.winners[2] !== ZERO_ADDR && (
                   <div className="flex justify-between">
                     <span className="text-chess-bronze">3rd</span>
-                    <span className="font-mono">{shortenAddress(t.winners[2], 8)}</span>
+                    <a href={`${CHAIN.explorerUrl}/address/${t.winners[2]}`} target="_blank" rel="noopener noreferrer" className="font-mono text-chess-accent-light hover:text-white transition-colors inline-flex items-center gap-1">
+                      {shortenAddress(t.winners[2], 8)} <ExternalLink className="w-3 h-3" />
+                    </a>
                   </div>
                 )}
               </div>

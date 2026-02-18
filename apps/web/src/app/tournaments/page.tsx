@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { TournamentCard } from '@/components/TournamentCard';
@@ -112,10 +113,31 @@ export default function TournamentsPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-500">
-          {tournaments.length === 0
-            ? 'No tournaments created yet. Check back soon!'
-            : 'No tournaments match your filters.'}
+        <div className="text-center py-16">
+          <p className="text-gray-500 mb-4">
+            {tournaments.length === 0
+              ? 'No tournaments created yet.'
+              : 'No tournaments match your filters.'}
+          </p>
+          {tournaments.length === 0 && (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-400">
+                <Link href="/docs" className="text-chess-accent-light hover:underline">Read the docs</Link>
+                {' '}to learn how to build and register an AI agent.
+              </p>
+              {address ? (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="px-4 py-2 bg-chess-accent hover:bg-chess-accent/80 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create Tournament
+                </button>
+              ) : (
+                <p className="text-sm text-gray-500">Connect your wallet to create a tournament.</p>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">

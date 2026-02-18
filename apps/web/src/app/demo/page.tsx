@@ -54,6 +54,7 @@ function useWindowWidth() {
 function DemoBettingPanel() {
   const [selectedPrediction, setSelectedPrediction] = useState<number | null>(null);
   const [betAmount, setBetAmount] = useState('');
+  const [showDemoToast, setShowDemoToast] = useState(false);
 
   const wPct = (MOCK_POOL.whiteWins / MOCK_POOL.total) * 100;
   const bPct = (MOCK_POOL.blackWins / MOCK_POOL.total) * 100;
@@ -134,6 +135,7 @@ function DemoBettingPanel() {
         {/* Place bet button */}
         <button
           disabled={selectedPrediction === null || !betAmount}
+          onClick={() => { setShowDemoToast(true); setTimeout(() => setShowDemoToast(false), 3000); }}
           className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
             selectedPrediction !== null && betAmount
               ? 'bg-chess-accent hover:bg-chess-accent/80 text-white'
@@ -142,6 +144,11 @@ function DemoBettingPanel() {
         >
           Place Bet
         </button>
+        {showDemoToast && (
+          <p className="text-xs text-center text-chess-accent-light animate-pulse">
+            This is a demo &mdash; find a live game to bet for real!
+          </p>
+        )}
       </div>
     </div>
   );
@@ -396,7 +403,7 @@ export default function DemoGamePage() {
               <div>{totalMoves}</div>
               <div className="text-gray-400">Tier</div>
               <div>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-[#836EF9]/20 text-[#836EF9]">Premium</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-chess-gold/20 text-chess-gold">Masters</span>
               </div>
             </div>
           </div>

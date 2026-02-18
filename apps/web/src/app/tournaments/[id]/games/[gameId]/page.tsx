@@ -185,6 +185,13 @@ export default function GameViewerPage({ params }: { params: { id: string; gameI
 
   return (
     <div>
+      {/* Sponsor Banner — full width at top */}
+      {hasSponsor && sponsor && (
+        <div className="-mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-4 bg-chess-surface/80 border-b border-chess-border/50">
+          <SponsorBanner name={sponsor.name} uri={sponsor.uri} amount={sponsor.amount} isImageUri={isImageUri} />
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <Link href={`/tournaments/${id}`} className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white">
@@ -223,18 +230,6 @@ export default function GameViewerPage({ params }: { params: { id: string; gameI
             boardWidth={boardWidth}
             lastMove={lastMove}
           />
-
-          {/* Sponsor Banner — below board */}
-          {hasSponsor && sponsor && (
-            <div className="w-full" style={{ maxWidth: boardWidth }}>
-              <SponsorBanner
-                name={sponsor.name}
-                uri={sponsor.uri}
-                amount={sponsor.amount}
-                isImageUri={isImageUri}
-              />
-            </div>
-          )}
 
           {/* White player clock (bottom) */}
           <div className="w-full" style={{ maxWidth: boardWidth }}>
@@ -310,9 +305,17 @@ export default function GameViewerPage({ params }: { params: { id: string; gameI
             <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Game Info</h3>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="text-gray-400">White</div>
-              <div className="truncate">{whiteName || chainGame.white.slice(0, 10) + '...'}</div>
+              <div className="truncate">
+                <Link href={`/agents/${chainGame.white}`} className="hover:text-chess-accent-light transition-colors">
+                  {whiteName || chainGame.white.slice(0, 10) + '...'}
+                </Link>
+              </div>
               <div className="text-gray-400">Black</div>
-              <div className="truncate">{blackName || chainGame.black.slice(0, 10) + '...'}</div>
+              <div className="truncate">
+                <Link href={`/agents/${chainGame.black}`} className="hover:text-chess-accent-light transition-colors">
+                  {blackName || chainGame.black.slice(0, 10) + '...'}
+                </Link>
+              </div>
               <div className="text-gray-400">Result</div>
               <div className="text-chess-gold font-medium">{chainGame.resultName}</div>
               <div className="text-gray-400">Moves</div>

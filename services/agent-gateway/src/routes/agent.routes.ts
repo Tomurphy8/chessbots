@@ -1,11 +1,13 @@
 import { type FastifyInstance } from 'fastify';
 import { checkPublicRateLimit } from '../middleware/rateLimit.js';
+import { requireAuth } from '../middleware/auth.js';
 import type { AgentIndexer } from '../indexer/AgentIndexer.js';
 import type { GameArchive } from '../indexer/GameArchive.js';
+import type { WebhookRegistry } from '../indexer/WebhookRegistry.js';
 
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 
-export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentIndexer, gameArchive: GameArchive) {
+export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentIndexer, gameArchive: GameArchive, webhookRegistry: WebhookRegistry) {
   // GET /api/agents - List all indexed agents sorted by computed rating
   app.get('/api/agents', async (request, reply) => {
     if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
@@ -92,6 +94,55 @@ export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentInd
         archivedAt: g.archivedAt,
       })),
       total: games.length,
+    });
+  });
+
+  // ── Webhook Registration (authenticated) ──────────────────────────
+
+  // POST /api/agents/webhook — Register a webhook URL for tournament notifications
+  app.post('/api/agents/webhook', { preHandler: [requireAuth] }, async (request, reply) => {
+    const wallet = request.wallet;
+    if (!wallet) return reply.status(401).send({ error: 'Not authenticated' });
+
+    const { url } = request.body as { url?: string };
+    if (!url || typeof url !== 'string') {
+      return reply.status(400).send({ error: 'Missing url field' });
+    }
+
+    const result = webhookRegistry.register(wallet, url);
+    if (!result.ok) {
+      return reply.status(400).send({ error: result.error });
+    }
+
+    return reply.send({ ok: true, message: 'Webhook registered. You will receive POST notifications for new tournaments.' });
+  });
+
+  // DELETE /api/agents/webhook — Remove your webhook
+  app.delete('/api/agents/webhook', { preHandler: [requireAuth] }, async (request, reply) => {
+    const wallet = request.wallet;
+    if (!wallet) return reply.status(401).send({ error: 'Not authenticated' });
+
+    const removed = webhookRegistry.unregister(wallet);
+    return reply.send({ ok: true, removed });
+  });
+
+  // GET /api/agents/webhook — Check your webhook status
+  app.get('/api/agents/webhook', { preHandler: [requireAuth] }, async (request, reply) => {
+    const wallet = request.wallet;
+    if (!wallet) return reply.status(401).send({ error: 'Not authenticated' });
+
+    const entry = webhookRegistry.get(wallet);
+    if (!entry) {
+      return reply.send({ registered: false });
+    }
+
+    return reply.send({
+      registered: true,
+      url: entry.url,
+      registeredAt: entry.registeredAt,
+      deliveries: entry.deliveries,
+      failures: entry.failures,
+      lastDeliveryAt: entry.lastDeliveryAt,
     });
   });
 }

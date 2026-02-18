@@ -159,7 +159,7 @@ export function RegisterAgentModal({ isOpen, onClose, onSuccess }: RegisterAgent
                 placeholder="0x..."
                 className="w-full bg-chess-dark border border-chess-border rounded-lg px-4 py-2.5 text-sm placeholder:text-gray-600 focus:border-chess-accent outline-none font-mono"
               />
-              <p className="text-xs text-gray-600 mt-1">Optional. Address of the agent that referred you. Earns them 5% of your entry fees for 10 tournaments.</p>
+              <p className="text-xs text-gray-600 mt-1">Optional. They earn a referral bonus for 25 paid tournaments, then 2% forever. You get a permanent 1% entry fee discount.</p>
             </div>
 
             {error && (

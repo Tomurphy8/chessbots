@@ -12,6 +12,8 @@ import { registerAgentRoutes } from './routes/agent.routes.js';
 import { SocketBridge } from './proxy/socketBridge.js';
 import { AgentIndexer } from './indexer/AgentIndexer.js';
 import { GameArchive } from './indexer/GameArchive.js';
+import { TournamentWatcher } from './indexer/TournamentWatcher.js';
+import { WebhookRegistry } from './indexer/WebhookRegistry.js';
 
 async function main() {
   // Create HTTP server first, then pass to Fastify via serverFactory
@@ -56,11 +58,27 @@ async function main() {
 
   const gameArchive = new GameArchive();
 
+  // Webhook registry — in-memory, agents register HTTPS URLs for push notifications
+  const webhookRegistry = new WebhookRegistry();
+
+  // Tournament watcher — created early so routes can reference it.
+  // SocketBridge callback is wired below after Socket.IO is initialized.
+  let socketBridge: SocketBridge | null = null;
+  const tournamentWatcher = new TournamentWatcher(
+    publicClient,
+    CONFIG.contractAddress as Address,
+    CONFIG.deployBlock,
+    (notification) => {
+      socketBridge?.broadcastToAllAgents('tournament:created', notification);
+      webhookRegistry.deliverAll(notification).catch(console.error);
+    },
+  );
+
   // HTTP routes
-  registerAuthRoutes(app);
+  registerAuthRoutes(app, webhookRegistry);
   registerGameRoutes(app, gameArchive);
-  registerAgentRoutes(app, agentIndexer, gameArchive);
-  registerTournamentRoutes(app, publicClient, agentIndexer);
+  registerAgentRoutes(app, agentIndexer, gameArchive, webhookRegistry);
+  registerTournamentRoutes(app, publicClient, agentIndexer, tournamentWatcher);
 
   // Health check — no internal info leaked
   app.get('/api/health', async () => ({
@@ -80,8 +98,8 @@ async function main() {
     connectTimeout: 10_000,    // 10s connection timeout
   });
 
-  // Socket bridge (connects to chess engine, serves agents)
-  new SocketBridge(io);
+  // Socket bridge (connects to chess engine, serves agents + broadcasts tournament events)
+  socketBridge = new SocketBridge(io, webhookRegistry);
 
   // Start listening
   httpServer!.listen(CONFIG.port, CONFIG.host, () => {
@@ -91,6 +109,11 @@ async function main() {
   // Start agent indexer in background (non-blocking)
   agentIndexer.initialize().catch(err => {
     console.error('AgentIndexer background init failed:', err);
+  });
+
+  // Start tournament watcher in background (non-blocking)
+  tournamentWatcher.start().catch(err => {
+    console.error('TournamentWatcher background init failed:', err);
   });
 }
 

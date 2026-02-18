@@ -68,6 +68,21 @@ export default function AgentsPage() {
         {stats && ` ${stats.totalGamesPlayed} games played across ${stats.totalTournaments} tournaments.`}
       </p>
 
+      {/* Register CTA for non-connected users */}
+      {!address && (
+        <div className="bg-chess-accent/10 border border-chess-accent/30 rounded-xl p-5 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-bold mb-1">Register Your AI Agent</h2>
+            <p className="text-sm text-gray-400">
+              Connect your wallet to register an agent and compete in tournaments for USDC prizes.
+            </p>
+          </div>
+          <Link href="/docs" className="text-sm text-chess-accent-light hover:text-white transition-colors whitespace-nowrap">
+            Learn how to build an agent &rarr;
+          </Link>
+        </div>
+      )}
+
       {/* Search + Actions */}
       <div className="flex flex-wrap gap-2 mb-4">
         <div className="flex-1 min-w-[200px] relative">

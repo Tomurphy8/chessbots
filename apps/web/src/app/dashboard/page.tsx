@@ -1,17 +1,24 @@
 'use client';
 
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useAccount } from 'wagmi';
+import { createPublicClient, http, formatUnits, type Address, defineChain } from 'viem';
 import { useAgents } from '@/lib/hooks/useAgents';
 import { useStaking, getDiscountLabel } from '@/lib/hooks/useStaking';
 import { useReferrals } from '@/lib/hooks/useReferrals';
-import { useProtocolStats } from '@/lib/hooks/useChainData';
+import { useProtocolStats, useTournaments } from '@/lib/hooks/useChainData';
+import { useAgentDetail } from '@/lib/hooks/useAgentDetail';
 import { shortenAddress } from '@/lib/utils';
+import { ERC20_ABI } from '@/lib/contracts/evm';
+import { CHAIN } from '@/lib/chains';
+import { TournamentCard } from '@/components/TournamentCard';
 import {
   Wallet,
   TrendingUp,
   Trophy,
   Gamepad2,
+  DollarSign,
   Lock,
   Gift,
   Users,
@@ -25,11 +32,45 @@ export default function DashboardPage() {
   const staking = useStaking();
   const referrals = useReferrals();
   const { stats } = useProtocolStats();
+  const { tournaments, loading: tournamentsLoading } = useTournaments();
+  const { games: myGames } = useAgentDetail(address ?? null);
+  const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
 
   // Find the user's agent from the leaderboard data
   const myAgent = address
     ? agents.find(a => a.wallet.toLowerCase() === address.toLowerCase())
     : null;
+
+  // Fetch USDC balance
+  useEffect(() => {
+    if (!address) return;
+    const monad = defineChain({
+      id: CHAIN.evmChainId,
+      name: 'Monad',
+      nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+      rpcUrls: { default: { http: [CHAIN.rpcUrl] } },
+    });
+    const client = createPublicClient({ chain: monad, transport: http(CHAIN.rpcUrl) });
+    client.readContract({
+      address: CHAIN.usdcAddress as Address,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [address],
+    }).then((bal) => {
+      setUsdcBalance(formatUnits(bal as bigint, 6));
+    }).catch(console.error);
+  }, [address]);
+
+  // Derive tournaments the user has participated in
+  const myTournamentIds = useMemo(() => {
+    const ids = new Set<number>();
+    myGames.forEach(g => ids.add(g.tournamentId));
+    return ids;
+  }, [myGames]);
+
+  const myTournaments = useMemo(() => {
+    return tournaments.filter(t => myTournamentIds.has(t.id));
+  }, [tournaments, myTournamentIds]);
 
   if (!address) {
     return (
@@ -56,6 +97,21 @@ export default function DashboardPage() {
             <div>{stats.totalGamesPlayed} games played</div>
           </div>
         )}
+      </div>
+
+      {/* USDC Balance */}
+      <div className="bg-chess-surface border border-chess-border rounded-2xl p-6 mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <DollarSign className="w-5 h-5 text-chess-gold" />
+          <h2 className="text-lg font-bold">USDC Balance</h2>
+        </div>
+        <div className="text-3xl font-bold text-chess-gold">
+          {usdcBalance !== null
+            ? `${parseFloat(usdcBalance).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`
+            : <span className="inline-block h-9 w-32 bg-chess-border rounded animate-pulse" />
+          }
+        </div>
+        <p className="text-xs text-gray-500 mt-1">Available for tournament entry fees</p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -190,6 +246,33 @@ export default function DashboardPage() {
                 {referrals.isPending ? 'Claiming...' : 'Claim'}
               </button>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* My Tournaments */}
+      <div className="bg-chess-surface border border-chess-border rounded-2xl p-6 mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <Trophy className="w-5 h-5 text-chess-gold" />
+          <h2 className="text-lg font-bold">My Tournaments</h2>
+        </div>
+        {tournamentsLoading ? (
+          <p className="text-gray-500">Loading tournaments...</p>
+        ) : myTournaments.length === 0 ? (
+          <div className="text-center py-6">
+            <p className="text-gray-500 mb-3">You haven&apos;t joined any tournaments yet.</p>
+            <Link
+              href="/tournaments"
+              className="text-sm text-chess-accent-light hover:text-chess-accent transition-colors"
+            >
+              Browse tournaments &rarr;
+            </Link>
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-4">
+            {myTournaments.map(t => (
+              <TournamentCard key={t.id} {...t} />
+            ))}
           </div>
         )}
       </div>

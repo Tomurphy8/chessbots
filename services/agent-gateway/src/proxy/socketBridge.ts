@@ -3,6 +3,7 @@ import { io as SocketClient, type Socket as ClientSocket } from 'socket.io-clien
 import { verifyToken } from '../auth/jwt.js';
 import { CONFIG } from '../config.js';
 import { type Address } from 'viem';
+import type { WebhookRegistry } from '../indexer/WebhookRegistry.js';
 
 // GW-WS1: Input validation and subscription caps
 const GAME_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
@@ -28,14 +29,16 @@ interface SpectatorSocket extends Socket {
 export class SocketBridge {
   private agentServer: SocketServer;
   private engineClient: ClientSocket;
+  private webhookRegistry: WebhookRegistry | null;
   private trackedGames = new Set<string>();
   private trackedTournaments = new Set<string>();
   // GW-WS2: Reference counting for tracked games/tournaments cleanup
   private gameRefCount = new Map<string, number>();
   private tournamentRefCount = new Map<string, number>();
 
-  constructor(agentServer: SocketServer) {
+  constructor(agentServer: SocketServer, webhookRegistry?: WebhookRegistry) {
     this.agentServer = agentServer;
+    this.webhookRegistry = webhookRegistry ?? null;
 
     // GW-WS3: Connect to chess engine with service auth
     this.engineClient = SocketClient(CONFIG.chessEngineUrl, {
@@ -111,6 +114,16 @@ export class SocketBridge {
       socket.wallet = payload.sub as Address;
       socket.subscribedGames = new Set();
       socket.subscribedTournaments = new Set();
+
+      // Auto-register webhook if notifyUrl provided in handshake (zero-friction)
+      const notifyUrl = socket.handshake.auth?.notifyUrl;
+      if (notifyUrl && typeof notifyUrl === 'string' && this.webhookRegistry) {
+        const result = this.webhookRegistry.register(socket.wallet, notifyUrl);
+        if (!result.ok) {
+          console.warn(`[SocketBridge] Webhook auto-register failed for ${socket.wallet.slice(0, 10)}...: ${result.error}`);
+        }
+      }
+
       next();
     });
 
@@ -183,6 +196,10 @@ export class SocketBridge {
         }
         for (const tournamentId of socket.subscribedTournaments || []) {
           this.decrementTournamentRef(tournamentId);
+        }
+        // Auto-unregister webhook on disconnect (ephemeral — re-registers on reconnect)
+        if (socket.handshake.auth?.notifyUrl && this.webhookRegistry) {
+          this.webhookRegistry.unregister(wallet);
         }
       });
     });
@@ -264,6 +281,15 @@ export class SocketBridge {
     });
 
     console.log('[SocketBridge] Spectator namespace /spectator ready (no auth required)');
+  }
+
+  /**
+   * Broadcast an event to ALL connected agents and spectators.
+   * No room subscription required — every socket receives it.
+   */
+  broadcastToAllAgents(event: string, data: any): void {
+    this.agentServer.emit(event, data);
+    this.agentServer.of('/spectator').emit(event, data);
   }
 
   getConnectedAgentCount(): number {

@@ -4,7 +4,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
+import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const EVMConnectButton = dynamic(
   () => import('connectkit').then(m => {
@@ -37,6 +39,7 @@ const NAV_LINKS = [
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const pathname = usePathname();
 
   return (
     <nav className="border-b border-chess-border bg-chess-surface/80 backdrop-blur-md sticky top-0 z-50">
@@ -52,7 +55,12 @@ export function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="text-sm text-gray-400 hover:text-white transition-colors"
+                  className={cn(
+                    'text-sm transition-colors',
+                    pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href))
+                      ? 'text-white font-medium'
+                      : 'text-gray-400 hover:text-white'
+                  )}
                 >
                   {link.label}
                 </Link>
@@ -85,7 +93,12 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setIsMenuOpen(false)}
-                className="block py-2.5 px-3 text-sm text-gray-400 hover:text-white hover:bg-chess-border/30 rounded-lg transition-colors"
+                className={cn(
+                  'block py-2.5 px-3 text-sm rounded-lg transition-colors',
+                  pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href))
+                    ? 'text-white font-medium bg-chess-border/20'
+                    : 'text-gray-400 hover:text-white hover:bg-chess-border/30'
+                )}
               >
                 {link.label}
               </Link>

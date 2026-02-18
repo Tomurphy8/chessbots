@@ -4,6 +4,7 @@ import { CONFIG } from '../config.js';
 import { checkPublicRateLimit } from '../middleware/rateLimit.js';
 import { EventScanner } from '../indexer/EventScanner.js';
 import type { AgentIndexer } from '../indexer/AgentIndexer.js';
+import type { TournamentWatcher } from '../indexer/TournamentWatcher.js';
 
 const TOURNAMENT_ABI = [
   {
@@ -145,7 +146,7 @@ const AGENT_JOINED_EVENT = parseAbiItem(
   'event AgentJoined(uint256 indexed tournamentId, address indexed agent, uint8 registeredCount)'
 );
 
-export function registerTournamentRoutes(app: FastifyInstance, publicClient: PublicClient, agentIndexer: AgentIndexer) {
+export function registerTournamentRoutes(app: FastifyInstance, publicClient: PublicClient, agentIndexer: AgentIndexer, tournamentWatcher: TournamentWatcher) {
   // Shared event scanner for standings queries
   const scanner = new EventScanner(
     publicClient,
@@ -378,5 +379,72 @@ export function registerTournamentRoutes(app: FastifyInstance, publicClient: Pub
       console.error(`Standings error for tournament ${parsedId}:`, err.message);
       return reply.status(500).send({ error: 'Failed to fetch standings' });
     }
+  });
+
+  // GET /api/tournaments/open — Registration-status tournaments for agent polling
+  app.get('/api/tournaments/open', async (_request, reply) => {
+    if (!checkPublicRateLimit(_request)) return reply.status(429).send({ error: 'Rate limited' });
+    try {
+      const protocolState = await publicClient.readContract({
+        address: CONFIG.contractAddress as Address,
+        abi: TOURNAMENT_ABI,
+        functionName: 'protocol',
+      });
+
+      const total = Number(protocolState[5]);
+      if (total === 0) return reply.send({ tournaments: [] });
+
+      // Check last 20 tournaments for open registration
+      const start = Math.max(0, total - 20);
+      const tournaments = [];
+      for (let i = total - 1; i >= start; i--) {
+        try {
+          const raw = await publicClient.readContract({
+            address: CONFIG.contractAddress as Address,
+            abi: TOURNAMENT_ABI,
+            functionName: 'getTournament',
+            args: [BigInt(i)],
+          });
+          if (!raw.exists || raw.status !== 0) continue; // status 0 = Registration
+          const t = formatTournament(raw);
+          tournaments.push({
+            tournamentId: t.id,
+            tier: t.tier,
+            format: t.format,
+            entryFee: t.entryFee,
+            maxPlayers: t.maxPlayers,
+            registeredCount: t.registeredCount,
+            spotsRemaining: t.maxPlayers - t.registeredCount,
+            startTime: t.startTime,
+            registrationDeadline: t.registrationDeadline,
+            baseTimeSeconds: t.baseTimeSeconds,
+            incrementSeconds: t.incrementSeconds,
+          });
+        } catch { /* skip */ }
+      }
+
+      // Sort by deadline (soonest first)
+      tournaments.sort((a, b) => a.registrationDeadline - b.registrationDeadline);
+
+      return reply.send({ tournaments });
+    } catch (err: any) {
+      return reply.status(500).send({ error: 'Failed to read tournament data from chain' });
+    }
+  });
+
+  // POST /api/internal/tournament-notify — Fast-path trigger from orchestrator
+  app.post('/api/internal/tournament-notify', async (request, reply) => {
+    const serviceKey = (request.headers as any)['x-service-key'];
+    if (serviceKey !== CONFIG.serviceApiKey) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    const { tournamentId } = request.body as { tournamentId: number };
+    if (typeof tournamentId !== 'number' || tournamentId < 0) {
+      return reply.status(400).send({ error: 'Invalid tournamentId' });
+    }
+
+    await tournamentWatcher.triggerNotification(tournamentId);
+    return reply.send({ ok: true });
   });
 }

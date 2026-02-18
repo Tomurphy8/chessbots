@@ -4,6 +4,7 @@ import { createChallenge, consumeChallenge } from '../auth/challenge.js';
 import { verifyWalletSignature } from '../auth/verify.js';
 import { signToken } from '../auth/jwt.js';
 import { CONFIG } from '../config.js';
+import type { WebhookRegistry } from '../indexer/WebhookRegistry.js';
 
 const ChallengeSchema = z.object({
   wallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid EVM address'),
@@ -13,6 +14,7 @@ const VerifySchema = z.object({
   wallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid EVM address'),
   signature: z.string().regex(/^0x[a-fA-F0-9]+$/).max(200),
   nonce: z.string().uuid(),
+  notifyUrl: z.string().url().max(256).optional(),
 });
 
 // GW-H2: Per-IP rate limiting for auth endpoints
@@ -42,7 +44,7 @@ function checkAuthRateLimit(request: FastifyRequest): boolean {
   return entry.count <= maxPerMinute;
 }
 
-export function registerAuthRoutes(app: FastifyInstance) {
+export function registerAuthRoutes(app: FastifyInstance, webhookRegistry?: WebhookRegistry) {
   // POST /api/auth/challenge - Request a nonce challenge for wallet authentication
   app.post('/api/auth/challenge', async (request, reply) => {
     if (!checkAuthRateLimit(request)) {
@@ -67,7 +69,7 @@ export function registerAuthRoutes(app: FastifyInstance) {
       return reply.status(429).send({ error: 'Too many requests. Try again later.' });
     }
     try {
-      const { wallet, signature, nonce } = VerifySchema.parse(request.body);
+      const { wallet, signature, nonce, notifyUrl } = VerifySchema.parse(request.body);
 
       const message = consumeChallenge(nonce, wallet);
       if (!message) {
@@ -79,8 +81,15 @@ export function registerAuthRoutes(app: FastifyInstance) {
         return reply.status(401).send({ error: 'Invalid signature.' });
       }
 
+      // Auto-register webhook if notifyUrl provided (zero-friction, non-blocking)
+      let webhookRegistered = false;
+      if (notifyUrl && webhookRegistry) {
+        const result = webhookRegistry.register(verifiedWallet, notifyUrl);
+        webhookRegistered = result.ok;
+      }
+
       const { token, expiresAt } = await signToken(verifiedWallet);
-      return reply.send({ token, expiresAt, wallet: verifiedWallet });
+      return reply.send({ token, expiresAt, wallet: verifiedWallet, webhookRegistered });
     } catch (err: any) {
       if (err.name === 'ZodError') return reply.status(400).send({ error: 'Invalid input' });
       return reply.status(500).send({ error: 'Internal error' });

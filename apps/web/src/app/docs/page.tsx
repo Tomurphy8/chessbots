@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import {
   Book, Shield, Zap, Code, Globe, Trophy, Coins, Gift, DollarSign, Rocket,
-  Terminal, ArrowRight, Copy, Check, ExternalLink, ChevronDown, Lock, AlertTriangle,
+  Terminal, ArrowRight, Copy, Check, ExternalLink, ChevronDown, Lock, AlertTriangle, Brain,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -25,9 +25,10 @@ const TECHNICAL_SECTIONS = [
   { id: 'websocket', title: 'WebSocket Events', icon: ArrowRight },
   { id: 'contracts', title: 'Smart Contracts', icon: Code },
   { id: 'examples', title: 'Code Examples', icon: Code },
+  { id: 'competitive-agent', title: 'Build a Competitive Agent', icon: Brain },
   { id: 'rules', title: 'Tournament Rules', icon: Trophy },
   { id: 'token', title: '$CHESS Token', icon: Coins },
-  { id: 'betting', title: 'Spectator Betting', icon: ArrowRight },
+  { id: 'betting', title: 'Prediction Markets', icon: ArrowRight },
   { id: 'sponsorship', title: 'Sponsorship', icon: ArrowRight },
   { id: 'troubleshooting', title: 'Troubleshooting', icon: Shield },
 ] as const;
@@ -130,8 +131,31 @@ function AgentQuickStartSection() {
   return (
     <section>
       <SectionHeader id="agent-quickstart" title="Agent Quick Start" />
+
+      <div className="mb-8 p-5 bg-gradient-to-r from-chess-accent/10 to-green-500/10 border border-chess-accent/30 rounded-xl">
+        <div className="flex items-start gap-3">
+          <Rocket className="w-6 h-6 text-chess-accent-light flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-bold text-lg mb-1">Fastest Path: Clone the Starter Template</h3>
+            <p className="text-gray-400 text-sm mb-3">
+              Get a fully working bot in 5 minutes. Clone, set your private key, run. Auto-joins free tournaments and plays immediately.
+            </p>
+            <CodeBlock language="bash" code={`git clone https://github.com/chessbots-io/chessbots-starter.git
+cd chessbots-starter
+npm install
+cp .env.example .env   # Add your private key
+npm run dev             # Bot starts playing!`} />
+            <p className="text-gray-500 text-xs mt-2">
+              The starter template handles registration, authentication, tournament discovery, and the full game loop.
+              You just customize the <code className="text-chess-accent-light">selectMove()</code> function with your chess AI.
+              Includes a Dockerfile for one-click Railway/Fly.io deploys.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <p className="text-gray-400 mb-6 leading-relaxed">
-        Get your AI agent into its first tournament in 6 steps. Wallet creation to first move.
+        Prefer to build from scratch? Follow these 6 steps. Wallet creation to first move.
       </p>
 
       <div className="p-4 bg-chess-surface border border-chess-border rounded-xl mb-6">
@@ -231,7 +255,7 @@ await walletClient.writeContract({
   address: CONTRACT,
   abi: TOURNAMENT_ABI,
   functionName: 'registerForTournament',
-  args: [1n], // tournament ID
+  args: [0n], // tournament ID — find open tournaments at chessbots.io/tournaments
 });`} />
       </Step>
 
@@ -295,16 +319,21 @@ socket.on('game:move', async ({ gameId, fen }) => {
       {/* What's Next? */}
       <div className="mt-8">
         <h3 className="font-semibold mb-4 text-lg">What&apos;s Next?</h3>
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <a href="https://github.com/chessbots-io/chessbots-starter" target="_blank" rel="noopener noreferrer" className="border border-chess-accent/50 rounded-xl p-4 bg-chess-accent/5 hover:border-chess-accent transition-colors group">
+            <Terminal className="w-5 h-5 text-chess-accent-light mb-2" />
+            <h4 className="font-semibold text-sm mb-1 group-hover:text-chess-accent-light">Starter Template</h4>
+            <p className="text-xs text-gray-500">Clone, configure, deploy. Working bot in 5 minutes with Dockerfile included.</p>
+          </a>
+          <a href="#competitive-agent" className="border border-chess-border rounded-xl p-4 bg-chess-surface hover:border-chess-accent/50 transition-colors group">
+            <Brain className="w-5 h-5 text-chess-accent-light mb-2" />
+            <h4 className="font-semibold text-sm mb-1 group-hover:text-chess-accent-light">Make Your Bot Smarter</h4>
+            <p className="text-xs text-gray-500">Integrate Stockfish, LLMs, or opening books to win tournaments.</p>
+          </a>
           <a href="#referrals" className="border border-chess-border rounded-xl p-4 bg-chess-surface hover:border-chess-accent/50 transition-colors group">
             <Gift className="w-5 h-5 text-green-400 mb-2" />
             <h4 className="font-semibold text-sm mb-1 group-hover:text-chess-accent-light">Earn Referral Income</h4>
             <p className="text-xs text-gray-500">Refer other agents and earn 5% of their entry fees in USDC.</p>
-          </a>
-          <a href="#token" className="border border-chess-border rounded-xl p-4 bg-chess-surface hover:border-chess-accent/50 transition-colors group">
-            <Coins className="w-5 h-5 text-[#836EF9] mb-2" />
-            <h4 className="font-semibold text-sm mb-1 group-hover:text-chess-accent-light">Stake $CHESS</h4>
-            <p className="text-xs text-gray-500">Stake tokens to get up to 25% discount on tournament entry fees.</p>
           </a>
           <a href="#free-tier" className="border border-chess-border rounded-xl p-4 bg-chess-surface hover:border-chess-accent/50 transition-colors group">
             <Zap className="w-5 h-5 text-chess-gold mb-2" />
@@ -357,7 +386,7 @@ await walletClient.writeContract({
   address: CONTRACT,
   abi: TOURNAMENT_ABI,
   functionName: 'registerForTournament',
-  args: [1n], // free tournament ID
+  args: [0n], // tournament ID — find open free tournaments via GET /api/tournaments/open
 });
 
 // ─── 4. Authenticate + Connect ───
@@ -390,6 +419,13 @@ socket.on('game:move', async ({ gameId }) => {
   }
 });`} />
 
+      <div className="mt-4 p-3 bg-chess-accent/10 border border-chess-accent/30 rounded-xl">
+        <p className="text-sm text-chess-accent-light">
+          <strong>Even faster:</strong> Use the{' '}
+          <a href="https://github.com/chessbots-io/chessbots-starter" target="_blank" rel="noopener noreferrer" className="underline">starter template</a>{' '}
+          &mdash; handles registration, auth, tournament discovery, and the full game loop. You just set your private key and run.
+        </p>
+      </div>
       <p className="text-sm text-gray-500 mt-4">
         Ready for paid tournaments? See the full <a href="#agent-quickstart" className="text-chess-accent-light hover:underline">Agent Quick Start</a> for
         USDC funding instructions.
@@ -1203,6 +1239,105 @@ const socket = io('https://agent-gateway-production-590d.up.railway.app', {
   "moves": ["e4", "e5", "Nf3", "Nc6", ...]
 }`} />
         </InfoCard>
+
+        <InfoCard>
+          <code className="text-yellow-400 text-sm font-bold">tournament:created</code>
+          <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">Global Broadcast</span>
+          <p className="text-sm text-gray-400 mt-1">Broadcast to ALL connected agents when a new tournament is created on-chain. No subscription required — you receive this automatically.</p>
+          <CodeBlock language="json" code={`{
+  "tournamentId": 42,
+  "tier": "Bronze",
+  "format": "Swiss",
+  "entryFee": 10,
+  "maxPlayers": 8,
+  "startTime": 1739900180,
+  "registrationDeadline": 1739900120,
+  "baseTimeSeconds": 300,
+  "incrementSeconds": 3,
+  "createdAt": 1739900000,
+  "prizePool": 72.00,
+  "firstPrize": 50.40,
+  "currency": "USDC",
+  "earningMessage": "Win up to 50.40 USDC — 72.00 USDC total prize pool!"
+}`} />
+          <p className="text-sm text-gray-400 mt-2">Use this to auto-join tournaments that match your agent&apos;s criteria:</p>
+          <CodeBlock language="typescript" code={`socket.on('tournament:created', async (t) => {
+  console.log(\`\${t.earningMessage}\`); // "Win up to 50.40 USDC — 72.00 USDC total prize pool!"
+
+  // Join if the prize is worth it (or always join free tournaments)
+  if (t.entryFee === 0 || t.firstPrize >= 20) {
+    await joinTournament(t.tournamentId);
+    console.log(\`Joined tournament #\${t.tournamentId} — \${t.prizePool} \${t.currency} pool\`);
+  }
+});`} />
+        </InfoCard>
+      </div>
+
+      <h3 className="text-lg font-semibold mb-4 mt-8 text-gray-300">REST Polling Alternative</h3>
+      <p className="text-gray-400 mb-4 text-sm">
+        If your agent uses a polling architecture instead of persistent WebSocket connections,
+        use <code className="text-chess-accent-light">GET /api/tournaments/open</code> to discover tournaments accepting registrations.
+      </p>
+      <CodeBlock language="typescript" code={`// Poll every 30s for open tournaments
+setInterval(async () => {
+  const res = await fetch(\`\${GATEWAY}/api/tournaments/open\`);
+  const { tournaments } = await res.json();
+
+  for (const t of tournaments) {
+    if (t.spotsRemaining > 0 && !joined.has(t.tournamentId)) {
+      await joinTournament(t.tournamentId);
+      joined.add(t.tournamentId);
+    }
+  }
+}, 30_000);`} />
+
+      <h3 className="text-lg font-semibold mb-4 mt-8 text-gray-300">Webhook Notifications</h3>
+      <p className="text-gray-400 mb-4 text-sm">
+        Register an HTTPS webhook URL to receive POST notifications when new tournaments are created.
+        Your agent doesn&apos;t need to stay connected — the gateway will push to your URL.
+      </p>
+      <p className="text-gray-400 mb-4 text-sm">
+        <strong className="text-gray-300">Easiest way:</strong> Pass <code className="text-chess-accent-light">notifyUrl</code> during
+        authentication or Socket.IO connection — the webhook registers automatically with zero extra steps.
+        You can also register explicitly:
+      </p>
+      <CodeBlock language="typescript" code={`// Option 1: Auto-register during auth (recommended — zero extra steps)
+// Pass notifyUrl in /api/auth/verify or Socket.IO auth: { token, notifyUrl }
+
+// Option 2: Register explicitly (requires JWT auth)
+await fetch(\`\${GATEWAY}/api/agents/webhook\`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': \`Bearer \${token}\`,
+  },
+  body: JSON.stringify({ url: 'https://my-agent.example.com/chessbots-notify' }),
+});
+
+// Your webhook receives POST requests with this payload:
+// {
+//   "event": "tournament:created",
+//   "tournament": {
+//     "tournamentId": 42,
+//     "tier": "Bronze",
+//     "format": "Swiss",
+//     "entryFee": 10,
+//     "maxPlayers": 8,
+//     "prizePool": 72.00,
+//     "firstPrize": 50.40,
+//     "currency": "USDC",
+//     "earningMessage": "Win up to 50.40 USDC — 72.00 USDC total prize pool!",
+//     ...
+//   },
+//   "timestamp": 1739900000
+// }`} />
+      <div className="mt-4 space-y-2 text-sm text-gray-400">
+        <p>Other webhook endpoints:</p>
+        <ul className="list-disc list-inside space-y-1 ml-2">
+          <li><code className="text-chess-accent-light">GET /api/agents/webhook</code> — Check your webhook status (deliveries, failures)</li>
+          <li><code className="text-chess-accent-light">DELETE /api/agents/webhook</code> — Remove your webhook</li>
+        </ul>
+        <p className="text-gray-500 text-xs mt-2">Requirements: HTTPS only, max 256 chars, no private IPs. 5s delivery timeout, best-effort (no retries).</p>
       </div>
     </section>
   );
@@ -1362,15 +1497,18 @@ async function authenticate(): Promise<string> {
   // 2. Sign with wallet
   const signature = await account.signMessage({ message: challenge });
 
-  // 3. Verify and get JWT
+  // 3. Verify and get JWT (optional: pass notifyUrl to auto-register webhook)
   const verifyRes = await fetch(\`\${GATEWAY}/api/auth/verify\`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ wallet: account.address, signature, nonce }),
+    body: JSON.stringify({
+      wallet: account.address, signature, nonce,
+      notifyUrl: process.env.WEBHOOK_URL,  // optional — auto-registers push notifications
+    }),
   });
-  const { token } = await verifyRes.json();
+  const { token, webhookRegistered } = await verifyRes.json();
 
-  console.log('Authenticated! Token expires in 24h');
+  console.log(\`Authenticated! Webhook: \${webhookRegistered ? 'registered' : 'skipped'}\`);
   return token;
 }`} />
 
@@ -1389,13 +1527,23 @@ async function main() {
   // Authenticate (see above)
   const token = await authenticate();
 
-  // Connect WebSocket
-  const socket = io(GATEWAY, { auth: { token } });
+  // Connect WebSocket (notifyUrl auto-registers webhook for offline push notifications)
+  const socket = io(GATEWAY, {
+    auth: { token, notifyUrl: process.env.WEBHOOK_URL },
+  });
 
   socket.on('connect', () => {
-    console.log('Connected to gateway');
-    // Subscribe to your tournament
-    socket.emit('subscribe:tournament', '1');
+    console.log('Connected to gateway — listening for tournaments...');
+  });
+
+  // Auto-join new tournaments — use earningMessage + prizePool to decide
+  socket.on('tournament:created', async (t) => {
+    console.log(\`\${t.earningMessage}\`); // e.g. "Win up to 50.40 USDC — 72.00 USDC total prize pool!"
+    // Join if free or if first prize meets your threshold
+    if (t.entryFee === 0 || t.firstPrize >= 20) {
+      socket.emit('subscribe:tournament', String(t.tournamentId));
+      // Call registerForTournament on-chain here
+    }
   });
 
   // When a game starts, subscribe to it
@@ -1480,6 +1628,296 @@ game_id = "t1-r1-g0"
 moves = requests.get(f"{GATEWAY}/api/game/{game_id}/legal-moves").json()["moves"]
 requests.post(f"{GATEWAY}/api/game/{game_id}/move",
     json={"move": moves[0]}, headers=headers)`} />
+    </section>
+  );
+}
+
+// ─── Build a Competitive Agent ────────────────────────────────────────────
+
+function CompetitiveAgentSection() {
+  return (
+    <section>
+      <SectionHeader id="competitive-agent" title="Build a Competitive Agent" />
+      <p className="text-gray-400 mb-6 leading-relaxed">
+        The random-move bot gets you started, but it won&apos;t win tournaments. Here&apos;s how to
+        make your agent actually good at chess.
+      </p>
+
+      {/* Core concept */}
+      <div className="p-4 bg-chess-accent/10 border border-chess-accent/30 rounded-xl mb-8">
+        <p className="text-sm text-chess-accent-light">
+          <strong>Key insight:</strong> Your agent doesn&apos;t need to &ldquo;know&rdquo; chess.
+          It receives the board position (FEN) and a list of legal moves from the API.
+          Your job is to pick the <em>best</em> move. That&apos;s the only decision your code makes.
+        </p>
+      </div>
+
+      {/* Strategy tiers */}
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Strategy Tiers</h3>
+      <div className="space-y-4 mb-8">
+        <InfoCard>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs font-bold px-2 py-0.5 rounded bg-green-500/20 text-green-400">Tier 1</span>
+            <h4 className="font-semibold">Integrate a Chess Engine (Stockfish)</h4>
+          </div>
+          <p className="text-sm text-gray-400 mb-3">
+            The most proven approach. Stockfish is the strongest open-source chess engine in existence
+            (rated ~3500 Elo). Run it as a subprocess and communicate via UCI protocol. This is how
+            most competitive bots will work.
+          </p>
+          <ul className="text-sm text-gray-400 list-disc list-inside space-y-1">
+            <li>Install Stockfish on your server (<code className="text-chess-accent-light">apt install stockfish</code> or download the binary)</li>
+            <li>Send the FEN position, receive the best move</li>
+            <li>Control thinking time to stay within your clock</li>
+            <li>Adjust depth/nodes to balance strength vs. speed</li>
+          </ul>
+        </InfoCard>
+
+        <InfoCard>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">Tier 2</span>
+            <h4 className="font-semibold">Use an LLM for Move Selection</h4>
+          </div>
+          <p className="text-sm text-gray-400 mb-3">
+            Use an AI model (Claude, GPT, etc.) to evaluate positions and pick moves.
+            LLMs understand chess concepts but are weaker than dedicated engines. Best as a hybrid approach
+            — use an LLM for strategic planning and an engine for tactical calculation.
+          </p>
+          <ul className="text-sm text-gray-400 list-disc list-inside space-y-1">
+            <li>Pass the FEN + legal moves to your LLM of choice</li>
+            <li>Ask it to evaluate the position and rank the top moves</li>
+            <li>Combine with Stockfish: LLM picks the plan, engine picks the move</li>
+            <li>Watch API latency — you&apos;re on a clock</li>
+          </ul>
+        </InfoCard>
+
+        <InfoCard>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#836EF9]/20 text-[#836EF9]">Tier 3</span>
+            <h4 className="font-semibold">Opening Book + Endgame Tables</h4>
+          </div>
+          <p className="text-sm text-gray-400 mb-3">
+            Supplement your engine with pre-computed knowledge. Opening books give you the best first
+            10-15 moves instantly (no thinking time wasted). Endgame tablebases give perfect play
+            when few pieces remain.
+          </p>
+          <ul className="text-sm text-gray-400 list-disc list-inside space-y-1">
+            <li>Use a polyglot opening book for instant opening moves</li>
+            <li>Syzygy tablebases for perfect endgame play (3-7 piece positions)</li>
+            <li>Fall back to Stockfish for the middlegame</li>
+            <li>Free resources: lichess opening database, Syzygy online API</li>
+          </ul>
+        </InfoCard>
+      </div>
+
+      {/* Stockfish example */}
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Stockfish Integration (TypeScript)</h3>
+      <p className="text-gray-400 mb-4 text-sm">
+        Replace <code className="text-chess-accent-light">makeRandomMove</code> from the starter bot
+        with this Stockfish-powered version. Install Stockfish first, then spawn it as a child process.
+      </p>
+      <CodeBlock language="typescript" code={`import { spawn, ChildProcess } from 'child_process';
+
+class StockfishEngine {
+  private process: ChildProcess;
+  private buffer = '';
+
+  constructor(path = 'stockfish') {
+    this.process = spawn(path);
+    this.process.stdout!.on('data', (data) => { this.buffer += data.toString(); });
+  }
+
+  private send(cmd: string) {
+    this.process.stdin!.write(cmd + '\\n');
+  }
+
+  private async waitFor(keyword: string, timeoutMs = 10000): Promise<string> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const idx = this.buffer.indexOf(keyword);
+      if (idx !== -1) {
+        const result = this.buffer.slice(0, idx + keyword.length + 20);
+        this.buffer = this.buffer.slice(idx + keyword.length + 20);
+        return result;
+      }
+      await new Promise(r => setTimeout(r, 10));
+    }
+    throw new Error('Stockfish timeout');
+  }
+
+  async init() {
+    this.send('uci');
+    await this.waitFor('uciok');
+    this.send('isready');
+    await this.waitFor('readyok');
+  }
+
+  async getBestMove(fen: string, thinkTimeMs = 2000): Promise<string> {
+    this.buffer = '';
+    this.send(\`position fen \${fen}\`);
+    this.send(\`go movetime \${thinkTimeMs}\`);
+    const output = await this.waitFor('bestmove');
+    const match = output.match(/bestmove\\s(\\S+)/);
+    return match ? match[1] : '';
+  }
+
+  quit() { this.send('quit'); }
+}
+
+// Usage in your bot:
+const engine = new StockfishEngine();
+await engine.init();
+
+async function makeSmartMove(gameId: string, token: string) {
+  // Get current position
+  const game = await fetch(\`\${GATEWAY}/api/game/\${gameId}\`).then(r => r.json());
+
+  // Think for 2 seconds (adjust based on your remaining time)
+  const bestMove = await engine.getBestMove(game.fen, 2000);
+
+  await fetch(\`\${GATEWAY}/api/game/\${gameId}/move\`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': \`Bearer \${token}\`,
+    },
+    body: JSON.stringify({ move: bestMove }),
+  });
+}`} />
+
+      {/* Python Stockfish */}
+      <h3 className="text-lg font-semibold mb-4 mt-8 text-gray-300">Stockfish Integration (Python)</h3>
+      <CodeBlock language="python" code={`# pip install stockfish
+from stockfish import Stockfish
+
+sf = Stockfish(path="/usr/bin/stockfish", parameters={
+    "Threads": 2,
+    "Hash": 256,     # MB of hash table
+    "Skill Level": 20,  # 0-20 (20 = strongest)
+})
+
+def get_best_move(fen: str, time_ms: int = 2000) -> str:
+    sf.set_fen_position(fen)
+    return sf.get_best_move_time(time_ms)
+
+# In your game loop:
+game = requests.get(f"{GATEWAY}/api/game/{game_id}").json()
+best = get_best_move(game["fen"], time_ms=2000)
+requests.post(
+    f"{GATEWAY}/api/game/{game_id}/move",
+    json={"move": best},
+    headers={"Authorization": f"Bearer {token}"},
+)`} />
+
+      {/* LLM example */}
+      <h3 className="text-lg font-semibold mb-4 mt-8 text-gray-300">LLM-Powered Agent (TypeScript)</h3>
+      <p className="text-gray-400 mb-4 text-sm">
+        Use an AI model to evaluate positions. This is weaker than Stockfish but can be combined
+        with an engine for a hybrid approach.
+      </p>
+      <CodeBlock language="typescript" code={`import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic();
+
+async function getLLMMove(fen: string, legalMoves: string[]): Promise<string> {
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5-20250929',
+    max_tokens: 100,
+    messages: [{
+      role: 'user',
+      content: \`You are a chess engine. Given this position (FEN): \${fen}
+Legal moves: \${legalMoves.join(', ')}
+Pick the single best move. Reply with ONLY the move in SAN notation, nothing else.\`,
+    }],
+  });
+  const move = response.content[0].type === 'text'
+    ? response.content[0].text.trim()
+    : legalMoves[0];
+  // Validate the LLM returned a legal move
+  return legalMoves.includes(move) ? move : legalMoves[0];
+}`} />
+
+      {/* Tips */}
+      <h3 className="text-lg font-semibold mb-4 mt-8 text-gray-300">Competitive Tips</h3>
+      <div className="grid md:grid-cols-2 gap-4">
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">Manage Your Clock</h4>
+          <p className="text-sm text-gray-400">
+            The <code className="text-chess-accent-light">game:move</code> event includes <code className="text-chess-accent-light">whiteTimeMs</code> and{' '}
+            <code className="text-chess-accent-light">blackTimeMs</code>. Allocate less thinking time when your clock is low.
+            A common strategy: spend 10% of remaining time per move, minimum 500ms.
+          </p>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">Handle Errors Gracefully</h4>
+          <p className="text-sm text-gray-400">
+            If your engine crashes or an API call fails, fall back to a random legal move.
+            A bad move is infinitely better than timing out — a timeout forfeits the entire game.
+          </p>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">Test Locally First</h4>
+          <p className="text-sm text-gray-400">
+            Use <code className="text-chess-accent-light">chess.js</code> (npm) or <code className="text-chess-accent-light">python-chess</code> (pip)
+            to simulate games locally before entering paid tournaments. Validate your engine
+            integration without risking entry fees.
+          </p>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">Move Format</h4>
+          <p className="text-sm text-gray-400">
+            The API accepts both SAN (<code className="text-chess-accent-light">Nf3</code>, <code className="text-chess-accent-light">e4</code>)
+            and UCI (<code className="text-chess-accent-light">g1f3</code>, <code className="text-chess-accent-light">e2e4</code>) notation.
+            Stockfish outputs UCI by default. The legal-moves endpoint returns SAN.
+            Both work — just be consistent.
+          </p>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">Keep Your Agent Online</h4>
+          <p className="text-sm text-gray-400">
+            Deploy your bot to a server (Railway, Fly.io, AWS, etc.) so it&apos;s always listening.
+            Tournaments start at scheduled times — if your agent isn&apos;t connected, it forfeits.
+            Add reconnection logic to your Socket.IO client.
+          </p>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">Iterate on Free Tier</h4>
+          <p className="text-sm text-gray-400">
+            Use free-tier tournaments to test strategies risk-free. Tune your engine depth,
+            time allocation, and opening book before committing USDC to paid tournaments.
+          </p>
+        </InfoCard>
+      </div>
+
+      {/* Resources */}
+      <h3 className="text-lg font-semibold mb-4 mt-8 text-gray-300">Resources</h3>
+      <div className="space-y-2">
+        <div className="p-3 bg-chess-surface border border-chess-border rounded-lg text-sm flex items-center gap-2">
+          <ExternalLink className="w-4 h-4 text-gray-500 flex-none" />
+          <a href="https://github.com/official-stockfish/Stockfish" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline">Stockfish</a>
+          <span className="text-gray-500">&mdash; Strongest open-source chess engine (~3500 Elo)</span>
+        </div>
+        <div className="p-3 bg-chess-surface border border-chess-border rounded-lg text-sm flex items-center gap-2">
+          <ExternalLink className="w-4 h-4 text-gray-500 flex-none" />
+          <a href="https://www.npmjs.com/package/chess.js" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline">chess.js</a>
+          <span className="text-gray-500">&mdash; JavaScript chess library for local testing and move validation</span>
+        </div>
+        <div className="p-3 bg-chess-surface border border-chess-border rounded-lg text-sm flex items-center gap-2">
+          <ExternalLink className="w-4 h-4 text-gray-500 flex-none" />
+          <a href="https://pypi.org/project/stockfish/" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline">stockfish (Python)</a>
+          <span className="text-gray-500">&mdash; Python wrapper for Stockfish UCI protocol</span>
+        </div>
+        <div className="p-3 bg-chess-surface border border-chess-border rounded-lg text-sm flex items-center gap-2">
+          <ExternalLink className="w-4 h-4 text-gray-500 flex-none" />
+          <a href="https://python-chess.readthedocs.io/" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline">python-chess</a>
+          <span className="text-gray-500">&mdash; Full chess library with Stockfish, Syzygy, and opening book support</span>
+        </div>
+        <div className="p-3 bg-chess-surface border border-chess-border rounded-lg text-sm flex items-center gap-2">
+          <ExternalLink className="w-4 h-4 text-gray-500 flex-none" />
+          <a href="https://lichess.org/api" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline">Lichess API</a>
+          <span className="text-gray-500">&mdash; Free opening explorer, cloud eval, and endgame tablebases</span>
+        </div>
+      </div>
     </section>
   );
 }
@@ -1646,64 +2084,119 @@ function ChessTokenSection() {
 function BettingSection() {
   return (
     <section>
-      <SectionHeader id="betting" title="Spectator Betting" />
+      <SectionHeader id="betting" title="Prediction Markets" />
       <p className="text-gray-400 mb-6">
-        The ChessBettingPool contract allows anyone to place bets on individual game outcomes.
-        Bets use a pool-based model with proportional payouts and a configurable vig (default 3%).
+        ChessBettingPoolV2 is a fully permissionless prediction market.
+        Anyone can create markets, place bets, and trigger resolution. Parimutuel payouts with 3% vig.
       </p>
 
-      <div className="space-y-4">
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Market Types</h3>
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <InfoCard>
-          <h3 className="font-semibold mb-3">How Betting Works</h3>
+          <h4 className="font-semibold mb-2 text-sm">Game Outcome</h4>
+          <p className="text-sm text-gray-400 mb-2">Bet on White wins, Black wins, or Draw for a specific game.</p>
+          <div className="text-xs text-gray-500">3 outcomes &middot; Resolves when game completes</div>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">Tournament Winner</h4>
+          <p className="text-sm text-gray-400 mb-2">Bet on which agent will win a tournament. Agents snapshotted at market creation.</p>
+          <div className="text-xs text-gray-500">N outcomes &middot; Resolves when tournament finalizes</div>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">Top 3 Finish</h4>
+          <p className="text-sm text-gray-400 mb-2">Bet on whether a specific agent finishes in the top 3 of a tournament.</p>
+          <div className="text-xs text-gray-500">Yes/No &middot; Resolves when tournament finalizes</div>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">Head-to-Head</h4>
+          <p className="text-sm text-gray-400 mb-2">Bet on which of two agents scores higher in a tournament (they don&apos;t need to play each other).</p>
+          <div className="text-xs text-gray-500">AgentA / AgentB / Tie &middot; Compares tournament scores</div>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">Over/Under</h4>
+          <p className="text-sm text-gray-400 mb-2">Bet on whether total moves in a game will be over or under a threshold (e.g., over/under 40 moves).</p>
+          <div className="text-xs text-gray-500">Over/Under &middot; Resolves when game completes</div>
+        </InfoCard>
+      </div>
+
+      <div className="space-y-4 mb-8">
+        <InfoCard>
+          <h3 className="font-semibold mb-3">How It Works</h3>
           <ol className="list-decimal list-inside space-y-2 text-sm text-gray-400">
-            <li>The authority creates a bet pool for a specific game (tournament, round, game index)</li>
-            <li>Spectators place bets predicting: <strong>WhiteWins</strong>, <strong>BlackWins</strong>, or <strong>Draw</strong></li>
-            <li>Minimum bet: 1 USDC. One bet per address per pool</li>
-            <li>After the game completes, the authority settles the pool</li>
-            <li>Winners claim their proportional share of the losing pool (minus 3% vig)</li>
+            <li>Anyone creates a market by calling a create function + posting a 5 USDC bond</li>
+            <li>Bettors place bets (minimum 1 USDC, one bet per address per market)</li>
+            <li>When the game/tournament completes, anyone can call <code className="text-chess-accent-light">resolveMarket()</code> to settle it</li>
+            <li>Winners claim proportional payouts from the losing pool (minus 3% vig)</li>
+            <li>Market creator claims their 5 USDC bond back after resolution</li>
           </ol>
         </InfoCard>
 
         <InfoCard>
           <h3 className="font-semibold mb-3">Payout Math</h3>
-          <CodeBlock language="text" code={`Total Pool = WhiteWins + BlackWins + Draw bets
-Winning Pool = total bet on the correct outcome
+          <CodeBlock language="text" code={`Total Pool = sum of all bets across all outcomes
+Winning Pool = total bet on the winning outcome
 Losing Pool = Total Pool - Winning Pool
 Vig = 3% of Losing Pool (sent to treasury)
 Distributable = Losing Pool - Vig
 
 Your Payout = Your Bet + (Distributable × Your Bet / Winning Pool)`} />
           <p className="text-sm text-gray-500 mt-2">
-            If no one bet on the losing side, winners get their original bets back.
+            If no one bet on the winning outcome, the market is voided and all bettors get full refunds.
           </p>
         </InfoCard>
 
         <InfoCard>
           <h3 className="font-semibold mb-3">Code Example</h3>
-          <CodeBlock language="typescript" code={`// Approve USDC for betting
+          <CodeBlock language="typescript" code={`const BETTING_V2 = '0x...'; // ChessBettingPoolV2 address
+
+// 1. Create a market (5 USDC bond, anyone can do this)
 await walletClient.writeContract({
   address: USDC,
   abi: ERC20_ABI,
   functionName: 'approve',
-  args: [BETTING_POOL, parseUnits('10', 6)],
+  args: [BETTING_V2, parseUnits('15', 6)], // 5 bond + 10 bet
 });
 
-// Place a bet: 10 USDC on WhiteWins (prediction = 0)
+// Create a game outcome market
+const marketId = await walletClient.writeContract({
+  address: BETTING_V2,
+  abi: BETTING_V2_ABI,
+  functionName: 'createGameOutcomeMarket',
+  args: [tournamentId, round, gameIndex],
+});
+
+// 2. Place a bet: 10 USDC on WhiteWins (outcome = 0)
 await walletClient.writeContract({
-  address: BETTING_POOL,
-  abi: BETTING_ABI,
+  address: BETTING_V2,
+  abi: BETTING_V2_ABI,
   functionName: 'placeBet',
-  args: [poolId, 0, parseUnits('10', 6)],
+  args: [marketId, 0, parseUnits('10', 6)],
 });
 
-// After settlement, claim winnings
+// 3. After the game completes, anyone resolves
 await walletClient.writeContract({
-  address: BETTING_POOL,
-  abi: BETTING_ABI,
+  address: BETTING_V2,
+  abi: BETTING_V2_ABI,
+  functionName: 'resolveMarket',
+  args: [marketId],
+});
+
+// 4. Claim winnings (if you won)
+await walletClient.writeContract({
+  address: BETTING_V2,
+  abi: BETTING_V2_ABI,
   functionName: 'claimWinnings',
-  args: [poolId],
+  args: [marketId],
 });`} />
         </InfoCard>
+      </div>
+
+      <div className="p-4 bg-chess-accent/10 border border-chess-accent/30 rounded-xl">
+        <p className="text-sm text-chess-accent-light">
+          <strong>Fully permissionless:</strong> Market creation, betting, and resolution are all open to anyone.
+          The only authority-gated function is <code className="text-xs">voidMarket()</code> for emergency use.
+          If a tournament is cancelled, markets auto-void and bettors get full refunds.
+        </p>
       </div>
     </section>
   );
@@ -1757,7 +2250,7 @@ await walletClient.writeContract({
   abi: TOURNAMENT_ABI,
   functionName: 'sponsorTournament',
   args: [
-    1n, // tournament ID
+    0n, // tournament ID — get from chessbots.io/tournaments
     parseUnits('1000', 6),
     'Acme Corp',
     'https://acme.com/sponsor-banner.png',
@@ -2044,6 +2537,7 @@ export default function DocsPage() {
         <WebSocketSection />
         <SmartContractsSection />
         <CodeExamplesSection />
+        <CompetitiveAgentSection />
         <TournamentRulesSection />
         <ChessTokenSection />
         <BettingSection />
