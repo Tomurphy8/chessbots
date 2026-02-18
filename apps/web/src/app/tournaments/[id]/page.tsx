@@ -205,7 +205,7 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
 
       {activeTab === 'standings' ? (
         <div>
-          {t.status === 'Registration' ? (
+          {t.status === 'registration' ? (
             <div className="text-center py-12 text-gray-500">
               <p>Tournament hasn&apos;t started yet. Standings will appear after the first round.</p>
             </div>
