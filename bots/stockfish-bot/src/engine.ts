@@ -7,6 +7,9 @@
  *   MOVE_TIMEOUT_MS  — max think time before sending "stop" (default 5000)
  */
 
+import { createRequire } from 'node:module';
+import { join, dirname } from 'node:path';
+
 const STOCKFISH_DEPTH = parseInt(process.env.STOCKFISH_DEPTH || '12', 10);
 const STOCKFISH_ELO = process.env.STOCKFISH_ELO
   ? parseInt(process.env.STOCKFISH_ELO, 10)
@@ -27,16 +30,19 @@ let engine: StockfishEngine | null = null;
  * Initialize the WASM Stockfish engine. Must be called once before getBestMove().
  */
 export async function initEngine(): Promise<void> {
-  // The `stockfish` npm package (v16) exports a default function that returns an engine.
-  // It works as a Web Worker-like interface with postMessage / addMessageListener.
-  const stockfishModule = await import('stockfish');
-  const Stockfish = stockfishModule.default || stockfishModule;
+  // The `stockfish` npm package (v16) has a broken "main" field (src/stockfish.js doesn't exist).
+  // The actual single-threaded entry is src/stockfish-nnue-16-single.js (CJS module).
+  // We use createRequire to load it since our project is ESM.
+  const require = createRequire(import.meta.url);
+  const sfPath = require.resolve('stockfish/src/stockfish-nnue-16-single.js');
+  const wasmPath = join(dirname(sfPath), 'stockfish-nnue-16-single.wasm');
 
-  if (typeof Stockfish === 'function') {
-    engine = await Stockfish();
-  } else {
-    throw new Error('Failed to load Stockfish WASM module');
-  }
+  // The module exports a factory function
+  const Stockfish = require(sfPath) as (opts?: Record<string, unknown>) => Promise<StockfishEngine>;
+
+  engine = await Stockfish({
+    locateFile: (file: string) => (file.endsWith('.wasm') ? wasmPath : file),
+  });
 
   // Initialize UCI protocol
   await uciCommand('uci', 'uciok');
