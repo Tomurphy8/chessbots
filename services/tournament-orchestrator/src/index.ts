@@ -44,12 +44,12 @@ function log(level: 'info' | 'warn' | 'error', message: string, meta?: Record<st
 // ── Tier defaults ────────────────────────────────────────────────────────────
 
 const TIER_DEFAULTS: Record<TournamentTier, { timeControl: { baseTimeSeconds: number; incrementSeconds: number } }> = {
-  rookie:  { timeControl: { baseTimeSeconds: 300, incrementSeconds: 3 } },
-  bronze:  { timeControl: { baseTimeSeconds: 600, incrementSeconds: 5 } },
-  silver:  { timeControl: { baseTimeSeconds: 600, incrementSeconds: 5 } },
-  masters: { timeControl: { baseTimeSeconds: 900, incrementSeconds: 10 } },
-  legends: { timeControl: { baseTimeSeconds: 900, incrementSeconds: 10 } },
-  free:    { timeControl: { baseTimeSeconds: 300, incrementSeconds: 3 } },
+  rookie:  { timeControl: { baseTimeSeconds: 30,  incrementSeconds: 1 } },
+  bronze:  { timeControl: { baseTimeSeconds: 60,  incrementSeconds: 2 } },
+  silver:  { timeControl: { baseTimeSeconds: 60,  incrementSeconds: 2 } },
+  masters: { timeControl: { baseTimeSeconds: 120, incrementSeconds: 3 } },
+  legends: { timeControl: { baseTimeSeconds: 120, incrementSeconds: 3 } },
+  free:    { timeControl: { baseTimeSeconds: 30,  incrementSeconds: 1 } },
 };
 
 // ── Graceful shutdown ────────────────────────────────────────────────────────
@@ -199,7 +199,7 @@ async function main() {
       // Track when minPlayers was first detected — starts a short grace period before launching
       const minPlayersReadyAt = new Map<number, number>();
       // Grace period (seconds) after minPlayers reached before starting (allows late joins)
-      const EARLY_START_GRACE_SEC = 30;
+      const EARLY_START_GRACE_SEC = 15;
       // Max concurrent tournament runners to avoid overwhelming the chess engine
       const MAX_CONCURRENT_RUNNERS = 3;
 
@@ -505,7 +505,8 @@ async function main() {
           };
 
           // Only create one Free Swiss at a time — agents funnel into this one tournament
-          await autoCreateIfNeeded(5, 0, 8, 2, 300, 3, 'Free Swiss');
+          // Bullet time control: 30s + 1s increment — AI bots move in <1s, games finish in ~2 min
+          await autoCreateIfNeeded(5, 0, 8, 2, 30, 1, 'Free Swiss');
 
         } catch (err: any) {
           log('warn', 'Auto-create check failed', { error: err.message });

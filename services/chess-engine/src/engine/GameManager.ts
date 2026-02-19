@@ -3,7 +3,7 @@ import { GameInfo, TimeControl, GameStatus } from '../types/index.js';
 
 const MAX_ACTIVE_GAMES = 1000; // CE-H4: prevent unbounded growth
 const COMPLETED_GAME_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const TIMEOUT_CHECK_INTERVAL_MS = 5_000; // CE-H6: check timeouts every 5s
+const TIMEOUT_CHECK_INTERVAL_MS = 1_000; // CE-H6: check timeouts every 1s — fast for bullet games
 
 export class GameManager {
   private games: Map<string, ChessGame> = new Map();

@@ -129,8 +129,8 @@ export class ChessEngineClient {
    */
   async waitForGamesCompletion(
     gameIds: string[],
-    pollIntervalMs: number = 2000,
-    timeoutMs: number = 30 * 60 * 1000, // 30 minutes max
+    pollIntervalMs: number = 1000,
+    timeoutMs: number = 5 * 60 * 1000, // 5 minutes max — bullet games finish in ~2 min
   ): Promise<Map<string, any>> {
     const results = new Map<string, any>();
     const startTime = Date.now();
