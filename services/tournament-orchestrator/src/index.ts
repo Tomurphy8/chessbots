@@ -107,7 +107,12 @@ async function main() {
   const engineUrl = process.env.CHESS_ENGINE_URL || 'http://localhost:3001';
   const engine = new ChessEngineClient(engineUrl);
   const stateManager = new StateManager();
-  const gatewayUrl = process.env.GATEWAY_URL || '';
+  // GATEWAY_URL is REQUIRED for agents to receive game notifications.
+  // Default to the Railway production URL if not explicitly set.
+  const gatewayUrl = process.env.GATEWAY_URL || 'https://agent-gateway-production-590d.up.railway.app';
+  if (!process.env.GATEWAY_URL) {
+    log('warn', 'GATEWAY_URL not set — using default production gateway URL', { gatewayUrl });
+  }
   const serviceKey = process.env.SERVICE_API_KEY || '';
   const freeTierPrizeUsdc = parseFloat(process.env.FREE_TOURNAMENT_PRIZE_USDC || '0');
 
