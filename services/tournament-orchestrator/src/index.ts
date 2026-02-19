@@ -302,6 +302,7 @@ async function main() {
                       tournamentId: id,
                     });
                     runningTournaments.delete(id);
+                    completedTournaments.delete(id); // Allow retry
                     return;
                   }
 
@@ -330,11 +331,14 @@ async function main() {
                   await runner.run(wallets);
                   log('info', `Tournament #${id} completed successfully`, { tournamentId: id });
                 } catch (err: any) {
-                  log('error', `Tournament #${id} failed`, {
+                  log('error', `Tournament #${id} failed — will retry on next poll`, {
                     tournamentId: id,
                     error: err.message,
                     stack: err.stack,
                   });
+                  // Remove from completedTournaments so it gets retried on next poll cycle.
+                  // Without this, failed tournaments are permanently blacklisted.
+                  completedTournaments.delete(id);
                 } finally {
                   runningTournaments.delete(id);
                 }
