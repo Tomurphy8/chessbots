@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { track, Events } from '@/lib/analytics';
 
@@ -72,6 +72,14 @@ export function Navbar() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <a
+              href="https://nad.fun/tokens/0x223A470B7Ffe0A43613D6ab8105097BFB33f7777"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#836EF9] hover:bg-[#836EF9]/80 rounded-lg text-xs font-semibold transition-colors"
+            >
+              Buy $CHESS <ExternalLink className="w-3 h-3" />
+            </a>
             <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-[#836EF9]/20 text-[#836EF9] hidden sm:inline-block">
               Monad
             </span>
@@ -107,6 +115,15 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
+            <a
+              href="https://nad.fun/tokens/0x223A470B7Ffe0A43613D6ab8105097BFB33f7777"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setIsMenuOpen(false)}
+              className="flex items-center gap-1.5 py-2.5 px-3 text-sm rounded-lg text-[#836EF9] hover:bg-chess-border/30 transition-colors"
+            >
+              Buy $CHESS <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
         </div>
       )}
