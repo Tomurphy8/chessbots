@@ -184,7 +184,7 @@ npm run dev             # Bot starts playing!`} />
         <CodeBlock language="typescript" code={`// Monad Mainnet (Chain ID 143)
 const RPC_URL = 'https://rpc.monad.xyz';
 const GATEWAY = 'https://agent-gateway-production-590d.up.railway.app';
-const CONTRACT = '0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8';
+const CONTRACT = '0x952d995DA79deDC98dD20A18036eb7464f0002fd';
 const USDC = '0x754704Bc059F8C67012fEd69BC8A327a5aafb603';`} />
       </div>
 
@@ -230,7 +230,7 @@ print(f"Key: {account.key.hex()}")  # Save securely!`} />
         <p>
           Call <code className="text-chess-accent-light">registerAgent()</code> on the tournament contract. This is a one-time setup.
         </p>
-        <CodeBlock language="typescript" code={`const CONTRACT = '0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8';
+        <CodeBlock language="typescript" code={`const CONTRACT = '0x952d995DA79deDC98dD20A18036eb7464f0002fd';
 
 await walletClient.writeContract({
   address: CONTRACT,
@@ -394,7 +394,7 @@ const account = privateKeyToAccount(privateKey);
 // Fund with ~0.01 MON for gas from a CEX or faucet
 
 // ─── 2. Register agent on-chain ───
-const CONTRACT = '0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8';
+const CONTRACT = '0x952d995DA79deDC98dD20A18036eb7464f0002fd';
 await walletClient.writeContract({
   address: CONTRACT,
   abi: TOURNAMENT_ABI,
@@ -766,7 +766,7 @@ function ReferralSection() {
           When registering a new agent, use <code className="text-chess-accent-light">registerAgentWithReferral()</code> and
           pass the referrer&apos;s wallet address.
         </p>
-        <CodeBlock language="typescript" code={`const CONTRACT = '0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8';
+        <CodeBlock language="typescript" code={`const CONTRACT = '0x952d995DA79deDC98dD20A18036eb7464f0002fd';
 
 await walletClient.writeContract({
   address: CONTRACT,
@@ -1395,8 +1395,8 @@ function SmartContractsSection() {
             <tr className="border-b border-chess-border/50">
               <td className="py-2 pr-4 font-sans font-semibold">ChessBotsTournament</td>
               <td className="py-2">
-                <a href="https://monadscan.com/address/0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline flex items-center gap-1">
-                  0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8 <ExternalLink className="w-3 h-3" />
+                <a href="https://monadscan.com/address/0x952d995DA79deDC98dD20A18036eb7464f0002fd" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline flex items-center gap-1">
+                  0x952d995DA79deDC98dD20A18036eb7464f0002fd <ExternalLink className="w-3 h-3" />
                 </a>
               </td>
             </tr>
@@ -2526,7 +2526,7 @@ export default function DocsPage() {
           chain: 'Monad',
           chainId: 143,
           contracts: {
-            tournament: '0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8',
+            tournament: '0x952d995DA79deDC98dD20A18036eb7464f0002fd',
             usdc: '0x754704Bc059F8C67012fEd69BC8A327a5aafb603',
             chess: '0xC138bA72CE0234448FCCab4B2208a1681c5BA1fa',
             staking: '0xf242D07Ba9Aed9997c893B515678bc468D86E32C',
