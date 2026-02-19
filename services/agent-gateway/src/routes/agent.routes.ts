@@ -1,5 +1,5 @@
 import { type FastifyInstance } from 'fastify';
-import { type PublicClient, type Address, formatUnits, parseAbiItem } from 'viem';
+import { type PublicClient, type Address, formatUnits } from 'viem';
 import { checkPublicRateLimit } from '../middleware/rateLimit.js';
 import { requireAuth } from '../middleware/auth.js';
 import { CONFIG } from '../config.js';
@@ -7,7 +7,6 @@ import type { AgentIndexer } from '../indexer/AgentIndexer.js';
 import type { GameArchive } from '../indexer/GameArchive.js';
 import type { WebhookRegistry } from '../indexer/WebhookRegistry.js';
 import type { ErrorStore } from '../indexer/ErrorStore.js';
-import { EventScanner } from '../indexer/EventScanner.js';
 import { z } from 'zod';
 
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
@@ -26,7 +25,7 @@ const ERC20_BALANCE_ABI = [{
   type: 'function',
 }] as const;
 
-// ABI for reading on-chain game data
+// ABI for reading on-chain game data — MUST match Game struct in ChessBotsTournamentV3.sol exactly
 const GET_GAME_ABI = [{
   inputs: [
     { name: 'tournamentId', type: 'uint256' },
@@ -36,12 +35,20 @@ const GET_GAME_ABI = [{
   name: 'getGame',
   outputs: [{
     components: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'round', type: 'uint8' },
+      { name: 'gameIndex', type: 'uint8' },
       { name: 'white', type: 'address' },
       { name: 'black', type: 'address' },
+      { name: 'status', type: 'uint8' },
       { name: 'result', type: 'uint8' },
       { name: 'moveCount', type: 'uint16' },
       { name: 'startedAt', type: 'int64' },
       { name: 'endedAt', type: 'int64' },
+      { name: 'pgnHash', type: 'bytes32' },
+      { name: 'resultHash', type: 'bytes32' },
+      { name: 'arbiter', type: 'address' },
+      { name: 'exists', type: 'bool' },
     ],
     name: '',
     type: 'tuple',
@@ -251,7 +258,7 @@ export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentInd
         const r = tournamentResults[idx];
         if (r.status !== 'success') continue;
         const t = r.result as any;
-        if (!t.exists || t.status < 2) continue; // Only RoundActive+ have games
+        if (!t.exists || t.status === 0) continue; // Skip Registration-only tournaments
 
         const tournamentId = totalTournaments - 1 - idx;
         const maxRound = t.currentRound || t.totalRounds || 0;
@@ -288,12 +295,13 @@ export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentInd
           const g = gr.result as any;
           const meta = gameCalls[i].meta;
 
-          // Check if this wallet participated
+          // Skip non-existent/unplayed games
+          if (!g.exists) continue;
           const gWhite = (g.white as string).toLowerCase();
           const gBlack = (g.black as string).toLowerCase();
-          if (gWhite !== w && gBlack !== w) continue;
-          // Skip empty/unplayed games
           if (gWhite === '0x0000000000000000000000000000000000000000') continue;
+          // Check if this wallet participated
+          if (gWhite !== w && gBlack !== w) continue;
 
           games.push({
             gameId: `t${meta.tournamentId}-r${meta.round}-g${meta.gameIndex}`,

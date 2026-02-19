@@ -418,35 +418,48 @@ async function main() {
           log('warn', 'Failed to check/bump free tournament limit', { error: err.message });
         }
 
-        // ── Auto-create: ensure there's always a tournament in registration ──
+        // ── Auto-create: ensure there's one tournament per game type in registration ──
+        // Only creates a new tournament for a (tier, format) pair when no active registration
+        // tournament exists for that pair. This funnels agents into existing tournaments
+        // instead of fragmenting them across many half-empty ones.
         try {
           const proto = await chain.getProtocolState();
           const totalTournaments = Number(proto[5]);
           const now = Math.floor(Date.now() / 1000);
-          let hasRegistrationTournament = false;
-          for (let id = Math.max(0, totalTournaments - 10); id < totalTournaments; id++) {
+
+          // Track which (tier:format) combinations already have an open registration tournament
+          const openGameTypes = new Set<string>();
+          for (let id = Math.max(0, totalTournaments - 20); id < totalTournaments; id++) {
             if (completedTournaments.has(id) || runningTournaments.has(id)) continue;
             const t = await chain.getTournament(BigInt(id));
             if (t.exists && t.status === 0) {
-              // Only count as active if deadline hasn't passed yet
               const deadline = Number(t.registrationDeadline);
               if (deadline <= 0 || now < deadline) {
-                hasRegistrationTournament = true;
-                break;
+                openGameTypes.add(`${t.tier}:${t.format ?? 0}`);
               }
             }
           }
-          if (!hasRegistrationTournament) {
-            await chain.createTournament(
-              5, 0, 8, 2,                          // Free tier, Swiss, max=8, min=2
-              BigInt(now + 120),                    // startTime: 2 min
-              BigInt(now + 90),                     // deadline: 90s (bots join via websocket in <5s)
-              300, 3,                               // 5 min + 3s increment
-            );
-            log('info', 'Auto-created free Swiss tournament (no registration tournaments found)');
 
-            // Notify agent-gateway to broadcast to connected agents (fast-path)
-            // Include tournament data so the gateway can broadcast without reading the chain (avoids RPC 429)
+          // Helper to auto-create a tournament for a specific game type if not already open
+          const autoCreateIfNeeded = async (
+            tier: number, format: number, maxPlayers: number, minPlayers: number,
+            baseTime: number, increment: number, label: string,
+          ) => {
+            const key = `${tier}:${format}`;
+            if (openGameTypes.has(key)) return; // Already one open — funnel agents there
+
+            await chain.createTournament(
+              tier, format, maxPlayers, minPlayers,
+              BigInt(now + 120),   // startTime: 2 min
+              BigInt(now + 90),    // deadline: 90s
+              baseTime, increment,
+            );
+            log('info', `Auto-created ${label} tournament (no open ${key} found)`);
+
+            // Mark as open so we don't create duplicates in same poll cycle
+            openGameTypes.add(key);
+
+            // Notify agent-gateway to broadcast to connected agents
             if (gatewayUrl) {
               const newProto = await chain.getProtocolState();
               const newId = Number(newProto[5]) - 1;
@@ -456,15 +469,19 @@ async function main() {
                 body: JSON.stringify({
                   tournamentId: newId,
                   tournament: {
-                    tier: 5, format: 0, entryFee: 0, maxPlayers: 8,
+                    tier, format, entryFee: 0, maxPlayers,
                     startTime: now + 120, registrationDeadline: now + 90,
-                    baseTimeSeconds: 300, incrementSeconds: 3,
+                    baseTimeSeconds: baseTime, incrementSeconds: increment,
                   },
                 }),
                 signal: AbortSignal.timeout(5000),
               }).catch(err => log('warn', 'Failed to notify gateway of new tournament', { error: (err as Error).message }));
             }
-          }
+          };
+
+          // Only create one Free Swiss at a time — agents funnel into this one tournament
+          await autoCreateIfNeeded(5, 0, 8, 2, 300, 3, 'Free Swiss');
+
         } catch (err: any) {
           log('warn', 'Auto-create check failed', { error: err.message });
         }

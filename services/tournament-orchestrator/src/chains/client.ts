@@ -29,6 +29,14 @@ const TOURNAMENT_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
+  // cancelTournament
+  {
+    inputs: [{ name: 'tournamentId', type: 'uint256' }],
+    name: 'cancelTournament',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
   // startTournament
   {
     inputs: [{ name: 'tournamentId', type: 'uint256' }],
@@ -434,6 +442,17 @@ export class MonadClient {
       args: [tier, format, maxPlayers, minPlayers, startTime, registrationDeadline, baseTimeSeconds, incrementSeconds],
     });
     await this.confirmTx(hash, 'createTournament');
+    return hash;
+  }
+
+  async cancelTournament(tournamentId: bigint): Promise<Hash> {
+    const hash = await this.walletClient.writeContract({
+      address: this.contractAddress,
+      abi: TOURNAMENT_ABI,
+      functionName: 'cancelTournament',
+      args: [tournamentId],
+    });
+    await this.confirmTx(hash, `cancelTournament(${tournamentId})`);
     return hash;
   }
 

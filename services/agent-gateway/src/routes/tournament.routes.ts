@@ -1,9 +1,8 @@
 import { type FastifyInstance } from 'fastify';
 import { timingSafeEqual } from 'node:crypto';
-import { type PublicClient, formatUnits, parseAbiItem, type Address } from 'viem';
+import { type PublicClient, formatUnits, type Address } from 'viem';
 import { CONFIG } from '../config.js';
 import { checkPublicRateLimit } from '../middleware/rateLimit.js';
-import { EventScanner } from '../indexer/EventScanner.js';
 import type { AgentIndexer } from '../indexer/AgentIndexer.js';
 import type { TournamentWatcher } from '../indexer/TournamentWatcher.js';
 import type { SocketBridge } from '../proxy/socketBridge.js';
@@ -151,10 +150,6 @@ const REGISTRATION_ABI = [
   },
 ] as const;
 
-const AGENT_JOINED_EVENT = parseAbiItem(
-  'event AgentJoined(uint256 indexed tournamentId, address indexed agent, uint8 registeredCount)'
-);
-
 export function registerTournamentRoutes(
   app: FastifyInstance,
   publicClient: PublicClient,
@@ -163,19 +158,11 @@ export function registerTournamentRoutes(
   getSocketBridge: () => SocketBridge | null,
   webhookRegistry: WebhookRegistry,
 ) {
-  // Shared event scanner for standings queries
-  const scanner = new EventScanner(
-    publicClient,
-    CONFIG.contractAddress as Address,
-    CONFIG.deployBlock,
-  );
-
   // Standings cache: { tournamentId -> { data, timestamp } }
   const standingsCache = new Map<number, { data: any; timestamp: number }>();
   const STANDINGS_CACHE_TTL = 30_000; // 30 seconds — keep fresh for live tournament updates
 
-  // Open-tournaments endpoint now uses TournamentWatcher in-memory data exclusively (no RPC)
-  // Dedup: if a standings scan is already running for a tournament, share the result
+  // Dedup: if a standings fetch is already running for a tournament, share the result
   const pendingStandings = new Map<number, Promise<any>>();
 
   // Pre-warm standings cache 15s after boot for completed/active tournaments
@@ -297,29 +284,32 @@ export function registerTournamentRoutes(
         return reply.send(result);
       }
 
-      // Start the scan and store the promise for dedup
+      // Start the fetch and store the promise for dedup
       const scanPromise = (async () => {
-      // 1. Find all players by scanning AgentJoined events for this tournament
-      const logs = await scanner.scan(
-        AGENT_JOINED_EVENT,
-        undefined,
-        undefined,
-        { tournamentId: BigInt(parsedId) } as any,
-      );
+      // 1. Find all players using AgentIndexer (in-memory) + multicall getRegistration.
+      //    This replaces the old EventScanner approach which scanned ~1M blocks (30-120s).
+      //    Now uses a single multicall to check all known agents' registrations (~200ms).
+      const allAgents = agentIndexer.getAll();
+      const candidateWallets = allAgents.map(a => a.wallet);
 
-      const wallets = new Set<string>();
-      for (const log of logs) {
-        const args = (log as any).args;
-        if (args?.agent) {
-          wallets.add(args.agent as string);
-        }
+      if (candidateWallets.length === 0) {
+        return { standings: [], tournamentId: parsedId };
       }
 
-      if (wallets.size === 0) {
-        return reply.send({ standings: [], tournamentId: parsedId });
-      }
+      // Multicall getRegistration for ALL known agents in one batch
+      const regCalls = candidateWallets.map(wallet => ({
+        address: CONFIG.contractAddress as Address,
+        abi: REGISTRATION_ABI,
+        functionName: 'getRegistration' as const,
+        args: [BigInt(parsedId), wallet as Address] as const,
+      }));
 
-      // 2. Fetch registration data for each wallet
+      const regResults = await publicClient.multicall({
+        contracts: regCalls,
+        allowFailure: true,
+      });
+
+      // 2. Build standings from successful registrations
       const standings: Array<{
         rank: number;
         wallet: string;
@@ -332,46 +322,27 @@ export function registerTournamentRoutes(
         gamesLost: number;
       }> = [];
 
-      const walletArr = [...wallets];
+      for (let i = 0; i < regResults.length; i++) {
+        const r = regResults[i];
+        if (r.status !== 'success') continue;
+        const reg = r.result as any;
+        if (!reg || !reg.exists) continue;
 
-      // Batch in groups of 10
-      for (let i = 0; i < walletArr.length; i += 10) {
-        const batch = walletArr.slice(i, i + 10);
+        const wallet = candidateWallets[i];
+        const agentInfo = agentIndexer.get(wallet);
+        const name = agentInfo?.name || wallet.slice(0, 10) + '...';
 
-        const results = await Promise.allSettled(
-          batch.map(wallet =>
-            publicClient.readContract({
-              address: CONFIG.contractAddress as Address,
-              abi: REGISTRATION_ABI,
-              functionName: 'getRegistration',
-              args: [BigInt(parsedId), wallet as Address],
-            })
-          )
-        );
-
-        for (let j = 0; j < results.length; j++) {
-          const result = results[j];
-          if (result.status === 'fulfilled' && result.value && result.value.exists) {
-            const reg = result.value;
-            const wallet = batch[j];
-
-            // Get agent name from indexer or contract
-            const agentInfo = agentIndexer.get(wallet);
-            const name = agentInfo?.name || wallet.slice(0, 10) + '...';
-
-            standings.push({
-              rank: 0, // Will be assigned after sorting
-              wallet: reg.agent,
-              name,
-              score: Number(reg.score),
-              buchholz: Number(reg.buchholz),
-              gamesPlayed: Number(reg.gamesPlayed),
-              gamesWon: Number(reg.gamesWon),
-              gamesDrawn: Number(reg.gamesDrawn),
-              gamesLost: Number(reg.gamesLost),
-            });
-          }
-        }
+        standings.push({
+          rank: 0,
+          wallet: reg.agent,
+          name,
+          score: Number(reg.score),
+          buchholz: Number(reg.buchholz),
+          gamesPlayed: Number(reg.gamesPlayed),
+          gamesWon: Number(reg.gamesWon),
+          gamesDrawn: Number(reg.gamesDrawn),
+          gamesLost: Number(reg.gamesLost),
+        });
       }
 
       // 3. Sort by score (desc), then buchholz (desc)

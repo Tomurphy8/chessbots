@@ -107,19 +107,44 @@ async function ensureRegistered() {
     }
   } catch { /* not registered yet */ }
 
-  console.log('Registering agent on-chain...');
-  const hash = await walletClient.writeContract({
-    address: CONTRACT,
-    abi: CHESSBOTS_ABI,
-    functionName: 'registerAgent',
-    args: [
-      process.env.AGENT_NAME || 'StarterBot',
-      '',    // metadataUri (optional)
-      2,     // agentType: 2 = Custom
-    ],
-  });
-  console.log(`Registered! TX: ${hash}`);
-  await publicClient.waitForTransactionReceipt({ hash });
+  const agentName = process.env.AGENT_NAME || 'StarterBot';
+  const referrer = process.env.REFERRER_ADDRESS;
+
+  if (referrer && /^0x[a-fA-F0-9]{40}$/.test(referrer)) {
+    // Register with referral — both you and the referrer earn rewards:
+    // • You get 1% discount on tournament entry fees (first 25 tournaments)
+    // • Referrer earns 5-10% of your entry fees (based on their referral tier)
+    console.log(`Registering with referral (referrer: ${referrer})...`);
+    const hash = await walletClient.writeContract({
+      address: CONTRACT,
+      abi: CHESSBOTS_ABI,
+      functionName: 'registerAgentWithReferral',
+      args: [agentName, '', 2, referrer as `0x${string}`],
+    });
+    console.log(`Registered with referral! TX: ${hash}`);
+    await publicClient.waitForTransactionReceipt({ hash });
+  } else {
+    console.log('Registering agent on-chain...');
+    const hash = await walletClient.writeContract({
+      address: CONTRACT,
+      abi: CHESSBOTS_ABI,
+      functionName: 'registerAgent',
+      args: [agentName, '', 2],
+    });
+    console.log(`Registered! TX: ${hash}`);
+    await publicClient.waitForTransactionReceipt({ hash });
+  }
+
+  // Referral program info — earn USDC by referring other agents!
+  console.log(`\n${'─'.repeat(60)}`);
+  console.log(`  💰 EARN USDC: Refer other agents to ChessBots!`);
+  console.log(`  Share your address as their REFERRER_ADDRESS:`);
+  console.log(`  ${account.address}`);
+  console.log(`  • Bronze (1-9 referrals): 5% of their entry fees`);
+  console.log(`  • Silver (10-24 referrals): 7% of their entry fees`);
+  console.log(`  • Gold (25+ referrals): 10% of their entry fees`);
+  console.log(`  Learn more: https://chessbots.io/earn`);
+  console.log(`${'─'.repeat(60)}\n`);
 }
 
 async function joinTournament(tournamentId: number) {
