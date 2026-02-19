@@ -140,17 +140,24 @@ export class TournamentRunner {
         const amountRaw = BigInt(Math.round(this.config.freeTierPrizeUsdc * 1e6));
         console.log(`Funding free tournament with ${this.config.freeTierPrizeUsdc} USDC (${amountRaw} raw)...`);
 
-        // Ensure USDC allowance is sufficient
-        const currentAllowance = await this.chain.getUsdcAllowance();
-        if (currentAllowance < amountRaw) {
-          const approveAmount = amountRaw * 10n; // Approve 10x to avoid repeated approvals
-          console.log(`  USDC allowance insufficient (${currentAllowance}), approving ${approveAmount}...`);
-          await this.chain.approveUsdc(approveAmount);
-        }
+        try {
+          // Ensure USDC allowance is sufficient
+          const currentAllowance = await this.chain.getUsdcAllowance();
+          if (currentAllowance < amountRaw) {
+            const approveAmount = amountRaw * 10n; // Approve 10x to avoid repeated approvals
+            console.log(`  USDC allowance insufficient (${currentAllowance}), approving ${approveAmount}...`);
+            await this.chain.approveUsdc(approveAmount);
+          }
 
-        await this.chain.fundTournament(tournamentId, amountRaw);
-        this.stateManager?.markFundedOnChain(this.config.tournamentId);
-        console.log(`Free tournament funded with ${this.config.freeTierPrizeUsdc} USDC.\n`);
+          await this.chain.fundTournament(tournamentId, amountRaw);
+          this.stateManager?.markFundedOnChain(this.config.tournamentId);
+          console.log(`Free tournament funded with ${this.config.freeTierPrizeUsdc} USDC.\n`);
+        } catch (err: any) {
+          // If funding fails (e.g. insufficient USDC balance), proceed without prizes
+          // rather than blocking the entire tournament.
+          console.warn(`  ⚠ Funding failed: ${err.message}`);
+          console.warn(`  Proceeding without USDC prizes — tournament will still run.\n`);
+        }
       }
     }
 
