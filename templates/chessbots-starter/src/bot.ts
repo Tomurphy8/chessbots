@@ -237,16 +237,24 @@ async function main() {
   });
 
   socket.on('game:move', async (data: any) => {
-    const { gameId, fen } = data;
+    const { gameId, fen, white, black, legalMoves } = data;
     const isWhiteTurn = fen.split(' ')[1] === 'w';
-
-    // Fetch game to check if it's our turn
-    const gameRes = await fetch(`${GATEWAY}/api/game/${gameId}`);
-    const gameInfo = await gameRes.json();
-    const weAreWhite = gameInfo.white.toLowerCase() === account.address.toLowerCase();
+    const weAreWhite = white?.toLowerCase() === account.address.toLowerCase();
 
     if ((isWhiteTurn && weAreWhite) || (!isWhiteTurn && !weAreWhite)) {
-      await makeMove(gameId, token);
+      // Use enriched event data if available (avoids HTTP calls + rate limits)
+      if (legalMoves && legalMoves.length > 0) {
+        const move = selectMove(legalMoves, fen);
+        console.log(`  Playing: ${move}`);
+        await fetch(`${GATEWAY}/api/game/${gameId}/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ move }),
+        }).catch(err => console.error(`Move failed for ${gameId}:`, (err as Error).message));
+      } else {
+        // Fallback: fetch legal moves via HTTP (older engine without enriched events)
+        await makeMove(gameId, token);
+      }
     }
   });
 

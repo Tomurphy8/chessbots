@@ -37,7 +37,7 @@ export const CONFIG = {
   // Rate limiting
   moveRateLimitMs: 1000, // 1 move per second per game per agent
   authRateLimitPerMinute: 10, // GW-H2: auth endpoint rate limit
-  publicApiRateLimitPerMinute: 60, // GW-H3: public GET endpoint rate limit per IP
+  publicApiRateLimitPerMinute: 600, // GW-H3: public GET endpoint rate limit per IP (was 60 — too low for bots making 2 GETs per move)
 
   // CORS
   allowedOrigins,

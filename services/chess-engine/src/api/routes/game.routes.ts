@@ -83,7 +83,13 @@ export function registerGameRoutes(app: FastifyInstance, gameManager: GameManage
       const body = MoveSchema.parse(request.body);
       const result = gameManager.makeMove(gameId, body.player, body.move);
       if (result.success) {
-        io.to(`game:${gameId}`).emit('game:move', { gameId, move: body.move, fen: result.info.fen, moveCount: result.info.moveCount, whiteTimeMs: result.info.whiteTimeMs, blackTimeMs: result.info.blackTimeMs });
+        // Include white/black/legalMoves so bots don't need HTTP calls in the game loop
+        const legalMoves = result.info.result === 'undecided' ? gameManager.getLegalMoves(gameId) : [];
+        io.to(`game:${gameId}`).emit('game:move', {
+          gameId, move: body.move, fen: result.info.fen, moveCount: result.info.moveCount,
+          whiteTimeMs: result.info.whiteTimeMs, blackTimeMs: result.info.blackTimeMs,
+          white: result.info.white, black: result.info.black, legalMoves,
+        });
         if (result.info.result !== 'undecided') {
           io.to(`game:${gameId}`).emit('game:ended', result.info);
           io.to(`tournament:${result.info.tournamentId}`).emit('game:ended', result.info);
