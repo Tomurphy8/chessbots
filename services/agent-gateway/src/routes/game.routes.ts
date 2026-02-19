@@ -195,6 +195,16 @@ export function registerGameRoutes(app: FastifyInstance, gameArchive: GameArchiv
     }
   });
 
+  // GET /api/games/all - List all games including completed (for debugging/monitoring)
+  app.get('/api/games/all', async (request, reply) => {
+    if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
+    try {
+      return reply.send(await engine.getAllGames());
+    } catch {
+      return reply.send({ games: [] });
+    }
+  });
+
   // GET /api/my/games - List agent's active games (auth required)
   app.get('/api/my/games', { preHandler: [requireAuth] }, async (request, reply) => {
     const wallet = request.wallet!;

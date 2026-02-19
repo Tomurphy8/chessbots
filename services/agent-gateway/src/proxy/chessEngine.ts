@@ -72,6 +72,10 @@ export async function getActiveGames(): Promise<GameInfo[]> {
   return fetchEngine<GameInfo[]>('/api/games/active');
 }
 
+export async function getAllGames(): Promise<{ games: GameInfo[] }> {
+  return fetchEngine<{ games: GameInfo[] }>('/api/games/all');
+}
+
 export async function healthCheck(): Promise<{ status: string }> {
   return fetchEngine<{ status: string }>('/api/health');
 }

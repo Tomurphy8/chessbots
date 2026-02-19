@@ -2,7 +2,7 @@ import { ChessGame } from './ChessGame.js';
 import { GameInfo, TimeControl, GameStatus } from '../types/index.js';
 
 const MAX_ACTIVE_GAMES = 1000; // CE-H4: prevent unbounded growth
-const COMPLETED_GAME_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const COMPLETED_GAME_TTL_MS = 30 * 60 * 1000; // 30 minutes — longer for debugging/querying
 const TIMEOUT_CHECK_INTERVAL_MS = 1_000; // CE-H6: check timeouts every 1s — fast for bullet games
 
 export class GameManager {
@@ -60,6 +60,11 @@ export class GameManager {
 
   getActiveGames(): GameInfo[] {
     return Array.from(this.games.values()).filter(g => !g.isGameOver()).map(g => g.getInfo());
+  }
+
+  /** Return ALL games (active + completed but not yet cleaned up) */
+  getAllGames(): GameInfo[] {
+    return Array.from(this.games.values()).map(g => g.getInfo());
   }
 
   private getGame(gameId: string): ChessGame {
