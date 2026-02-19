@@ -198,6 +198,9 @@ async function main() {
       const completedTournaments = new Set<number>();
       // Track when minPlayers was first detected — starts a short grace period before launching
       const minPlayersReadyAt = new Map<number, number>();
+      // Track failure count per tournament to avoid infinite retries consuming runner slots
+      const failureCount = new Map<number, number>();
+      const MAX_FAILURES = 3; // After 3 failures, skip the tournament permanently
       // Grace period (seconds) after minPlayers reached before starting (allows late joins)
       const EARLY_START_GRACE_SEC = 15;
       // Max concurrent tournament runners to avoid overwhelming the chess engine
@@ -208,6 +211,9 @@ async function main() {
       const startedAt = new Date().toISOString();
       const healthServer = http.createServer((req, res) => {
         if (req.url === '/api/health' && req.method === 'GET') {
+          const failedTournaments = Array.from(failureCount.entries())
+            .filter(([_, count]) => count >= MAX_FAILURES)
+            .map(([id]) => id);
           const payload = JSON.stringify({
             status: 'ok',
             service: 'tournament-orchestrator',
@@ -216,6 +222,8 @@ async function main() {
             startedAt,
             runningTournaments: runningTournaments.size,
             completedTournaments: completedTournaments.size,
+            permanentlySkipped: failedTournaments.length,
+            skippedIds: failedTournaments.slice(0, 20),
           });
           res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
           res.end(payload);
@@ -259,6 +267,12 @@ async function main() {
             if (isShuttingDown) break;
             if (runningTournaments.has(id)) continue;
             if (completedTournaments.has(id)) continue;
+            // Skip tournaments that have failed too many times
+            if ((failureCount.get(id) || 0) >= MAX_FAILURES) {
+              completedTournaments.add(id);
+              log('warn', `Tournament #${id} permanently skipped after ${MAX_FAILURES} failures`, { tournamentId: id });
+              continue;
+            }
 
             const t = await chain.getTournament(BigInt(id));
             if (!t.exists) {
@@ -331,13 +345,15 @@ async function main() {
                   await runner.run(wallets);
                   log('info', `Tournament #${id} completed successfully`, { tournamentId: id });
                 } catch (err: any) {
-                  log('error', `Tournament #${id} failed — will retry on next poll`, {
+                  const failures = (failureCount.get(id) || 0) + 1;
+                  failureCount.set(id, failures);
+                  log('error', `Tournament #${id} failed (attempt ${failures}/${MAX_FAILURES}) — ${failures >= MAX_FAILURES ? 'permanently skipping' : 'will retry'}`, {
                     tournamentId: id,
                     error: err.message,
-                    stack: err.stack,
+                    failures,
                   });
-                  // Remove from completedTournaments so it gets retried on next poll cycle.
-                  // Without this, failed tournaments are permanently blacklisted.
+                  // Remove from completedTournaments so it gets retried on next poll cycle
+                  // (unless max failures reached — handled at the top of the loop).
                   completedTournaments.delete(id);
                 } finally {
                   runningTournaments.delete(id);
