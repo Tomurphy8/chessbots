@@ -1,5 +1,5 @@
 import { type FastifyInstance } from 'fastify';
-import { type PublicClient, type Address, formatUnits } from 'viem';
+import { type PublicClient, type Address, formatUnits, parseAbiItem } from 'viem';
 import { checkPublicRateLimit } from '../middleware/rateLimit.js';
 import { requireAuth } from '../middleware/auth.js';
 import { CONFIG } from '../config.js';
@@ -7,6 +7,7 @@ import type { AgentIndexer } from '../indexer/AgentIndexer.js';
 import type { GameArchive } from '../indexer/GameArchive.js';
 import type { WebhookRegistry } from '../indexer/WebhookRegistry.js';
 import type { ErrorStore } from '../indexer/ErrorStore.js';
+import { EventScanner } from '../indexer/EventScanner.js';
 import { z } from 'zod';
 
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
@@ -24,6 +25,101 @@ const ERC20_BALANCE_ABI = [{
   stateMutability: 'view',
   type: 'function',
 }] as const;
+
+// ABI for reading on-chain game data
+const GET_GAME_ABI = [{
+  inputs: [
+    { name: 'tournamentId', type: 'uint256' },
+    { name: 'round', type: 'uint8' },
+    { name: 'gameIndex', type: 'uint8' },
+  ],
+  name: 'getGame',
+  outputs: [{
+    components: [
+      { name: 'white', type: 'address' },
+      { name: 'black', type: 'address' },
+      { name: 'result', type: 'uint8' },
+      { name: 'moveCount', type: 'uint16' },
+      { name: 'startedAt', type: 'int64' },
+      { name: 'endedAt', type: 'int64' },
+    ],
+    name: '',
+    type: 'tuple',
+  }],
+  stateMutability: 'view',
+  type: 'function',
+}] as const;
+
+const PROTOCOL_ABI = [{
+  inputs: [],
+  name: 'protocol',
+  outputs: [
+    { name: 'authority', type: 'address' },
+    { name: 'treasury', type: 'address' },
+    { name: 'protocolFeeBps', type: 'uint16' },
+    { name: 'buybackShareBps', type: 'uint16' },
+    { name: 'treasuryShareBps', type: 'uint16' },
+    { name: 'totalTournaments', type: 'uint64' },
+    { name: 'totalPrizeDistributed', type: 'uint64' },
+    { name: 'paused', type: 'bool' },
+  ],
+  stateMutability: 'view',
+  type: 'function',
+}] as const;
+
+const GET_TOURNAMENT_ABI_MINI = [{
+  inputs: [{ name: 'tournamentId', type: 'uint256' }],
+  name: 'getTournament',
+  outputs: [{
+    components: [
+      { name: 'id', type: 'uint256' },
+      { name: 'authority', type: 'address' },
+      { name: 'tier', type: 'uint8' },
+      { name: 'format', type: 'uint8' },
+      { name: 'entryFee', type: 'uint256' },
+      { name: 'status', type: 'uint8' },
+      { name: 'maxPlayers', type: 'uint8' },
+      { name: 'minPlayers', type: 'uint8' },
+      { name: 'registeredCount', type: 'uint8' },
+      { name: 'currentRound', type: 'uint8' },
+      { name: 'totalRounds', type: 'uint8' },
+      { name: 'teamSize', type: 'uint8' },
+      { name: 'bestOf', type: 'uint8' },
+      { name: 'startTime', type: 'int64' },
+      { name: 'registrationDeadline', type: 'int64' },
+      { name: 'baseTimeSeconds', type: 'uint32' },
+      { name: 'incrementSeconds', type: 'uint32' },
+      { name: 'winners', type: 'address[3]' },
+      { name: 'resultsUri', type: 'string' },
+      { name: 'prizeDistributed', type: 'bool' },
+      { name: 'exists', type: 'bool' },
+      { name: 'challengeTarget', type: 'address' },
+    ],
+    name: '',
+    type: 'tuple',
+  }],
+  stateMutability: 'view',
+  type: 'function',
+}] as const;
+
+// Engine result → standard chess notation
+const RESULT_MAP: Record<number, string> = {
+  0: '*',       // Undecided
+  1: '1-0',     // WhiteWins
+  2: '0-1',     // BlackWins
+  3: '1/2-1/2', // Draw
+  4: '0-1',     // WhiteForfeit
+  5: '1-0',     // BlackForfeit
+};
+
+// String result → standard chess notation (for archive data)
+const RESULT_STRING_MAP: Record<string, string> = {
+  'white_wins': '1-0',
+  'black_wins': '0-1',
+  'draw': '1/2-1/2',
+  'white_forfeit': '0-1',
+  'black_forfeit': '1-0',
+};
 
 export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentIndexer, gameArchive: GameArchive, webhookRegistry: WebhookRegistry, errorStore: ErrorStore, publicClient: PublicClient) {
   // GET /api/agents - List all indexed agents sorted by computed rating
@@ -89,6 +185,7 @@ export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentInd
   });
 
   // GET /api/agents/:wallet/games - Get game history for an agent
+  // Tries the in-memory archive first, falls back to on-chain game data.
   app.get('/api/agents/:wallet/games', async (request, reply) => {
     if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
 
@@ -98,21 +195,127 @@ export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentInd
       return reply.status(400).send({ error: 'Invalid wallet address' });
     }
 
-    const games = gameArchive.getByWallet(wallet);
-    return reply.send({
-      games: games.map(g => ({
-        gameId: g.gameId,
-        tournamentId: g.tournamentId,
-        round: g.round,
-        gameIndex: g.gameIndex,
-        white: g.white,
-        black: g.black,
-        result: g.result,
-        moveCount: g.moveCount,
-        archivedAt: g.archivedAt,
-      })),
-      total: games.length,
-    });
+    // Fast path: use archive if populated
+    const archived = gameArchive.getByWallet(wallet);
+    if (archived.length > 0) {
+      return reply.send({
+        games: archived.map(g => ({
+          gameId: g.gameId,
+          tournamentId: g.tournamentId,
+          round: g.round,
+          gameIndex: g.gameIndex,
+          white: g.white,
+          black: g.black,
+          result: RESULT_STRING_MAP[g.result] || g.result,
+          moveCount: g.moveCount,
+          archivedAt: g.archivedAt,
+        })),
+        total: archived.length,
+      });
+    }
+
+    // Fallback: read game data directly from chain
+    // Scan recent tournaments (last 20) and read getGame() for each round/gameIndex
+    try {
+      const contract = CONFIG.contractAddress as Address;
+      const proto = await publicClient.readContract({
+        address: contract, abi: PROTOCOL_ABI, functionName: 'protocol',
+      });
+      const totalTournaments = Number(proto[5]);
+      if (totalTournaments === 0) return reply.send({ games: [], total: 0 });
+
+      const start = Math.max(0, totalTournaments - 20);
+      const w = wallet.toLowerCase();
+      const games: any[] = [];
+
+      // Read tournament metadata for recent tournaments (multicall-friendly)
+      const tournamentCalls = [];
+      for (let id = totalTournaments - 1; id >= start; id--) {
+        tournamentCalls.push({
+          address: contract,
+          abi: GET_TOURNAMENT_ABI_MINI,
+          functionName: 'getTournament' as const,
+          args: [BigInt(id)] as const,
+        });
+      }
+
+      const tournamentResults = await publicClient.multicall({
+        contracts: tournamentCalls,
+        allowFailure: true,
+      });
+
+      // For completed/active tournaments, read all games to find this wallet
+      const gameCalls: Array<{ address: Address; abi: typeof GET_GAME_ABI; functionName: 'getGame'; args: readonly [bigint, number, number]; meta: { tournamentId: number; round: number; gameIndex: number } }> = [];
+
+      for (let idx = 0; idx < tournamentResults.length; idx++) {
+        const r = tournamentResults[idx];
+        if (r.status !== 'success') continue;
+        const t = r.result as any;
+        if (!t.exists || t.status < 2) continue; // Only RoundActive+ have games
+
+        const tournamentId = totalTournaments - 1 - idx;
+        const maxRound = t.currentRound || t.totalRounds || 0;
+        const maxGames = Math.ceil(t.registeredCount / 2);
+
+        for (let round = 1; round <= maxRound; round++) {
+          for (let gi = 0; gi < maxGames; gi++) {
+            gameCalls.push({
+              address: contract,
+              abi: GET_GAME_ABI,
+              functionName: 'getGame' as const,
+              args: [BigInt(tournamentId), round, gi] as const,
+              meta: { tournamentId, round, gameIndex: gi },
+            });
+          }
+        }
+      }
+
+      if (gameCalls.length > 0) {
+        // Batch all game reads in one multicall
+        const gameResults = await publicClient.multicall({
+          contracts: gameCalls.map(c => ({
+            address: c.address,
+            abi: c.abi,
+            functionName: c.functionName,
+            args: c.args,
+          })),
+          allowFailure: true,
+        });
+
+        for (let i = 0; i < gameResults.length; i++) {
+          const gr = gameResults[i];
+          if (gr.status !== 'success') continue;
+          const g = gr.result as any;
+          const meta = gameCalls[i].meta;
+
+          // Check if this wallet participated
+          const gWhite = (g.white as string).toLowerCase();
+          const gBlack = (g.black as string).toLowerCase();
+          if (gWhite !== w && gBlack !== w) continue;
+          // Skip empty/unplayed games
+          if (gWhite === '0x0000000000000000000000000000000000000000') continue;
+
+          games.push({
+            gameId: `t${meta.tournamentId}-r${meta.round}-g${meta.gameIndex}`,
+            tournamentId: meta.tournamentId,
+            round: meta.round,
+            gameIndex: meta.gameIndex,
+            white: g.white,
+            black: g.black,
+            result: RESULT_MAP[Number(g.result)] || '*',
+            moveCount: Number(g.moveCount),
+            archivedAt: Number(g.endedAt) * 1000 || 0,
+          });
+        }
+      }
+
+      // Sort newest first
+      games.sort((a, b) => b.tournamentId - a.tournamentId || b.round - a.round);
+      return reply.send({ games, total: games.length, source: 'chain' });
+    } catch (err: any) {
+      console.error(`Failed to read on-chain games for ${wallet}: ${err.message}`);
+      return reply.send({ games: [], total: 0 });
+    }
   });
 
   // ── Agent Error Logging (authenticated) ──────────────────────────
