@@ -204,8 +204,10 @@ async function main() {
       const MAX_FAILURES = 3; // After 3 failures, skip the tournament permanently
       // Grace period (seconds) after minPlayers reached before starting (allows late joins)
       const EARLY_START_GRACE_SEC = 15;
-      // Max concurrent tournament runners to avoid overwhelming the chess engine
-      const MAX_CONCURRENT_RUNNERS = 3;
+      // Max concurrent tournament runners. Set to 1 because all runners share a single
+      // wallet, and concurrent on-chain transactions cause nonce collisions ("An existing
+      // transaction had higher priority"). Sequential execution is more reliable.
+      const MAX_CONCURRENT_RUNNERS = 1;
 
       // ── Health check HTTP server for Railway liveness probes ──
       const healthPort = parseInt(process.env.HEALTH_PORT || process.env.PORT || '3003');
