@@ -35,6 +35,8 @@ export class SocketBridge {
   // GW-WS2: Reference counting for tracked games/tournaments cleanup
   private gameRefCount = new Map<string, number>();
   private tournamentRefCount = new Map<string, number>();
+  // Track game participants so we can push game:move directly to wallets
+  private gameParticipants = new Map<string, { white: string; black: string }>();
 
   constructor(agentServer: SocketServer, webhookRegistry?: WebhookRegistry) {
     this.agentServer = agentServer;
@@ -84,6 +86,15 @@ export class SocketBridge {
     this.engineClient.on('game:move', (data: any) => {
       this.agentServer.to(`game:${data.gameId}`).emit('game:move', data);
       this.agentServer.of('/spectator').to(`game:${data.gameId}`).emit('game:move', data);
+      // Belt-and-suspenders: also push game:move directly to both players by wallet.
+      // This ensures agents receive turn notifications even if their socket missed
+      // the room join (race condition, reconnection, etc.). Agents deduplicate by
+      // checking whose turn it is via FEN, so duplicate delivery is harmless.
+      const gameInfo = this.gameParticipants.get(data.gameId);
+      if (gameInfo) {
+        this.emitToWallet(gameInfo.white, 'game:move', data);
+        this.emitToWallet(gameInfo.black, 'game:move', data);
+      }
     });
 
     this.engineClient.on('game:ended', (data: any) => {
@@ -92,6 +103,13 @@ export class SocketBridge {
       if (data.tournamentId) {
         this.agentServer.to(`tournament:${data.tournamentId}`).emit('game:ended', data);
         this.agentServer.of('/spectator').to(`tournament:${data.tournamentId}`).emit('game:ended', data);
+      }
+      // Also push game:ended directly to wallets and clean up participants map
+      const gameInfo = this.gameParticipants.get(data.gameId);
+      if (gameInfo) {
+        this.emitToWallet(gameInfo.white, 'game:ended', data);
+        this.emitToWallet(gameInfo.black, 'game:ended', data);
+        this.gameParticipants.delete(data.gameId);
       }
     });
   }
@@ -328,15 +346,42 @@ export class SocketBridge {
       this.engineClient.emit('join:game', gameId);
     }
 
-    // 2. Build the game:started payload
+    // 2. Track participants so game:move can be pushed directly to wallets
+    this.gameParticipants.set(gameId, { white, black });
+
+    // 3. Auto-join BOTH players' sockets into the game room on the gateway side.
+    //    This eliminates the race condition where subscribe:game (async) hasn't been
+    //    processed yet when game:move fires after white's first move.
+    //    Without this, black's socket misses game:move and never knows it's their turn.
+    for (const wallet of [white, black]) {
+      const walletRoom = `wallet:${wallet.toLowerCase()}`;
+      const gameRoom = `game:${gameId}`;
+      const sockets = this.agentServer.in(walletRoom).fetchSockets();
+      // fetchSockets returns a Promise — fire-and-forget but fast (local adapter)
+      (sockets as unknown as Promise<any[]>).then((matched) => {
+        for (const s of matched) {
+          s.join(gameRoom);
+          // Track subscription on the socket so cleanup on disconnect works
+          if (s.subscribedGames) {
+            s.subscribedGames.add(gameId);
+          }
+        }
+        if (matched.length > 0) {
+          // Bump ref count for engine-side tracking
+          const count = this.gameRefCount.get(gameId) || 0;
+          this.gameRefCount.set(gameId, count + matched.length);
+        }
+      }).catch(() => {}); // Agent not connected — webhook fallback below
+    }
+
+    // 4. Build the game:started payload
     const data = { gameId, white, black, tournamentId };
 
-    // 3. Push directly to both players by wallet — they don't need to be
-    //    subscribed to the game room yet, their socket just needs to be connected.
+    // 5. Push directly to both players by wallet
     this.emitToWallet(white, 'game:started', data);
     this.emitToWallet(black, 'game:started', data);
 
-    // 4. Also deliver via webhook for offline agents
+    // 6. Also deliver via webhook for offline agents
     if (this.webhookRegistry) {
       this.webhookRegistry.deliverToWallets([white, black], 'game:started', data);
     }
