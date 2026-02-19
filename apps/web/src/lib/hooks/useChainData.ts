@@ -11,6 +11,9 @@ const monad = defineChain({
   name: 'Monad',
   nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
   rpcUrls: { default: { http: [CHAIN.rpcUrl] } },
+  contracts: {
+    multicall3: { address: '0xcA11bde05977b3631167028862bE2a173976CA11' },
+  },
 });
 
 const publicClient = createPublicClient({
@@ -92,47 +95,55 @@ export function useTournaments() {
 
       // Tournaments are 0-indexed: IDs range from 0 to total-1
       const start = Math.max(0, total - 50);
+
+      // Build multicall batch — fetches all tournaments in a single RPC call
+      const ids = Array.from({ length: total - start }, (_, i) => total - 1 - i);
+      const contracts = ids.map(id => ({
+        address: CONTRACT,
+        abi: CHESSBOTS_ABI,
+        functionName: 'getTournament' as const,
+        args: [BigInt(id)] as const,
+      }));
+
+      const results = await publicClient.multicall({ contracts, allowFailure: true });
+
       const items: TournamentListItem[] = [];
+      for (let idx = 0; idx < results.length; idx++) {
+        const r = results[idx];
+        if (r.status !== 'success') continue;
+        const t = r.result as any;
+        if (!t.exists) continue;
 
-      for (let i = total - 1; i >= start; i--) {
-        try {
-          const t = await publicClient.readContract({
-            address: CONTRACT, abi: CHESSBOTS_ABI, functionName: 'getTournament',
-            args: [BigInt(i)],
-          });
-          if (!t.exists) continue;
+        const tierName = (TierNames[t.tier] || 'Unknown').toLowerCase() as TournamentListItem['tier'];
+        const rawStatus = StatusMap[t.status as keyof typeof StatusMap] || 'Unknown';
+        // FE-C2: Use formatUnits for safe uint256→number conversion (prevents BigInt precision loss)
+        const entryFee = parseFloat(formatUnits(t.entryFee as bigint, 6));
+        const prizePool = entryFee * t.registeredCount;
 
-          const tierName = (TierNames[t.tier] || 'Unknown').toLowerCase() as TournamentListItem['tier'];
-          const rawStatus = StatusMap[t.status as keyof typeof StatusMap] || 'Unknown';
-          // FE-C2: Use formatUnits for safe uint256→number conversion (prevents BigInt precision loss)
-          const entryFee = parseFloat(formatUnits(t.entryFee as bigint, 6));
-          const prizePool = entryFee * t.registeredCount;
+        // V3 format field — defaults to 'swiss' if missing (V2 compat)
+        const formatRaw = t.format;
+        const formatName = (formatRaw != null ? FormatMap[formatRaw as keyof typeof FormatMap] : 'Swiss') || 'Swiss';
 
-          // V3 format field — defaults to 'swiss' if missing (V2 compat)
-          const formatRaw = (t as any).format;
-          const formatName = (formatRaw != null ? FormatMap[formatRaw as keyof typeof FormatMap] : 'Swiss') || 'Swiss';
-
-          items.push({
-            id: Number(t.id),
-            tier: tierName,
-            status: rawStatus === 'Registration' ? 'registration'
-              : rawStatus === 'RoundActive' ? 'round_active'
-              : rawStatus === 'RoundComplete' ? 'round_complete'
-              : rawStatus === 'InProgress' ? 'in_progress'
-              : rawStatus === 'Completed' ? 'completed'
-              : rawStatus === 'Cancelled' ? 'cancelled'
-              : String(rawStatus).toLowerCase(),
-            format: formatName.toLowerCase() as TournamentListItem['format'],
-            entryFee,
-            maxPlayers: t.maxPlayers,
-            registeredCount: t.registeredCount,
-            currentRound: t.currentRound,
-            totalRounds: t.totalRounds,
-            prizePool,
-            startTime: Number(t.startTime),
-            registrationDeadline: Number(t.registrationDeadline),
-          });
-        } catch { /* skip */ }
+        items.push({
+          id: Number(t.id),
+          tier: tierName,
+          status: rawStatus === 'Registration' ? 'registration'
+            : rawStatus === 'RoundActive' ? 'round_active'
+            : rawStatus === 'RoundComplete' ? 'round_complete'
+            : rawStatus === 'InProgress' ? 'in_progress'
+            : rawStatus === 'Completed' ? 'completed'
+            : rawStatus === 'Cancelled' ? 'cancelled'
+            : String(rawStatus).toLowerCase(),
+          format: formatName.toLowerCase() as TournamentListItem['format'],
+          entryFee,
+          maxPlayers: t.maxPlayers,
+          registeredCount: t.registeredCount,
+          currentRound: t.currentRound,
+          totalRounds: t.totalRounds,
+          prizePool,
+          startTime: Number(t.startTime),
+          registrationDeadline: Number(t.registrationDeadline),
+        });
       }
 
       setTournaments(items);
