@@ -200,6 +200,7 @@ async function main() {
       const minPlayersReadyAt = new Map<number, number>();
       // Track failure count per tournament to avoid infinite retries consuming runner slots
       const failureCount = new Map<number, number>();
+      const lastErrors = new Map<number, string>();
       const MAX_FAILURES = 3; // After 3 failures, skip the tournament permanently
       // Grace period (seconds) after minPlayers reached before starting (allows late joins)
       const EARLY_START_GRACE_SEC = 15;
@@ -214,6 +215,9 @@ async function main() {
           const failedTournaments = Array.from(failureCount.entries())
             .filter(([_, count]) => count >= MAX_FAILURES)
             .map(([id]) => id);
+          const recentErrors = Object.fromEntries(
+            Array.from(lastErrors.entries()).slice(-10)
+          );
           const payload = JSON.stringify({
             status: 'ok',
             service: 'tournament-orchestrator',
@@ -224,6 +228,7 @@ async function main() {
             completedTournaments: completedTournaments.size,
             permanentlySkipped: failedTournaments.length,
             skippedIds: failedTournaments.slice(0, 20),
+            recentErrors,
           });
           res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
           res.end(payload);
@@ -347,6 +352,8 @@ async function main() {
                 } catch (err: any) {
                   const failures = (failureCount.get(id) || 0) + 1;
                   failureCount.set(id, failures);
+                  // Store last error for health endpoint diagnostics
+                  lastErrors.set(id, `${err.message}`.slice(0, 200));
                   log('error', `Tournament #${id} failed (attempt ${failures}/${MAX_FAILURES}) — ${failures >= MAX_FAILURES ? 'permanently skipping' : 'will retry'}`, {
                     tournamentId: id,
                     error: err.message,
