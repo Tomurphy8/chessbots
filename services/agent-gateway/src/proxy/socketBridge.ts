@@ -37,6 +37,8 @@ export class SocketBridge {
   private tournamentRefCount = new Map<string, number>();
   // Track game participants so we can push game:move directly to wallets
   private gameParticipants = new Map<string, { white: string; black: string }>();
+  // Diagnostic counters for health endpoint
+  public diagnostics = { notifyGameStarted: 0, gameMoveRelayed: 0, walletPushSent: 0 };
 
   constructor(agentServer: SocketServer, webhookRegistry?: WebhookRegistry) {
     this.agentServer = agentServer;
@@ -84,6 +86,7 @@ export class SocketBridge {
     });
 
     this.engineClient.on('game:move', (data: any) => {
+      this.diagnostics.gameMoveRelayed++;
       this.agentServer.to(`game:${data.gameId}`).emit('game:move', data);
       this.agentServer.of('/spectator').to(`game:${data.gameId}`).emit('game:move', data);
       // Belt-and-suspenders: also push game:move directly to both players by wallet.
@@ -92,6 +95,7 @@ export class SocketBridge {
       // checking whose turn it is via FEN, so duplicate delivery is harmless.
       const gameInfo = this.gameParticipants.get(data.gameId);
       if (gameInfo) {
+        this.diagnostics.walletPushSent += 2;
         this.emitToWallet(gameInfo.white, 'game:move', data);
         this.emitToWallet(gameInfo.black, 'game:move', data);
       }
@@ -338,6 +342,8 @@ export class SocketBridge {
    * room before they know the gameId, but the event fires before they know it).
    */
   notifyGameStarted(gameId: string, white: string, black: string, tournamentId?: number): void {
+    this.diagnostics.notifyGameStarted++;
+    console.log(`[SocketBridge] notifyGameStarted: ${gameId} white=${white.slice(0,10)} black=${black.slice(0,10)}`);
     // 1. Pre-subscribe to this game room on the chess engine so future
     //    game:move and game:ended events relay through the bridge.
     if (!this.trackedGames.has(gameId)) {

@@ -87,13 +87,16 @@ async function main() {
   registerAgentRoutes(app, agentIndexer, gameArchive, webhookRegistry, errorStore, publicClient);
   registerTournamentRoutes(app, publicClient, agentIndexer, tournamentWatcher, () => socketBridge, webhookRegistry);
 
-  // Health check — no internal info leaked
+  // Health check
   app.get('/api/health', async () => ({
     status: 'ok',
     service: 'agent-gateway',
     uptime: process.uptime(),
     agentIndexReady: agentIndexer.isReady(),
     archivedGames: gameArchive.size,
+    connectedAgents: socketBridge?.getConnectedAgentCount() ?? 0,
+    activeGameParticipants: socketBridge ? (socketBridge as any).gameParticipants?.size ?? 0 : 0,
+    diagnostics: socketBridge?.diagnostics ?? null,
   }));
 
   // Prepare Fastify (registers routes, plugins)
