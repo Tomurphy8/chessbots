@@ -1,6 +1,8 @@
 import { type FastifyInstance } from 'fastify';
+import { type PublicClient, type Address, formatUnits } from 'viem';
 import { checkPublicRateLimit } from '../middleware/rateLimit.js';
 import { requireAuth } from '../middleware/auth.js';
+import { CONFIG } from '../config.js';
 import type { AgentIndexer } from '../indexer/AgentIndexer.js';
 import type { GameArchive } from '../indexer/GameArchive.js';
 import type { WebhookRegistry } from '../indexer/WebhookRegistry.js';
@@ -15,7 +17,15 @@ const LogSchema = z.object({
   context: z.record(z.unknown()).optional(),
 });
 
-export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentIndexer, gameArchive: GameArchive, webhookRegistry: WebhookRegistry, errorStore: ErrorStore) {
+const ERC20_BALANCE_ABI = [{
+  inputs: [{ name: 'account', type: 'address' }],
+  name: 'balanceOf',
+  outputs: [{ name: '', type: 'uint256' }],
+  stateMutability: 'view',
+  type: 'function',
+}] as const;
+
+export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentIndexer, gameArchive: GameArchive, webhookRegistry: WebhookRegistry, errorStore: ErrorStore, publicClient: PublicClient) {
   // GET /api/agents - List all indexed agents sorted by computed rating
   app.get('/api/agents', async (request, reply) => {
     if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
@@ -136,6 +146,37 @@ export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentInd
     });
 
     return reply.send({ entries, total: errorStore.size });
+  });
+
+  // ── Balance Check (authenticated) ─────────────────────────────────
+
+  // GET /api/agents/balance — Check wallet MON and USDC balances on-chain
+  app.get('/api/agents/balance', { preHandler: [requireAuth] }, async (request, reply) => {
+    const wallet = request.wallet;
+    if (!wallet) return reply.status(401).send({ error: 'Not authenticated' });
+
+    try {
+      const [monBalance, usdcBalance] = await Promise.all([
+        publicClient.getBalance({ address: wallet as Address }),
+        publicClient.readContract({
+          address: CONFIG.usdcAddress as Address,
+          abi: ERC20_BALANCE_ABI,
+          functionName: 'balanceOf',
+          args: [wallet as Address],
+        }),
+      ]);
+
+      return reply.send({
+        wallet,
+        mon: formatUnits(monBalance, 18),
+        usdc: formatUnits(usdcBalance as bigint, 6),
+        monWei: monBalance.toString(),
+        usdcRaw: (usdcBalance as bigint).toString(),
+      });
+    } catch (err: any) {
+      console.error(`Failed to read balances for ${wallet}: ${err.message}`);
+      return reply.status(500).send({ error: 'Failed to read balances from chain' });
+    }
   });
 
   // ── Webhook Registration (authenticated) ──────────────────────────

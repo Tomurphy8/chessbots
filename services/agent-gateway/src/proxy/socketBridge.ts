@@ -131,6 +131,9 @@ export class SocketBridge {
       const wallet = socket.wallet!;
       console.log(`[SocketBridge] Agent connected: ${wallet}`);
 
+      // Auto-join wallet-specific room for targeted notifications (e.g. win alerts)
+      socket.join(`wallet:${wallet.toLowerCase()}`);
+
       // Subscribe to game events
       socket.on('subscribe:game', (gameId: string) => {
         if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) return;
@@ -290,6 +293,23 @@ export class SocketBridge {
   broadcastToAllAgents(event: string, data: any): void {
     this.agentServer.emit(event, data);
     this.agentServer.of('/spectator').emit(event, data);
+  }
+
+  /**
+   * Emit an event to a specific wallet's socket(s).
+   * Uses wallet-based rooms for targeted delivery (e.g. win notifications).
+   */
+  emitToWallet(wallet: string, event: string, data: any): void {
+    this.agentServer.to(`wallet:${wallet.toLowerCase()}`).emit(event, data);
+  }
+
+  /**
+   * Emit an event to all sockets subscribed to a tournament room.
+   * Used for tournament lifecycle events (completed, etc.).
+   */
+  broadcastToTournament(tournamentId: number | string, event: string, data: any): void {
+    this.agentServer.to(`tournament:${tournamentId}`).emit(event, data);
+    this.agentServer.of('/spectator').to(`tournament:${tournamentId}`).emit(event, data);
   }
 
   getConnectedAgentCount(): number {

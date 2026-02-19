@@ -6,6 +6,8 @@ import { checkPublicRateLimit } from '../middleware/rateLimit.js';
 import { EventScanner } from '../indexer/EventScanner.js';
 import type { AgentIndexer } from '../indexer/AgentIndexer.js';
 import type { TournamentWatcher } from '../indexer/TournamentWatcher.js';
+import type { SocketBridge } from '../proxy/socketBridge.js';
+import type { WebhookRegistry } from '../indexer/WebhookRegistry.js';
 
 function safeKeyCheck(provided: string, expected: string): boolean {
   if (!provided || !expected || provided.length !== expected.length) return false;
@@ -153,10 +155,14 @@ const AGENT_JOINED_EVENT = parseAbiItem(
   'event AgentJoined(uint256 indexed tournamentId, address indexed agent, uint8 registeredCount)'
 );
 
-import type { SocketBridge } from '../proxy/socketBridge.js';
-import type { WebhookRegistry } from '../indexer/WebhookRegistry.js';
-
-export function registerTournamentRoutes(app: FastifyInstance, publicClient: PublicClient, agentIndexer: AgentIndexer, tournamentWatcher: TournamentWatcher, socketBridge?: { broadcastToAllAgents: (event: string, data: any) => void }, webhookRegistry?: WebhookRegistry) {
+export function registerTournamentRoutes(
+  app: FastifyInstance,
+  publicClient: PublicClient,
+  agentIndexer: AgentIndexer,
+  tournamentWatcher: TournamentWatcher,
+  getSocketBridge: () => SocketBridge | null,
+  webhookRegistry: WebhookRegistry,
+) {
   // Shared event scanner for standings queries
   const scanner = new EventScanner(
     publicClient,
@@ -478,12 +484,10 @@ export function registerTournamentRoutes(app: FastifyInstance, publicClient: Pub
     };
 
     // Broadcast via WebSocket to all connected agents
-    socketBridge?.broadcastToAllAgents('tournament:completed', notification);
+    getSocketBridge()?.broadcastToAllAgents('tournament:completed', notification);
 
     // Deliver via webhooks (cast to any — completed notification has different shape than TournamentNotification)
-    if (webhookRegistry) {
-      webhookRegistry.deliverAll(notification as any).catch(console.error);
-    }
+    webhookRegistry.deliverAll(notification as any).catch(console.error);
 
     console.log(`[tournament-completed] Tournament #${body.tournamentId} completed, notified ${body.winners.length} winners`);
     return reply.send({ ok: true });
@@ -503,5 +507,92 @@ export function registerTournamentRoutes(app: FastifyInstance, publicClient: Pub
 
     await tournamentWatcher.triggerNotification(tournamentId, tournamentData);
     return reply.send({ ok: true });
+  });
+
+  // POST /api/internal/tournament-complete — Orchestrator notifies gateway of tournament winners
+  app.post('/api/internal/tournament-complete', async (request, reply) => {
+    const serviceKey = (request.headers as any)['x-service-key'] as string;
+    if (!serviceKey || !CONFIG.serviceApiKey || !safeKeyCheck(serviceKey, CONFIG.serviceApiKey)) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    const { tournamentId, winners } = request.body as {
+      tournamentId: number;
+      winners: Array<{ wallet: string; placement: number; prizeAmount: string }>;
+    };
+
+    if (typeof tournamentId !== 'number' || tournamentId < 0) {
+      return reply.status(400).send({ error: 'Invalid tournamentId' });
+    }
+    if (!Array.isArray(winners) || winners.length === 0) {
+      return reply.status(400).send({ error: 'Invalid winners array' });
+    }
+
+    const ERC20_BALANCE_ABI = [{
+      inputs: [{ name: 'account', type: 'address' }],
+      name: 'balanceOf',
+      outputs: [{ name: '', type: 'uint256' }],
+      stateMutability: 'view',
+      type: 'function',
+    }] as const;
+
+    // Enrich winners with post-distribution USDC balance
+    const enrichedWinners = await Promise.all(
+      winners.map(async (w) => {
+        let newUsdcBalance = '0';
+        try {
+          const raw = await publicClient.readContract({
+            address: CONFIG.usdcAddress as Address,
+            abi: ERC20_BALANCE_ABI,
+            functionName: 'balanceOf',
+            args: [w.wallet as Address],
+          });
+          newUsdcBalance = formatUnits(raw, 6);
+        } catch { /* balance read failed, send 0 */ }
+        return { ...w, newUsdcBalance };
+      })
+    );
+
+    const bridge = getSocketBridge();
+
+    // Emit targeted 'tournament:won' to each winner's wallet room
+    for (const winner of enrichedWinners) {
+      const notification = {
+        tournamentId,
+        placement: winner.placement,
+        prizeAmount: winner.prizeAmount,
+        newUsdcBalance: winner.newUsdcBalance,
+        message: `You placed #${winner.placement} in tournament #${tournamentId} and won ${winner.prizeAmount} USDC!`,
+      };
+      bridge?.emitToWallet(winner.wallet, 'tournament:won', notification);
+    }
+
+    // Broadcast 'tournament:completed' to the tournament room (all subscribers)
+    bridge?.broadcastToTournament(tournamentId, 'tournament:completed', {
+      tournamentId,
+      winners: enrichedWinners.map(w => ({
+        wallet: w.wallet,
+        placement: w.placement,
+        prizeAmount: w.prizeAmount,
+      })),
+    });
+
+    // Deliver targeted webhooks to winners
+    webhookRegistry.deliverToWallets(
+      enrichedWinners.map(w => w.wallet),
+      'tournament:won',
+      {
+        tournamentId,
+        winners: enrichedWinners.map(w => ({
+          wallet: w.wallet,
+          placement: w.placement,
+          prizeAmount: w.prizeAmount,
+          newUsdcBalance: w.newUsdcBalance,
+        })),
+      },
+    ).catch(err => console.error('Failed to deliver win webhooks:', err));
+
+    console.log(`Tournament #${tournamentId} complete: notified ${enrichedWinners.length} winners via socket + webhook`);
+    return reply.send({ ok: true, notified: enrichedWinners.length });
   });
 }

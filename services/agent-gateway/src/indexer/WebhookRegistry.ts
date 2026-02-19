@@ -130,6 +130,45 @@ export class WebhookRegistry {
     }
   }
 
+  /**
+   * Deliver a notification to specific wallet webhook URLs.
+   * Used for targeted events like win notifications.
+   */
+  async deliverToWallets(
+    wallets: string[],
+    event: string,
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    if (this.webhooks.size === 0) return;
+
+    const payload = JSON.stringify({
+      event,
+      data,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    const entries = wallets
+      .map(w => this.webhooks.get(w.toLowerCase()))
+      .filter((e): e is WebhookEntry => e != null);
+
+    if (entries.length === 0) return;
+
+    const results = await Promise.allSettled(
+      entries.map(entry => this.deliver(entry, payload))
+    );
+
+    let delivered = 0;
+    let failed = 0;
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value) delivered++;
+      else failed++;
+    }
+
+    if (delivered > 0 || failed > 0) {
+      console.log(`WebhookRegistry: Delivered ${event} to ${delivered}/${entries.length} targeted webhooks (${failed} failed)`);
+    }
+  }
+
   private async deliver(entry: WebhookEntry, payload: string): Promise<boolean> {
     try {
       const response = await fetch(entry.url, {

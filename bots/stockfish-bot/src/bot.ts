@@ -232,6 +232,41 @@ async function main() {
     console.log(`Game ${data.gameId} ended: ${status} (${data.moveCount} moves)`);
   });
 
+  // ── Tournament result notifications ───────────────────────────────────────
+
+  socket.on('tournament:won', async (data: any) => {
+    console.log(`\n${'='.repeat(50)}`);
+    console.log(`  *** TOURNAMENT WIN! ***`);
+    console.log(`  Tournament #${data.tournamentId}: Placed #${data.placement}`);
+    console.log(`  Prize: ${data.prizeAmount} USDC`);
+    console.log(`  USDC balance: ${data.newUsdcBalance}`);
+    console.log(`  ${data.message}`);
+    console.log(`${'='.repeat(50)}\n`);
+  });
+
+  socket.on('tournament:completed', (data: any) => {
+    console.log(`\nTournament #${data.tournamentId} completed!`);
+    for (const w of data.winners) {
+      console.log(`  #${w.placement}: ${w.wallet.slice(0, 10)}... (${w.prizeAmount} USDC)`);
+    }
+  });
+
+  // ── Balance check helper ──────────────────────────────────────────────────
+
+  async function checkBalance(): Promise<{ mon: string; usdc: string }> {
+    const res = await fetch(`${GATEWAY}/api/agents/balance`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error(`Balance check failed: ${res.status}`);
+    return res.json();
+  }
+
+  // Log initial balance
+  try {
+    const bal = await checkBalance();
+    console.log(`Wallet balance: ${bal.mon} MON, ${bal.usdc} USDC`);
+  } catch { /* gateway may not be ready */ }
+
   // ── Also check for open tournaments right now ─────────────────────────────
 
   try {

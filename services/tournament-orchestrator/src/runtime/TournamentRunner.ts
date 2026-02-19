@@ -283,27 +283,66 @@ export class TournamentRunner {
       }
     }
 
+    // Notify gateway of tournament completion with winner details
+    if (this.gatewayUrl && this.serviceKey) {
+      try {
+        const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+        // Prize calculation mirrors on-chain logic (TournamentLibV3.sol):
+        // 10% protocol fee, remainder split by format
+        const PRIZE_SHARES: Record<string, [number, number, number]> = {
+          'swiss': [0.70, 0.20, 0.10],
+          'team':  [0.70, 0.20, 0.10],
+          'match': [1.00, 0.00, 0.00],
+          'league': [0.50, 0.30, 0.20],
+        };
+        const shares = PRIZE_SHARES[format] || [0.70, 0.20, 0.10];
+
+        // Entry fee from config (human-readable USDC, e.g. 5 = $5)
+        // For free tier tournaments with freeTierPrizeUsdc, use that as the gross pool
+        let grossPool: number;
+        if (this.config.tier === 'free' && this.config.freeTierPrizeUsdc) {
+          grossPool = this.config.freeTierPrizeUsdc;
+        } else {
+          // Entry fee tiers: Rookie=5, Bronze=50, Silver=100, Masters=250, Free=0
+          const entryFees: Record<string, number> = {
+            'rookie': 5, 'bronze': 50, 'silver': 100, 'masters': 250, 'legends': 500, 'free': 0,
+          };
+          const entryFee = entryFees[this.config.tier] || 0;
+          grossPool = entryFee * registeredWallets.length;
+        }
+
+        const prizePool = grossPool * 0.9; // 90% after 10% protocol fee
+
+        const winnerEntries = [
+          { wallet: winners.first, placement: 1, prizeAmount: (prizePool * shares[0]).toFixed(2) },
+          { wallet: winners.second, placement: 2, prizeAmount: (prizePool * shares[1]).toFixed(2) },
+          { wallet: winners.third, placement: 3, prizeAmount: (prizePool * shares[2]).toFixed(2) },
+        ].filter(w => w.wallet && w.wallet !== ZERO_ADDRESS);
+
+        if (winnerEntries.length > 0) {
+          await fetch(`${this.gatewayUrl}/api/internal/tournament-complete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-service-key': this.serviceKey,
+            },
+            body: JSON.stringify({
+              tournamentId: this.config.tournamentId,
+              winners: winnerEntries,
+            }),
+            signal: AbortSignal.timeout(10_000),
+          });
+          console.log(`  Notified gateway of tournament completion (${winnerEntries.length} winners)`);
+        }
+      } catch (err: any) {
+        // Non-fatal: tournament completed successfully on-chain, notification is best-effort
+        console.warn(`  Failed to notify gateway of completion: ${err.message}`);
+      }
+    }
+
     // TO-SM: Remove from active state (tournament fully complete)
     this.stateManager?.removeTournament(this.config.tournamentId);
-
-    // Notify gateway of tournament completion so agents are informed of winnings
-    if (this.gatewayUrl) {
-      const winnersPayload = [
-        winners.first && { wallet: winners.first, place: 1, prize: 0 },
-        winners.second && { wallet: winners.second, place: 2, prize: 0 },
-        winners.third && { wallet: winners.third, place: 3, prize: 0 },
-      ].filter(Boolean);
-
-      fetch(`${this.gatewayUrl}/api/internal/tournament-completed`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-service-key': this.serviceKey || '' },
-        body: JSON.stringify({
-          tournamentId: this.config.tournamentId,
-          winners: winnersPayload,
-        }),
-        signal: AbortSignal.timeout(5000),
-      }).catch(err => console.error(`Failed to notify gateway of tournament completion: ${(err as Error).message}`));
-    }
 
     console.log('\n========================================');
     console.log(`  Tournament Complete! [${format.toUpperCase()}]`);

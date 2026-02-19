@@ -81,14 +81,8 @@ async function main() {
   // HTTP routes
   registerAuthRoutes(app, webhookRegistry);
   registerGameRoutes(app, gameArchive);
-  registerAgentRoutes(app, agentIndexer, gameArchive, webhookRegistry, errorStore);
-  // Late-binding proxy: socketBridge is created after app.ready(), but routes only execute at request time
-  const socketBridgeProxy = {
-    broadcastToAllAgents(event: string, data: any) {
-      socketBridge?.broadcastToAllAgents(event, data);
-    },
-  };
-  registerTournamentRoutes(app, publicClient, agentIndexer, tournamentWatcher, socketBridgeProxy, webhookRegistry);
+  registerAgentRoutes(app, agentIndexer, gameArchive, webhookRegistry, errorStore, publicClient);
+  registerTournamentRoutes(app, publicClient, agentIndexer, tournamentWatcher, () => socketBridge, webhookRegistry);
 
   // Health check — no internal info leaked
   app.get('/api/health', async () => ({
