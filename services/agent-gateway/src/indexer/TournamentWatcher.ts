@@ -30,7 +30,7 @@ const TOURNAMENT_CREATED_EVENT = parseAbiItem(
   'event TournamentCreated(uint256 indexed id, uint8 tier, uint8 format, uint256 entryFee, uint8 maxPlayers)'
 );
 
-// ABI for reading tournament details — same as tournament.routes.ts
+// ABI for reading tournament details — must match V3 struct order exactly
 const GET_TOURNAMENT_ABI = [
   {
     inputs: [{ name: 'tournamentId', type: 'uint256' }],
@@ -40,6 +40,7 @@ const GET_TOURNAMENT_ABI = [
         { name: 'id', type: 'uint256' },
         { name: 'authority', type: 'address' },
         { name: 'tier', type: 'uint8' },
+        { name: 'format', type: 'uint8' },
         { name: 'entryFee', type: 'uint256' },
         { name: 'status', type: 'uint8' },
         { name: 'maxPlayers', type: 'uint8' },
@@ -47,6 +48,8 @@ const GET_TOURNAMENT_ABI = [
         { name: 'registeredCount', type: 'uint8' },
         { name: 'currentRound', type: 'uint8' },
         { name: 'totalRounds', type: 'uint8' },
+        { name: 'teamSize', type: 'uint8' },
+        { name: 'bestOf', type: 'uint8' },
         { name: 'startTime', type: 'int64' },
         { name: 'registrationDeadline', type: 'int64' },
         { name: 'baseTimeSeconds', type: 'uint32' },
@@ -55,9 +58,6 @@ const GET_TOURNAMENT_ABI = [
         { name: 'resultsUri', type: 'string' },
         { name: 'prizeDistributed', type: 'bool' },
         { name: 'exists', type: 'bool' },
-        { name: 'format', type: 'uint8' },
-        { name: 'teamSize', type: 'uint8' },
-        { name: 'bestOf', type: 'uint8' },
         { name: 'challengeTarget', type: 'address' },
       ],
       name: '',
@@ -193,18 +193,61 @@ export class TournamentWatcher {
 
   /**
    * Trigger a notification for a specific tournament (called by internal API).
-   * Deduplicates — won't broadcast twice for the same tournament.
+   * Accepts optional pre-enriched data from the orchestrator to avoid an RPC call.
+   * Only broadcasts to WebSocket on first notification (deduped), but always upserts data.
    */
-  async triggerNotification(tournamentId: number): Promise<void> {
-    if (this.notifiedTournaments.has(tournamentId)) return;
+  async triggerNotification(tournamentId: number, preEnrichedData?: any): Promise<void> {
+    let notification: TournamentNotification | null = null;
 
-    const notification = await this.enrichTournament(tournamentId);
+    if (preEnrichedData) {
+      // Pre-enriched: build notification without RPC (idempotent upsert)
+      const entryFee = preEnrichedData.entryFee ?? 0;
+      const format = FormatNames[preEnrichedData.format] ?? 'Swiss';
+      const tier = TierNames[preEnrichedData.tier] ?? 'Unknown';
+      const { prizePool, firstPrize, currency, earningMessage, humanApprovalPrompt } = computePrizeInfo(
+        entryFee, preEnrichedData.maxPlayers ?? 8, format, tier, tournamentId,
+      );
+      notification = {
+        tournamentId,
+        tier,
+        format,
+        entryFee,
+        maxPlayers: preEnrichedData.maxPlayers ?? 8,
+        startTime: preEnrichedData.startTime ?? 0,
+        registrationDeadline: preEnrichedData.registrationDeadline ?? 0,
+        baseTimeSeconds: preEnrichedData.baseTimeSeconds ?? 300,
+        incrementSeconds: preEnrichedData.incrementSeconds ?? 3,
+        createdAt: Math.floor(Date.now() / 1000),
+        prizePool,
+        firstPrize,
+        currency,
+        earningMessage,
+        humanApprovalPrompt,
+      };
+    } else {
+      // Chain-read path: dedup to avoid unnecessary RPC calls
+      if (this.notifiedTournaments.has(tournamentId)) return;
+      notification = await this.enrichTournament(tournamentId);
+    }
+
     if (!notification) return;
 
+    const isNew = !this.notifiedTournaments.has(tournamentId);
     this.notifiedTournaments.add(tournamentId);
-    this.addNotification(notification);
-    this.onNewTournament(notification);
-    console.log(`TournamentWatcher: Broadcast tournament #${tournamentId} (triggered)`);
+
+    // Upsert: replace existing notification or add new
+    const existingIdx = this.notifications.findIndex(n => n.tournamentId === tournamentId);
+    if (existingIdx >= 0) {
+      this.notifications[existingIdx] = notification;
+    } else {
+      this.addNotification(notification);
+    }
+
+    // Only broadcast to WebSocket on first notification (avoid spam)
+    if (isNew) {
+      this.onNewTournament(notification);
+    }
+    console.log(`TournamentWatcher: ${isNew ? 'Broadcast' : 'Updated'} tournament #${tournamentId} (triggered${preEnrichedData ? ', pre-enriched' : ''})`);
   }
 
   /**
