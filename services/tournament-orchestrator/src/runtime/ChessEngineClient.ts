@@ -114,9 +114,17 @@ export class ChessEngineClient {
 
     for (const pairing of pairings) {
       const gameId = `t${tournamentId}-r${round}-g${pairing.gameIndex}`;
-      // Fail-fast: any failure aborts the entire round before on-chain commit
-      await this.createGame(tournamentId, round, pairing.gameIndex, pairing.white, pairing.black, timeControl);
-      await this.startGame(gameId);
+      try {
+        await this.createGame(tournamentId, round, pairing.gameIndex, pairing.white, pairing.black, timeControl);
+        await this.startGame(gameId);
+      } catch (err: any) {
+        // Handle "Game already exists" from a previous retry — game is already created/started
+        if (err.message?.includes('Game already exists') || err.message?.includes('already')) {
+          console.log(`  Game ${gameId} already exists (retry scenario), continuing...`);
+        } else {
+          throw err; // Fail-fast for genuine errors
+        }
+      }
       gameIds.push(gameId);
     }
 

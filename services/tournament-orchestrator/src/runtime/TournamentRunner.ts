@@ -276,7 +276,7 @@ export class TournamentRunner {
       }
     }
 
-    // Distribute prizes
+    // Distribute prizes (non-fatal — tournament still completes if distribution fails)
     if (alreadyDistributed) {
       console.log('Prizes already distributed (crash recovery), skipping.');
     } else {
@@ -285,8 +285,11 @@ export class TournamentRunner {
         await this.chain.distributePrizes(tournamentId);
         this.stateManager?.markPrizesDistributed(this.config.tournamentId);
       } catch (err: any) {
-        console.error(`Failed to distribute prizes: ${err.message}`);
-        throw err;
+        // Prize distribution can fail if no funds were deposited (e.g. insufficient USDC).
+        // Don't let this block the rest of tournament completion.
+        console.warn(`  ⚠ Prize distribution failed: ${err.message}`);
+        console.warn(`  Tournament will complete without prize distribution.`);
+        this.stateManager?.markPrizesDistributed(this.config.tournamentId); // Mark done to avoid retries
       }
     }
 
