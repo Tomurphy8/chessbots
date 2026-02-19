@@ -196,6 +196,10 @@ async function main() {
       const runningTournaments = new Set<number>();
       // Track tournaments that are done (non-registration status or already ran)
       const completedTournaments = new Set<number>();
+      // Track when minPlayers was first detected — starts a short grace period before launching
+      const minPlayersReadyAt = new Map<number, number>();
+      // Grace period (seconds) after minPlayers reached before starting (allows late joins)
+      const EARLY_START_GRACE_SEC = 30;
 
       // ── Health check HTTP server for Railway liveness probes ──
       const healthPort = parseInt(process.env.HEALTH_PORT || process.env.PORT || '3003');
@@ -324,20 +328,69 @@ async function main() {
               }
             };
 
-            // Registration (status 0): start when full immediately, or when deadline passes
+            // Registration (status 0): start when full, start at deadline, or cancel if expired with too few players
             if (t.status === 0) {
+              const deadline = Number(t.registrationDeadline);
+              const now = Math.floor(Date.now() / 1000);
+              const deadlinePassed = deadline > 0 && now >= deadline;
+
+              // Notify the gateway about open tournaments so agents can discover them.
+              // Pushes on every poll (not deduped) so the gateway always has fresh data,
+              // even after a gateway restart. The gateway deduplicates internally.
+              if (!deadlinePassed && gatewayUrl) {
+                const entryFeeRaw = BigInt(t.entryFee ?? 0);
+                const entryFee = Number(entryFeeRaw) / 1e6; // USDC has 6 decimals
+                fetch(`${gatewayUrl}/api/internal/tournament-notify`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'x-service-key': serviceKey },
+                  body: JSON.stringify({
+                    tournamentId: id,
+                    tournament: {
+                      tier: t.tier, format: t.format ?? 0, entryFee, maxPlayers: t.maxPlayers,
+                      startTime: Number(t.startTime), registrationDeadline: deadline,
+                      baseTimeSeconds: t.baseTimeSeconds || 300, incrementSeconds: t.incrementSeconds || 3,
+                    },
+                  }),
+                  signal: AbortSignal.timeout(5000),
+                }).catch(err => log('warn', `Failed to notify gateway of tournament #${id}`, { error: (err as Error).message }));
+              }
+
               if (t.registeredCount >= t.minPlayers) {
                 // Start immediately if FULL — no more players can join anyway
                 if (t.registeredCount >= t.maxPlayers) {
                   await launchRunner('full — starting immediately');
                   continue;
                 }
-                // Otherwise wait for deadline (allows more players to join up to maxPlayers)
-                const deadline = Number(t.registrationDeadline);
-                const now = Math.floor(Date.now() / 1000);
-                if (deadline > 0 && now >= deadline) {
-                  await launchRunner('deadline reached');
+                // minPlayers reached but not full — give a short grace period for
+                // more players to join, then start. Track when we first noticed.
+                if (!minPlayersReadyAt.has(id)) {
+                  minPlayersReadyAt.set(id, now);
+                  log('info', `Tournament #${id} has ${t.registeredCount}/${t.maxPlayers} players (min=${t.minPlayers}) — starting in ${EARLY_START_GRACE_SEC}s`, { tournamentId: id });
                 }
+                const readySince = minPlayersReadyAt.get(id)!;
+                if (deadlinePassed || (now - readySince) >= EARLY_START_GRACE_SEC) {
+                  minPlayersReadyAt.delete(id);
+                  await launchRunner(`minPlayers reached (${t.registeredCount}/${t.maxPlayers}) — grace period elapsed`);
+                  continue;
+                }
+              } else if (deadlinePassed) {
+                // Deadline passed but not enough players — cancel this zombie tournament
+                log('info', `Tournament #${id} expired with ${t.registeredCount}/${t.minPlayers} players — cancelling`, {
+                  tournamentId: id,
+                  registeredCount: t.registeredCount,
+                  minPlayers: t.minPlayers,
+                  deadline,
+                });
+                try {
+                  await chain.cancelTournament(BigInt(id));
+                  log('info', `Tournament #${id} cancelled on-chain`, { tournamentId: id });
+                } catch (err: any) {
+                  log('warn', `Failed to cancel tournament #${id}`, {
+                    tournamentId: id,
+                    error: (err as Error).message,
+                  });
+                }
+                completedTournaments.add(id);
               }
               continue;
             }
@@ -369,33 +422,45 @@ async function main() {
         try {
           const proto = await chain.getProtocolState();
           const totalTournaments = Number(proto[5]);
+          const now = Math.floor(Date.now() / 1000);
           let hasRegistrationTournament = false;
           for (let id = Math.max(0, totalTournaments - 10); id < totalTournaments; id++) {
             if (completedTournaments.has(id) || runningTournaments.has(id)) continue;
             const t = await chain.getTournament(BigInt(id));
             if (t.exists && t.status === 0) {
-              hasRegistrationTournament = true;
-              break;
+              // Only count as active if deadline hasn't passed yet
+              const deadline = Number(t.registrationDeadline);
+              if (deadline <= 0 || now < deadline) {
+                hasRegistrationTournament = true;
+                break;
+              }
             }
           }
           if (!hasRegistrationTournament) {
-            const now = Math.floor(Date.now() / 1000);
             await chain.createTournament(
-              5, 0, 8, 4,                          // Free tier, Swiss, max=8, min=4
-              BigInt(now + 180),                    // startTime: 3 min
-              BigInt(now + 120),                    // deadline: 2 min
+              5, 0, 8, 2,                          // Free tier, Swiss, max=8, min=2
+              BigInt(now + 120),                    // startTime: 2 min
+              BigInt(now + 90),                     // deadline: 90s (bots join via websocket in <5s)
               300, 3,                               // 5 min + 3s increment
             );
             log('info', 'Auto-created free Swiss tournament (no registration tournaments found)');
 
             // Notify agent-gateway to broadcast to connected agents (fast-path)
+            // Include tournament data so the gateway can broadcast without reading the chain (avoids RPC 429)
             if (gatewayUrl) {
               const newProto = await chain.getProtocolState();
               const newId = Number(newProto[5]) - 1;
               fetch(`${gatewayUrl}/api/internal/tournament-notify`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-service-key': serviceKey },
-                body: JSON.stringify({ tournamentId: newId }),
+                body: JSON.stringify({
+                  tournamentId: newId,
+                  tournament: {
+                    tier: 5, format: 0, entryFee: 0, maxPlayers: 8,
+                    startTime: now + 120, registrationDeadline: now + 90,
+                    baseTimeSeconds: 300, incrementSeconds: 3,
+                  },
+                }),
                 signal: AbortSignal.timeout(5000),
               }).catch(err => log('warn', 'Failed to notify gateway of new tournament', { error: (err as Error).message }));
             }
