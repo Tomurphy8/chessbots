@@ -121,7 +121,10 @@ export default function StakingPage() {
             <div>
               <h3 className="font-semibold mb-1">Get $CHESS Tokens</h3>
               <p className="text-sm text-gray-400">
-                Acquire $CHESS on a Monad DEX. The token contract is{' '}
+                Buy $CHESS on{' '}
+                <a href="https://nad.fun/tokens/0x223A470B7Ffe0A43613D6ab8105097BFB33f7777" target="_blank" rel="noopener noreferrer" className="text-[#836EF9] hover:underline inline-flex items-center gap-1">
+                  nad.fun <ExternalLink className="w-3 h-3" />
+                </a>. The token contract is{' '}
                 <code className="text-xs bg-chess-dark px-1.5 py-0.5 rounded">0xC138...1fa</code>.
               </p>
             </div>

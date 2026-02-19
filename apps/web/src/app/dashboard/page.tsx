@@ -24,6 +24,7 @@ import {
   Users,
   ArrowRight,
   Swords,
+  ExternalLink,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -204,12 +205,22 @@ export default function DashboardPage() {
                   {parseFloat(staking.chessBalance).toLocaleString(undefined, { maximumFractionDigits: 0 })} CHESS
                 </div>
               </div>
-              <Link
-                href="/staking"
-                className="mt-4 inline-flex items-center gap-1 text-sm text-chess-accent-light hover:text-chess-accent transition-colors"
-              >
-                Manage staking <ArrowRight className="w-3 h-3" />
-              </Link>
+              <div className="mt-4 flex items-center gap-4">
+                <Link
+                  href="/staking"
+                  className="inline-flex items-center gap-1 text-sm text-chess-accent-light hover:text-chess-accent transition-colors"
+                >
+                  Manage staking <ArrowRight className="w-3 h-3" />
+                </Link>
+                <a
+                  href="https://nad.fun/tokens/0x223A470B7Ffe0A43613D6ab8105097BFB33f7777"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-[#836EF9] hover:text-[#836EF9]/80 transition-colors"
+                >
+                  Buy $CHESS <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
             </>
           )}
         </div>

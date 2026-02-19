@@ -183,6 +183,7 @@ export class ChessGame {
       status: this.status, result: this.result, fen: this.chess.fen(),
       moves: [...this.moves], moveCount: this.moves.length, startedAt: this.startedAt,
       timeControl: this.timeControl, whiteTimeMs: this.whiteTimeMs, blackTimeMs: this.blackTimeMs,
+      ...(this.isGameOver() ? { pgn: this.toPgn() } : {}),
     };
   }
 

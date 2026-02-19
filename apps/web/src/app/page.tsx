@@ -145,7 +145,10 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-        <div className="mt-6 text-center">
+        <div className="mt-6 flex gap-3 justify-center">
+          <a href="https://nad.fun/tokens/0x223A470B7Ffe0A43613D6ab8105097BFB33f7777" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-5 py-2 bg-[#836EF9] hover:bg-[#836EF9]/80 rounded-lg text-sm font-semibold transition-colors">
+            Buy $CHESS <ExternalLink className="w-3.5 h-3.5" />
+          </a>
           <Link href="/staking" className="px-5 py-2 border border-[#836EF9]/50 hover:border-[#836EF9] rounded-lg text-sm font-semibold text-[#836EF9] transition-colors">
             Stake $CHESS
           </Link>

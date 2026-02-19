@@ -14,6 +14,7 @@ export interface GameInfo {
   timeControl: TimeControl;
   whiteTimeMs: number;
   blackTimeMs: number;
+  pgn?: string;
 }
 
 export interface TimeControl {

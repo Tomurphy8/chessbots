@@ -10,6 +10,7 @@ import { SponsorBanner } from '@/components/SponsorBanner';
 import { BettingPanel } from '@/components/BettingPanel';
 import { useGameData } from '@/lib/hooks/useGameData';
 import { useGameSocket } from '@/lib/hooks/useGameSocket';
+import { CHAIN } from '@/lib/chains';
 import { useSponsor } from '@/lib/hooks/useSponsor';
 import { useBettingPool } from '@/lib/hooks/useBettingPool';
 import { GameResultMap } from '@/lib/contracts/evm';
@@ -68,8 +69,31 @@ export default function GameViewerPage({ params }: { params: { id: string; gameI
   const isLive = liveState.isLive || (chainGame?.status === 1);
   const isCompleted = chainGame?.status === 2;
 
-  // Move history — prefer live moves from gateway, fall back to chain move count
-  const moves = liveState.moves.length > 0 ? liveState.moves : [];
+  // PGN fallback: when primary game data has no moves, try fetching PGN and parsing moves from it
+  const [pgnFallbackMoves, setPgnFallbackMoves] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isCompleted || liveState.loading || liveState.moves.length > 0) return;
+    let cancelled = false;
+    fetch(`${CHAIN.gatewayUrl}/api/game/${gameId}/pgn`)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.text();
+      })
+      .then(pgn => {
+        if (cancelled || !pgn.trim()) return;
+        try {
+          const g = new Chess();
+          g.loadPgn(pgn);
+          const history = g.history();
+          if (history.length > 0) setPgnFallbackMoves(history);
+        } catch { /* PGN parse failed, no fallback available */ }
+      })
+      .catch(() => { /* PGN not available */ });
+    return () => { cancelled = true; };
+  }, [isCompleted, liveState.loading, liveState.moves.length, gameId]);
+
+  // Move history — prefer live moves from gateway, fall back to PGN-parsed moves
+  const moves = liveState.moves.length > 0 ? liveState.moves : pgnFallbackMoves;
   const totalMoves = moves.length;
 
   // Replay state
