@@ -28,11 +28,15 @@ export function useTournamentStandings(tournamentId: number) {
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const isInitialLoad = useRef(true);
+
   const fetchStandings = useCallback(async () => {
     if (tournamentId < 0) return;
 
     try {
-      setLoading(true);
+      // Only show loading skeleton on initial fetch, not re-polls
+      if (isInitialLoad.current) setLoading(true);
+
       const res = await fetch(`${CHAIN.gatewayUrl}/api/tournaments/${tournamentId}/standings`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -44,6 +48,7 @@ export function useTournamentStandings(tournamentId: number) {
       setError('Failed to load standings');
     } finally {
       setLoading(false);
+      isInitialLoad.current = false;
     }
   }, [tournamentId]);
 

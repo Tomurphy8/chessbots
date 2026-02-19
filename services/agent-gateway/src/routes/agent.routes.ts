@@ -4,10 +4,18 @@ import { requireAuth } from '../middleware/auth.js';
 import type { AgentIndexer } from '../indexer/AgentIndexer.js';
 import type { GameArchive } from '../indexer/GameArchive.js';
 import type { WebhookRegistry } from '../indexer/WebhookRegistry.js';
+import type { ErrorStore } from '../indexer/ErrorStore.js';
+import { z } from 'zod';
 
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 
-export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentIndexer, gameArchive: GameArchive, webhookRegistry: WebhookRegistry) {
+const LogSchema = z.object({
+  level: z.enum(['error', 'warn', 'info']),
+  message: z.string().min(1).max(2000),
+  context: z.record(z.unknown()).optional(),
+});
+
+export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentIndexer, gameArchive: GameArchive, webhookRegistry: WebhookRegistry, errorStore: ErrorStore) {
   // GET /api/agents - List all indexed agents sorted by computed rating
   app.get('/api/agents', async (request, reply) => {
     if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
@@ -95,6 +103,39 @@ export function registerAgentRoutes(app: FastifyInstance, agentIndexer: AgentInd
       })),
       total: games.length,
     });
+  });
+
+  // ── Agent Error Logging (authenticated) ──────────────────────────
+
+  // POST /api/agent/log — Submit error/warn/info log
+  app.post('/api/agent/log', { preHandler: [requireAuth] }, async (request, reply) => {
+    const wallet = request.wallet;
+    if (!wallet) return reply.status(401).send({ error: 'Not authenticated' });
+
+    try {
+      const body = LogSchema.parse(request.body);
+      const entry = errorStore.add(wallet, body.level, body.message, body.context);
+      return reply.send({ ok: true, id: entry.id });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Invalid log data', details: err.issues });
+      }
+      return reply.status(400).send({ error: 'Invalid log data' });
+    }
+  });
+
+  // GET /api/admin/errors — Query error logs (public, admin use)
+  app.get('/api/admin/errors', async (request, reply) => {
+    if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
+
+    const query = request.query as { wallet?: string; level?: string; limit?: string };
+    const entries = errorStore.query({
+      wallet: query.wallet,
+      level: query.level,
+      limit: query.limit ? parseInt(query.limit) : 100,
+    });
+
+    return reply.send({ entries, total: errorStore.size });
   });
 
   // ── Webhook Registration (authenticated) ──────────────────────────

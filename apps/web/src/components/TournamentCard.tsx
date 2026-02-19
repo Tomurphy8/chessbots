@@ -4,6 +4,26 @@ import Link from 'next/link';
 import { cn, tierColor, tierBorderColor, statusBadgeColor } from '@/lib/utils';
 import { Trophy, Users, Clock } from 'lucide-react';
 
+function formatTimestamp(unixSec: number): string {
+  if (!unixSec) return '';
+  const date = new Date(unixSec * 1000);
+  const now = Date.now();
+  const diff = unixSec * 1000 - now;
+
+  // Future: show countdown
+  if (diff > 0) {
+    const hours = Math.floor(diff / 3_600_000);
+    const mins = Math.floor((diff % 3_600_000) / 60_000);
+    if (hours > 24) {
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  }
+
+  // Past: show date
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 interface TournamentCardProps {
   id: number;
   tier: 'rookie' | 'bronze' | 'silver' | 'masters' | 'legends' | 'free';
@@ -15,11 +35,13 @@ interface TournamentCardProps {
   currentRound: number;
   totalRounds: number;
   prizePool: number;
+  startTime?: number;
+  registrationDeadline?: number;
 }
 
 export function TournamentCard({
   id, tier, status, format, entryFee, registeredCount, maxPlayers,
-  currentRound, totalRounds, prizePool,
+  currentRound, totalRounds, prizePool, startTime, registrationDeadline,
 }: TournamentCardProps) {
   return (
     <Link href={`/tournaments/${id}`}>
@@ -59,7 +81,13 @@ export function TournamentCard({
           </div>
           <div className="flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5" />
-            <span>{entryFee.toFixed(2)} USDC</span>
+            <span>
+              {status === 'registration' && registrationDeadline
+                ? formatTimestamp(registrationDeadline)
+                : status === 'completed' && startTime
+                ? formatTimestamp(startTime)
+                : `${entryFee.toFixed(2)} USDC`}
+            </span>
           </div>
           <div className="text-right">
             R{currentRound}/{totalRounds}

@@ -286,6 +286,25 @@ export class TournamentRunner {
     // TO-SM: Remove from active state (tournament fully complete)
     this.stateManager?.removeTournament(this.config.tournamentId);
 
+    // Notify gateway of tournament completion so agents are informed of winnings
+    if (this.gatewayUrl) {
+      const winnersPayload = [
+        winners.first && { wallet: winners.first, place: 1, prize: 0 },
+        winners.second && { wallet: winners.second, place: 2, prize: 0 },
+        winners.third && { wallet: winners.third, place: 3, prize: 0 },
+      ].filter(Boolean);
+
+      fetch(`${this.gatewayUrl}/api/internal/tournament-completed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-service-key': this.serviceKey || '' },
+        body: JSON.stringify({
+          tournamentId: this.config.tournamentId,
+          winners: winnersPayload,
+        }),
+        signal: AbortSignal.timeout(5000),
+      }).catch(err => console.error(`Failed to notify gateway of tournament completion: ${(err as Error).message}`));
+    }
+
     console.log('\n========================================');
     console.log(`  Tournament Complete! [${format.toUpperCase()}]`);
     console.log(`  1st: ${winners.first ? winners.first.slice(0, 10) + '...' : 'N/A'}`);

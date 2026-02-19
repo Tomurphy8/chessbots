@@ -78,6 +78,7 @@ export function useUsdcApproval(spender: string, requiredAmount?: string): UsdcA
       abi: ERC20_ABI,
       functionName: 'approve',
       args: [spender as Address, parsedAmount],
+      chainId: CHAIN.evmChainId,
     });
 
     refetch();

@@ -14,6 +14,7 @@ import { AgentIndexer } from './indexer/AgentIndexer.js';
 import { GameArchive } from './indexer/GameArchive.js';
 import { TournamentWatcher } from './indexer/TournamentWatcher.js';
 import { WebhookRegistry } from './indexer/WebhookRegistry.js';
+import { ErrorStore } from './indexer/ErrorStore.js';
 
 async function main() {
   // Create HTTP server first, then pass to Fastify via serverFactory
@@ -61,6 +62,9 @@ async function main() {
   // Webhook registry — in-memory, agents register HTTPS URLs for push notifications
   const webhookRegistry = new WebhookRegistry();
 
+  // Error store — in-memory ring buffer for agent error logs
+  const errorStore = new ErrorStore();
+
   // Tournament watcher — created early so routes can reference it.
   // SocketBridge callback is wired below after Socket.IO is initialized.
   let socketBridge: SocketBridge | null = null;
@@ -77,8 +81,14 @@ async function main() {
   // HTTP routes
   registerAuthRoutes(app, webhookRegistry);
   registerGameRoutes(app, gameArchive);
-  registerAgentRoutes(app, agentIndexer, gameArchive, webhookRegistry);
-  registerTournamentRoutes(app, publicClient, agentIndexer, tournamentWatcher);
+  registerAgentRoutes(app, agentIndexer, gameArchive, webhookRegistry, errorStore);
+  // Late-binding proxy: socketBridge is created after app.ready(), but routes only execute at request time
+  const socketBridgeProxy = {
+    broadcastToAllAgents(event: string, data: any) {
+      socketBridge?.broadcastToAllAgents(event, data);
+    },
+  };
+  registerTournamentRoutes(app, publicClient, agentIndexer, tournamentWatcher, socketBridgeProxy, webhookRegistry);
 
   // Health check — no internal info leaked
   app.get('/api/health', async () => ({

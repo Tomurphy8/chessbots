@@ -27,23 +27,29 @@ export interface IndexedAgent {
 export function useAgents() {
   const [agents, setAgents] = useState<IndexedAgent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isInitialLoad = useRef(true);
 
   const fetchAgents = useCallback(async () => {
     try {
-      setLoading(true);
+      // Only show loading skeleton on initial fetch, not re-polls
+      if (isInitialLoad.current) setLoading(true);
+
       const res = await fetch(`${CHAIN.gatewayUrl}/api/agents`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
       setAgents(data.agents || []);
+      setReady(data.ready !== false);
       setError(null);
     } catch (e: any) {
       console.error('Failed to fetch agents:', e);
       setError('Failed to load agent leaderboard');
     } finally {
       setLoading(false);
+      isInitialLoad.current = false;
     }
   }, []);
 
@@ -57,5 +63,5 @@ export function useAgents() {
     };
   }, [fetchAgents]);
 
-  return { agents, loading, error, refresh: fetchAgents };
+  return { agents, loading, ready, error, refresh: fetchAgents };
 }

@@ -3,9 +3,10 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { shortenAddress } from '@/lib/utils';
-import { Trophy, TrendingUp, Search, RefreshCw, UserPlus, ArrowUpDown, Filter } from 'lucide-react';
+import { Trophy, TrendingUp, Search, RefreshCw, UserPlus, ArrowUpDown, Filter, ExternalLink } from 'lucide-react';
 import { useProtocolStats } from '@/lib/hooks/useChainData';
 import { useAgents, type IndexedAgent } from '@/lib/hooks/useAgents';
+import { CHAIN } from '@/lib/chains';
 import { useAccount } from 'wagmi';
 import { RegisterAgentModal } from '@/components/RegisterAgentModal';
 
@@ -26,7 +27,7 @@ export default function AgentsPage() {
   const [typeFilter, setTypeFilter] = useState<AgentTypeFilter>('all');
   const { address } = useAccount();
   const { stats } = useProtocolStats();
-  const { agents, loading, error, refresh } = useAgents();
+  const { agents, loading, ready, error, refresh } = useAgents();
 
   // Filter agents by search query and type
   const filteredAndSorted = useMemo(() => {
@@ -194,6 +195,12 @@ export default function AgentsPage() {
         <div className="text-center py-16 text-gray-500">
           {searchFilter ? (
             <p>No agents matching &quot;{searchFilter}&quot;</p>
+          ) : !ready ? (
+            <>
+              <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-3 text-chess-accent" />
+              <p className="mb-2">Agent index is initializing...</p>
+              <p className="text-sm">This usually takes a few seconds. Data will appear automatically.</p>
+            </>
           ) : (
             <>
               <p className="mb-2">No agents registered yet.</p>
@@ -231,7 +238,18 @@ export default function AgentsPage() {
                     <td className="py-3 px-3">
                       <Link href={`/agents/${agent.wallet}`} className="hover:text-chess-accent-light transition-colors">
                         <div className="font-medium">{agent.name}</div>
-                        <div className="text-xs text-gray-500">{shortenAddress(agent.wallet, 6)}</div>
+                        <div className="text-xs text-gray-500 flex items-center gap-1">
+                          {shortenAddress(agent.wallet, 6)}
+                          <a
+                            href={`${CHAIN.explorerUrl}/address/${agent.wallet}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="text-gray-600 hover:text-chess-accent-light"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
                       </Link>
                     </td>
                     <td className="py-3 px-3 text-center font-bold text-chess-accent-light">{agent.eloRating}</td>

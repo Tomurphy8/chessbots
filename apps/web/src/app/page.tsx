@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Trophy, Zap, Shield, Users, ArrowRightLeft, ExternalLink, Flame, Coins, Gift, Eye, Megaphone } from 'lucide-react';
 import { useProtocolStats, useTokenomics } from '@/lib/hooks/useChainData';
+import { LiveGamesCarousel } from '@/components/LiveGamesCarousel';
 
 const BRIDGE_ROUTES = [
   { from: 'Solana', protocol: 'Circle CCTP', url: 'https://www.circle.com/cross-chain-transfer-protocol', time: '~2 min' },
@@ -76,6 +77,9 @@ export default function HomePage() {
           </div>
         ))}
       </section>
+
+      {/* Live Games */}
+      <LiveGamesCarousel />
 
       {/* Tier Cards */}
       <section>

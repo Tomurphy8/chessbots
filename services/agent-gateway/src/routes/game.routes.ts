@@ -184,6 +184,17 @@ export function registerGameRoutes(app: FastifyInstance, gameArchive: GameArchiv
     }
   });
 
+  // GET /api/games/active - List all active games (public, for live carousel)
+  app.get('/api/games/active', async (request, reply) => {
+    if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
+    try {
+      const games = await engine.getActiveGames();
+      return reply.send({ games });
+    } catch {
+      return reply.send({ games: [] });
+    }
+  });
+
   // GET /api/my/games - List agent's active games (auth required)
   app.get('/api/my/games', { preHandler: [requireAuth] }, async (request, reply) => {
     const wallet = request.wallet!;

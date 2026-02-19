@@ -12,6 +12,7 @@ function safeKeyCheck(provided: string, expected: string): boolean {
   return timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
 }
 
+// V3 struct layout — must match ChessBotsTournamentV3.sol exactly
 const TOURNAMENT_ABI = [
   {
     inputs: [{ name: 'tournamentId', type: 'uint256' }],
@@ -21,6 +22,7 @@ const TOURNAMENT_ABI = [
         { name: 'id', type: 'uint256' },
         { name: 'authority', type: 'address' },
         { name: 'tier', type: 'uint8' },
+        { name: 'format', type: 'uint8' },
         { name: 'entryFee', type: 'uint256' },
         { name: 'status', type: 'uint8' },
         { name: 'maxPlayers', type: 'uint8' },
@@ -28,6 +30,8 @@ const TOURNAMENT_ABI = [
         { name: 'registeredCount', type: 'uint8' },
         { name: 'currentRound', type: 'uint8' },
         { name: 'totalRounds', type: 'uint8' },
+        { name: 'teamSize', type: 'uint8' },
+        { name: 'bestOf', type: 'uint8' },
         { name: 'startTime', type: 'int64' },
         { name: 'registrationDeadline', type: 'int64' },
         { name: 'baseTimeSeconds', type: 'uint32' },
@@ -36,9 +40,6 @@ const TOURNAMENT_ABI = [
         { name: 'resultsUri', type: 'string' },
         { name: 'prizeDistributed', type: 'bool' },
         { name: 'exists', type: 'bool' },
-        { name: 'format', type: 'uint8' },
-        { name: 'teamSize', type: 'uint8' },
-        { name: 'bestOf', type: 'uint8' },
         { name: 'challengeTarget', type: 'address' },
       ],
       name: '',
@@ -152,7 +153,10 @@ const AGENT_JOINED_EVENT = parseAbiItem(
   'event AgentJoined(uint256 indexed tournamentId, address indexed agent, uint8 registeredCount)'
 );
 
-export function registerTournamentRoutes(app: FastifyInstance, publicClient: PublicClient, agentIndexer: AgentIndexer, tournamentWatcher: TournamentWatcher) {
+import type { SocketBridge } from '../proxy/socketBridge.js';
+import type { WebhookRegistry } from '../indexer/WebhookRegistry.js';
+
+export function registerTournamentRoutes(app: FastifyInstance, publicClient: PublicClient, agentIndexer: AgentIndexer, tournamentWatcher: TournamentWatcher, socketBridge?: { broadcastToAllAgents: (event: string, data: any) => void }, webhookRegistry?: WebhookRegistry) {
   // Shared event scanner for standings queries
   const scanner = new EventScanner(
     publicClient,
@@ -163,6 +167,8 @@ export function registerTournamentRoutes(app: FastifyInstance, publicClient: Pub
   // Standings cache: { tournamentId -> { data, timestamp } }
   const standingsCache = new Map<number, { data: any; timestamp: number }>();
   const STANDINGS_CACHE_TTL = 30_000; // 30 seconds — keep fresh for live tournament updates
+
+  // Open-tournaments endpoint now uses TournamentWatcher in-memory data exclusively (no RPC)
   // Dedup: if a standings scan is already running for a tournament, share the result
   const pendingStandings = new Map<number, Promise<any>>();
 
@@ -388,54 +394,99 @@ export function registerTournamentRoutes(app: FastifyInstance, publicClient: Pub
   });
 
   // GET /api/tournaments/open — Registration-status tournaments for agent polling
+  // Step 1: Use TournamentWatcher's in-memory data for candidate discovery (zero-RPC).
+  // Step 2: For each candidate (~1-2), do ONE chain read to get live registeredCount & status.
+  // Total: 1-2 RPC calls instead of the original 21+ per request.
   app.get('/api/tournaments/open', async (_request, reply) => {
     if (!checkPublicRateLimit(_request)) return reply.status(429).send({ error: 'Rate limited' });
-    try {
-      const protocolState = await publicClient.readContract({
-        address: CONFIG.contractAddress as Address,
-        abi: TOURNAMENT_ABI,
-        functionName: 'protocol',
-      });
 
-      const total = Number(protocolState[5]);
-      if (total === 0) return reply.send({ tournaments: [] });
+    const nowSec = Math.floor(Date.now() / 1000);
+    const recent = tournamentWatcher.getRecentNotifications();
+    const candidates = [];
 
-      // Check last 20 tournaments for open registration
-      const start = Math.max(0, total - 20);
-      const tournaments = [];
-      for (let i = total - 1; i >= start; i--) {
-        try {
-          const raw = await publicClient.readContract({
-            address: CONFIG.contractAddress as Address,
-            abi: TOURNAMENT_ABI,
-            functionName: 'getTournament',
-            args: [BigInt(i)],
-          });
-          if (!raw.exists || raw.status !== 0) continue; // status 0 = Registration
-          const t = formatTournament(raw);
-          tournaments.push({
-            tournamentId: t.id,
-            tier: t.tier,
-            format: t.format,
-            entryFee: t.entryFee,
-            maxPlayers: t.maxPlayers,
-            registeredCount: t.registeredCount,
-            spotsRemaining: t.maxPlayers - t.registeredCount,
-            startTime: t.startTime,
-            registrationDeadline: t.registrationDeadline,
-            baseTimeSeconds: t.baseTimeSeconds,
-            incrementSeconds: t.incrementSeconds,
-          });
-        } catch { /* skip */ }
+    for (const n of recent) {
+      // Pre-filter: only tournaments with unexpired deadlines
+      if (n.registrationDeadline && nowSec < n.registrationDeadline) {
+        candidates.push(n);
+      }
+    }
+
+    // Enrich each candidate with live on-chain registeredCount & status
+    const tournaments = [];
+    for (const n of candidates) {
+      let registeredCount = 0;
+      let spotsRemaining = n.maxPlayers;
+      try {
+        const raw = await publicClient.readContract({
+          address: CONFIG.contractAddress as Address,
+          abi: TOURNAMENT_ABI,
+          functionName: 'getTournament',
+          args: [BigInt(n.tournamentId)],
+        });
+        // Skip if no longer in Registration status (0) or doesn't exist
+        if (!raw.exists || raw.status !== 0) continue;
+        // Skip if full
+        if (raw.registeredCount >= raw.maxPlayers) continue;
+        registeredCount = Number(raw.registeredCount);
+        spotsRemaining = Number(raw.maxPlayers) - registeredCount;
+      } catch {
+        // RPC failed — still include with in-memory data so agents can try
+        // (they'll get a revert if it's actually full)
       }
 
-      // Sort by deadline (soonest first)
-      tournaments.sort((a, b) => a.registrationDeadline - b.registrationDeadline);
-
-      return reply.send({ tournaments });
-    } catch (err: any) {
-      return reply.status(500).send({ error: 'Failed to read tournament data from chain' });
+      tournaments.push({
+        tournamentId: n.tournamentId,
+        tier: n.tier,
+        format: n.format,
+        entryFee: n.entryFee,
+        maxPlayers: n.maxPlayers,
+        registeredCount,
+        spotsRemaining,
+        startTime: n.startTime,
+        registrationDeadline: n.registrationDeadline,
+        baseTimeSeconds: n.baseTimeSeconds,
+        incrementSeconds: n.incrementSeconds,
+      });
     }
+
+    // Sort by deadline (soonest first)
+    tournaments.sort((a, b) => a.registrationDeadline - b.registrationDeadline);
+    return reply.send({ tournaments });
+  });
+
+  // POST /api/internal/tournament-completed — Notify agents of tournament completion + prize distribution
+  app.post('/api/internal/tournament-completed', async (request, reply) => {
+    const serviceKey = (request.headers as any)['x-service-key'] as string;
+    if (!serviceKey || !CONFIG.serviceApiKey || !safeKeyCheck(serviceKey, CONFIG.serviceApiKey)) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    const body = request.body as {
+      tournamentId: number;
+      winners: Array<{ wallet: string; prize: number; place: number }>;
+    };
+
+    if (typeof body.tournamentId !== 'number' || !Array.isArray(body.winners)) {
+      return reply.status(400).send({ error: 'Invalid payload' });
+    }
+
+    const notification = {
+      type: 'tournament:completed' as const,
+      tournamentId: body.tournamentId,
+      winners: body.winners,
+      timestamp: Date.now(),
+    };
+
+    // Broadcast via WebSocket to all connected agents
+    socketBridge?.broadcastToAllAgents('tournament:completed', notification);
+
+    // Deliver via webhooks (cast to any — completed notification has different shape than TournamentNotification)
+    if (webhookRegistry) {
+      webhookRegistry.deliverAll(notification as any).catch(console.error);
+    }
+
+    console.log(`[tournament-completed] Tournament #${body.tournamentId} completed, notified ${body.winners.length} winners`);
+    return reply.send({ ok: true });
   });
 
   // POST /api/internal/tournament-notify — Fast-path trigger from orchestrator
@@ -445,12 +496,12 @@ export function registerTournamentRoutes(app: FastifyInstance, publicClient: Pub
       return reply.status(403).send({ error: 'Forbidden' });
     }
 
-    const { tournamentId } = request.body as { tournamentId: number };
+    const { tournamentId, tournament: tournamentData } = request.body as { tournamentId: number; tournament?: any };
     if (typeof tournamentId !== 'number' || tournamentId < 0) {
       return reply.status(400).send({ error: 'Invalid tournamentId' });
     }
 
-    await tournamentWatcher.triggerNotification(tournamentId);
+    await tournamentWatcher.triggerNotification(tournamentId, tournamentData);
     return reply.send({ ok: true });
   });
 }

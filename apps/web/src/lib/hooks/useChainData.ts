@@ -73,6 +73,8 @@ export interface TournamentListItem {
   currentRound: number;
   totalRounds: number;
   prizePool: number;
+  startTime: number;
+  registrationDeadline: number;
 }
 
 export function useTournaments() {
@@ -127,6 +129,8 @@ export function useTournaments() {
             currentRound: t.currentRound,
             totalRounds: t.totalRounds,
             prizePool,
+            startTime: Number(t.startTime),
+            registrationDeadline: Number(t.registrationDeadline),
           });
         } catch { /* skip */ }
       }
@@ -180,10 +184,16 @@ export function useTournament(id: number) {
 
   const fetchTournament = useCallback(async () => {
     try {
-      const t = await publicClient.readContract({
-        address: CONTRACT, abi: CHESSBOTS_ABI, functionName: 'getTournament',
-        args: [BigInt(id)],
-      });
+      const [t, collected] = await Promise.all([
+        publicClient.readContract({
+          address: CONTRACT, abi: CHESSBOTS_ABI, functionName: 'getTournament',
+          args: [BigInt(id)],
+        }),
+        publicClient.readContract({
+          address: CONTRACT, abi: CHESSBOTS_ABI, functionName: 'tournamentCollected',
+          args: [BigInt(id)],
+        }).catch(() => BigInt(0)),
+      ]);
       if (!t.exists) { setLoading(false); return; }
 
       const tierName = (TierNames[t.tier] || 'Unknown').toLowerCase();
@@ -195,6 +205,10 @@ export function useTournament(id: number) {
         : rawStatus.toLowerCase();
       // FE-C2: Use formatUnits for safe uint256→number conversion
       const entryFee = parseFloat(formatUnits(t.entryFee as bigint, 6));
+
+      // Use actual collected amount when available, fallback to calculated
+      const collectedPool = parseFloat(formatUnits(collected as bigint, 6));
+      const prizePool = collectedPool > 0 ? collectedPool : entryFee * t.registeredCount;
 
       // V3 format fields — defaults for V2 compat
       const tAny = t as any;
@@ -212,7 +226,7 @@ export function useTournament(id: number) {
         registeredCount: t.registeredCount,
         currentRound: t.currentRound,
         totalRounds: t.totalRounds,
-        prizePool: entryFee * t.registeredCount,
+        prizePool,
         startTime: Number(t.startTime),
         registrationDeadline: Number(t.registrationDeadline),
         baseTimeSeconds: t.baseTimeSeconds,

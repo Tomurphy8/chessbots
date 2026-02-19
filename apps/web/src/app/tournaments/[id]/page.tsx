@@ -16,6 +16,7 @@ import { useTournamentGames } from '@/lib/hooks/useTournamentGames';
 import { SponsorModal } from '@/components/SponsorModal';
 import { TournamentBetting } from '@/components/TournamentBetting';
 import { ShareButton } from '@/components/ShareButton';
+import { LiveGamesCarousel } from '@/components/LiveGamesCarousel';
 
 export default function TournamentDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -191,6 +192,13 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
         </div>
       </div>
 
+      {/* Live Games Carousel — shown during active tournament */}
+      {(t.status === 'round_active' || t.status === 'in_progress') && (
+        <div className="mb-6">
+          <LiveGamesCarousel tournamentId={tournamentId} />
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-4 border-b border-chess-border mb-6">
         {(['standings', 'games', 'info'] as const).map((tab) => (
@@ -322,6 +330,18 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
                 {isTeam && t.teamSize > 0 && <div className="flex justify-between"><span className="text-gray-500">Team Size</span><span>{t.teamSize} players</span></div>}
                 <div className="flex justify-between"><span className="text-gray-500">{is1v1 ? 'Games' : 'Rounds'}</span><span>{t.totalRounds}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Time Control</span><span>{t.baseTimeSeconds / 60}+{t.incrementSeconds}s</span></div>
+                {t.startTime > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Started</span>
+                    <span>{new Date(t.startTime * 1000).toLocaleString()}</span>
+                  </div>
+                )}
+                {t.registrationDeadline > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Reg. Deadline</span>
+                    <span>{new Date(t.registrationDeadline * 1000).toLocaleString()}</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="border border-chess-border rounded-xl p-5 bg-chess-surface">

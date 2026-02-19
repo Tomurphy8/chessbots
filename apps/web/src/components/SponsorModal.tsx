@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { X } from 'lucide-react';
-import { useAccount, useWriteContract } from 'wagmi';
+import { useAccount, useWriteContract, useSwitchChain } from 'wagmi';
 import { parseUnits, type Address } from 'viem';
 import { CHAIN } from '@/lib/chains';
 import { CHESSBOTS_ABI } from '@/lib/contracts/evm';
@@ -18,8 +18,10 @@ interface SponsorModalProps {
 }
 
 export function SponsorModal({ isOpen, onClose, tournamentId, onSuccess }: SponsorModalProps) {
-  const { address } = useAccount();
+  const { address, chainId } = useAccount();
   const { writeContractAsync, isPending } = useWriteContract();
+  const { switchChainAsync } = useSwitchChain();
+  const isWrongChain = chainId !== undefined && chainId !== CHAIN.evmChainId;
 
   const [amount, setAmount] = useState('');
   const [sponsorName, setSponsorName] = useState('');
@@ -61,6 +63,7 @@ export function SponsorModal({ isOpen, onClose, tournamentId, onSuccess }: Spons
         abi: CHESSBOTS_ABI,
         functionName: 'sponsorTournament',
         args: [BigInt(tournamentId), parsedAmount, sponsorName.trim(), sponsorUri.trim()],
+        chainId: CHAIN.evmChainId,
       });
 
       setSuccess(true);
@@ -146,6 +149,20 @@ export function SponsorModal({ isOpen, onClose, tournamentId, onSuccess }: Spons
 
             {!address ? (
               <p className="text-sm text-gray-500 text-center">Connect your wallet to sponsor this tournament.</p>
+            ) : isWrongChain ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await switchChainAsync({ chainId: CHAIN.evmChainId });
+                  } catch (e: any) {
+                    setError(e.shortMessage || e.message || 'Failed to switch chain');
+                  }
+                }}
+                className="w-full py-3 bg-orange-600 hover:bg-orange-500 rounded-lg text-sm font-medium transition-colors"
+              >
+                Switch to Monad Network
+              </button>
             ) : needsApproval ? (
               <button
                 type="button"

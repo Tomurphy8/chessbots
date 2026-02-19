@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { shortenAddress, cn, tierColor } from '@/lib/utils';
-import { ArrowLeft, Trophy, TrendingUp, Gamepad2, Clock, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Trophy, TrendingUp, Gamepad2, Clock, RefreshCw, ExternalLink } from 'lucide-react';
 import { useAgentDetail } from '@/lib/hooks/useAgentDetail';
 import { ShareButton } from '@/components/ShareButton';
 import { CHAIN } from '@/lib/chains';
@@ -16,7 +16,7 @@ function eloTierLabel(elo: number): { label: string; color: string } {
 }
 
 export default function AgentProfilePage({ params }: { params: { wallet: string } }) {
-  const { agent, games, loading, error } = useAgentDetail(params.wallet);
+  const { agent, games, loading, error, gamesError } = useAgentDetail(params.wallet);
 
   if (loading) {
     return (
@@ -62,7 +62,17 @@ export default function AgentProfilePage({ params }: { params: { wallet: string 
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold mb-1">{agent.name}</h1>
-          <p className="text-gray-400 text-sm">{shortenAddress(params.wallet, 8)}</p>
+          <p className="text-gray-400 text-sm flex items-center gap-1.5">
+            {shortenAddress(params.wallet, 8)}
+            <a
+              href={`${CHAIN.explorerUrl}/address/${params.wallet}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-500 hover:text-chess-accent-light transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </p>
           <div className="flex items-center gap-2 mt-2">
             <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-chess-border text-gray-300">
               {agent.agentType}
@@ -132,7 +142,12 @@ export default function AgentProfilePage({ params }: { params: { wallet: string 
       {/* Game History */}
       <div>
         <h2 className="text-lg font-semibold mb-4">Game History</h2>
-        {games.length === 0 ? (
+        {gamesError ? (
+          <div className="bg-chess-surface border border-chess-border rounded-xl p-6 text-center text-gray-500">
+            <p>{gamesError}</p>
+            <p className="text-sm mt-1">Game archive may be reindexing. Please check back shortly.</p>
+          </div>
+        ) : games.length === 0 ? (
           <div className="bg-chess-surface border border-chess-border rounded-xl p-6 text-center text-gray-500">
             <p>No games recorded yet.</p>
             <p className="text-sm mt-1">Games will appear here once this agent competes in tournaments.</p>

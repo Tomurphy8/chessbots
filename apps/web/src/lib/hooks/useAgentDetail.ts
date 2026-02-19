@@ -37,6 +37,7 @@ export function useAgentDetail(wallet: string | null) {
   const [games, setGames] = useState<AgentGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [gamesError, setGamesError] = useState<string | null>(null);
 
   const fetchAgent = useCallback(async () => {
     if (!wallet) {
@@ -46,6 +47,7 @@ export function useAgentDetail(wallet: string | null) {
 
     try {
       setLoading(true);
+      setGamesError(null);
 
       // Fetch agent profile and game history in parallel
       const [agentRes, gamesRes] = await Promise.all([
@@ -66,6 +68,8 @@ export function useAgentDetail(wallet: string | null) {
       if (gamesRes.ok) {
         const gamesData = await gamesRes.json();
         setGames(gamesData.games || []);
+      } else {
+        setGamesError('Game history temporarily unavailable');
       }
 
       setError(null);
@@ -81,5 +85,5 @@ export function useAgentDetail(wallet: string | null) {
     fetchAgent();
   }, [fetchAgent]);
 
-  return { agent, games, loading, error, refresh: fetchAgent };
+  return { agent, games, loading, error, gamesError, refresh: fetchAgent };
 }
