@@ -200,6 +200,8 @@ async function main() {
       const minPlayersReadyAt = new Map<number, number>();
       // Grace period (seconds) after minPlayers reached before starting (allows late joins)
       const EARLY_START_GRACE_SEC = 30;
+      // Max concurrent tournament runners to avoid overwhelming the chess engine
+      const MAX_CONCURRENT_RUNNERS = 3;
 
       // ── Health check HTTP server for Railway liveness probes ──
       const healthPort = parseInt(process.env.HEALTH_PORT || process.env.PORT || '3003');
@@ -249,8 +251,11 @@ async function main() {
           const totalTournaments = Number(protocol[5]);
 
           // Tournament IDs are 0-indexed: iterate from 0 to totalTournaments - 1
-          // Re-check ALL tournaments each poll (skipping completed/running ones)
-          for (let id = 0; id < totalTournaments; id++) {
+          // Only check recent tournaments (last 30) to avoid scanning the full history.
+          // Older tournaments should already be in completedTournaments; if the
+          // orchestrator just restarted, this catchup window handles most cases.
+          const scanStart = Math.max(0, totalTournaments - 30);
+          for (let id = scanStart; id < totalTournaments; id++) {
             if (isShuttingDown) break;
             if (runningTournaments.has(id)) continue;
             if (completedTournaments.has(id)) continue;
@@ -272,60 +277,68 @@ async function main() {
               continue;
             }
 
-            // Helper: build config and launch runner for a tournament
-            const launchRunner = async (reason: string) => {
+            // Helper: launch a tournament runner concurrently (fire-and-forget).
+            // IMPORTANT: adds to runningTournaments synchronously to prevent
+            // double-triggering on the next poll cycle, then runs async.
+            const launchRunner = (reason: string) => {
+              // Immediately mark as running + completed to prevent re-triggering
+              runningTournaments.add(id);
+              completedTournaments.add(id);
+
               log('info', `Tournament #${id} ${reason} — launching runner`, {
                 tournamentId: id,
                 status: t.status,
                 playerCount: t.registeredCount,
                 tier: t.tier,
+                concurrentRunners: runningTournaments.size,
               });
 
-              const wallets = await chain.getRegisteredWallets(BigInt(id), t.registeredCount);
-              if (wallets.length < t.minPlayers) {
-                log('warn', `Tournament #${id}: found ${wallets.length} wallets but need ${t.minPlayers}, skipping`, {
-                  tournamentId: id,
-                });
-                return;
-              }
+              // Fire-and-forget — don't block the watch loop
+              (async () => {
+                try {
+                  const wallets = await chain.getRegisteredWallets(BigInt(id), t.registeredCount);
+                  if (wallets.length < t.minPlayers) {
+                    log('warn', `Tournament #${id}: found ${wallets.length} wallets but need ${t.minPlayers}, skipping`, {
+                      tournamentId: id,
+                    });
+                    runningTournaments.delete(id);
+                    return;
+                  }
 
-              const TIER_NAMES: TournamentTier[] = ['rookie', 'bronze', 'silver', 'masters', 'legends', 'free'];
-              const tier = TIER_NAMES[t.tier] || 'rookie';
-              const format = FORMAT_NAMES[t.format ?? 0] || 'swiss';
-              const defaults = TIER_DEFAULTS[tier];
+                  const TIER_NAMES: TournamentTier[] = ['rookie', 'bronze', 'silver', 'masters', 'legends', 'free'];
+                  const tier = TIER_NAMES[t.tier] || 'rookie';
+                  const format = FORMAT_NAMES[t.format ?? 0] || 'swiss';
+                  const defaults = TIER_DEFAULTS[tier];
 
-              const config: TournamentConfig = {
-                tournamentId: id,
-                tier,
-                format,
-                maxPlayers: t.maxPlayers,
-                minPlayers: t.minPlayers,
-                totalRounds: t.totalRounds,
-                timeControl: {
-                  baseTimeSeconds: t.baseTimeSeconds || defaults.timeControl.baseTimeSeconds,
-                  incrementSeconds: t.incrementSeconds || defaults.timeControl.incrementSeconds,
-                },
-                freeTierPrizeUsdc: tier === 'free' ? freeTierPrizeUsdc : undefined,
-                bestOf: t.bestOf,
-                teamSize: t.teamSize,
-              };
+                  const config: TournamentConfig = {
+                    tournamentId: id,
+                    tier,
+                    format,
+                    maxPlayers: t.maxPlayers,
+                    minPlayers: t.minPlayers,
+                    totalRounds: t.totalRounds,
+                    timeControl: {
+                      baseTimeSeconds: t.baseTimeSeconds || defaults.timeControl.baseTimeSeconds,
+                      incrementSeconds: t.incrementSeconds || defaults.timeControl.incrementSeconds,
+                    },
+                    freeTierPrizeUsdc: tier === 'free' ? freeTierPrizeUsdc : undefined,
+                    bestOf: t.bestOf,
+                    teamSize: t.teamSize,
+                  };
 
-              runningTournaments.add(id);
-              completedTournaments.add(id);
-
-              try {
-                const runner = new TournamentRunner(chain, engine, config, stateManager, gatewayUrl, serviceKey);
-                await runner.run(wallets);
-                log('info', `Tournament #${id} completed successfully`, { tournamentId: id });
-              } catch (err: any) {
-                log('error', `Tournament #${id} failed`, {
-                  tournamentId: id,
-                  error: err.message,
-                  stack: err.stack,
-                });
-              } finally {
-                runningTournaments.delete(id);
-              }
+                  const runner = new TournamentRunner(chain, engine, config, stateManager, gatewayUrl, serviceKey);
+                  await runner.run(wallets);
+                  log('info', `Tournament #${id} completed successfully`, { tournamentId: id });
+                } catch (err: any) {
+                  log('error', `Tournament #${id} failed`, {
+                    tournamentId: id,
+                    error: err.message,
+                    stack: err.stack,
+                  });
+                } finally {
+                  runningTournaments.delete(id);
+                }
+              })();
             };
 
             // Registration (status 0): start when full, start at deadline, or cancel if expired with too few players
@@ -358,7 +371,11 @@ async function main() {
               if (t.registeredCount >= t.minPlayers) {
                 // Start immediately if FULL — no more players can join anyway
                 if (t.registeredCount >= t.maxPlayers) {
-                  await launchRunner('full — starting immediately');
+                  if (runningTournaments.size >= MAX_CONCURRENT_RUNNERS) {
+                    log('info', `Tournament #${id} full but ${runningTournaments.size} runners active — deferring`, { tournamentId: id });
+                  } else {
+                    launchRunner('full — starting immediately');
+                  }
                   continue;
                 }
                 // minPlayers reached but not full — give a short grace period for
@@ -369,8 +386,12 @@ async function main() {
                 }
                 const readySince = minPlayersReadyAt.get(id)!;
                 if (deadlinePassed || (now - readySince) >= EARLY_START_GRACE_SEC) {
-                  minPlayersReadyAt.delete(id);
-                  await launchRunner(`minPlayers reached (${t.registeredCount}/${t.maxPlayers}) — grace period elapsed`);
+                  if (runningTournaments.size >= MAX_CONCURRENT_RUNNERS) {
+                    log('info', `Tournament #${id} ready but ${runningTournaments.size} runners active — deferring`, { tournamentId: id });
+                  } else {
+                    minPlayersReadyAt.delete(id);
+                    launchRunner(`minPlayers reached (${t.registeredCount}/${t.maxPlayers}) — grace period elapsed`);
+                  }
                   continue;
                 }
               } else if (deadlinePassed) {
@@ -397,7 +418,11 @@ async function main() {
 
             // InProgress (1) or RoundActive (2): resume — tournament was started but runner isn't running
             if (t.status === 1 || t.status === 2) {
-              await launchRunner(`needs resume (status=${t.status}, round=${t.currentRound}/${t.totalRounds})`);
+              if (runningTournaments.size >= MAX_CONCURRENT_RUNNERS) {
+                log('info', `Tournament #${id} needs resume but ${runningTournaments.size} runners active — deferring`, { tournamentId: id });
+              } else {
+                launchRunner(`needs resume (status=${t.status}, round=${t.currentRound}/${t.totalRounds})`);
+              }
             }
           }
         } catch (err: any) {
