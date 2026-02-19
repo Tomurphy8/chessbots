@@ -272,10 +272,10 @@ async function main() {
 
           // Tournament IDs are 0-indexed: iterate from 0 to totalTournaments - 1
           // Only check recent tournaments (last 30) to avoid scanning the full history.
-          // Older tournaments should already be in completedTournaments; if the
-          // orchestrator just restarted, this catchup window handles most cases.
+          // Scan NEWEST first (descending) so new Registration tournaments get priority
+          // over old stuck InProgress/RoundActive ones that would consume the runner slot.
           const scanStart = Math.max(0, totalTournaments - 30);
-          for (let id = scanStart; id < totalTournaments; id++) {
+          for (let id = totalTournaments - 1; id >= scanStart; id--) {
             if (isShuttingDown) break;
             if (runningTournaments.has(id)) continue;
             if (completedTournaments.has(id)) continue;
