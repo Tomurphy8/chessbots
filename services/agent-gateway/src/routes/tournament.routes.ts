@@ -464,6 +464,36 @@ export function registerTournamentRoutes(
     return reply.send({ ok: true });
   });
 
+  // POST /api/internal/game-started — Orchestrator notifies gateway that a game has started.
+  // This solves the chicken-and-egg problem: agents can't subscribe to a game room before
+  // they know the gameId, but game:started fires on the engine before agents subscribe.
+  // The orchestrator calls this AFTER starting each game on the chess engine.
+  app.post('/api/internal/game-started', async (request, reply) => {
+    const serviceKey = (request.headers as any)['x-service-key'] as string;
+    if (!serviceKey || !CONFIG.serviceApiKey || !safeKeyCheck(serviceKey, CONFIG.serviceApiKey)) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    const { games } = request.body as {
+      games: Array<{ gameId: string; white: string; black: string; tournamentId?: number }>;
+    };
+
+    if (!Array.isArray(games) || games.length === 0) {
+      return reply.status(400).send({ error: 'games array required' });
+    }
+
+    const bridge = getSocketBridge();
+    if (!bridge) {
+      return reply.status(503).send({ error: 'SocketBridge not ready' });
+    }
+
+    for (const g of games) {
+      bridge.notifyGameStarted(g.gameId, g.white, g.black, g.tournamentId);
+    }
+
+    return reply.send({ ok: true, notified: games.length });
+  });
+
   // POST /api/internal/tournament-notify — Fast-path trigger from orchestrator
   app.post('/api/internal/tournament-notify', async (request, reply) => {
     const serviceKey = (request.headers as any)['x-service-key'] as string;

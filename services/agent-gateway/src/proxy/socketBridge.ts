@@ -312,6 +312,36 @@ export class SocketBridge {
     this.agentServer.of('/spectator').to(`tournament:${tournamentId}`).emit(event, data);
   }
 
+  /**
+   * Pre-subscribe to a game room on the chess engine and push game:started
+   * directly to the participating players by wallet. Called by the orchestrator
+   * via /api/internal/game-started so agents learn about games immediately
+   * (solves the chicken-and-egg problem where agents can't subscribe to a game
+   * room before they know the gameId, but the event fires before they know it).
+   */
+  notifyGameStarted(gameId: string, white: string, black: string, tournamentId?: number): void {
+    // 1. Pre-subscribe to this game room on the chess engine so future
+    //    game:move and game:ended events relay through the bridge.
+    if (!this.trackedGames.has(gameId)) {
+      this.trackedGames.add(gameId);
+      this.gameRefCount.set(gameId, (this.gameRefCount.get(gameId) || 0) + 1);
+      this.engineClient.emit('join:game', gameId);
+    }
+
+    // 2. Build the game:started payload
+    const data = { gameId, white, black, tournamentId };
+
+    // 3. Push directly to both players by wallet — they don't need to be
+    //    subscribed to the game room yet, their socket just needs to be connected.
+    this.emitToWallet(white, 'game:started', data);
+    this.emitToWallet(black, 'game:started', data);
+
+    // 4. Also deliver via webhook for offline agents
+    if (this.webhookRegistry) {
+      this.webhookRegistry.deliverToWallets([white, black], 'game:started', data);
+    }
+  }
+
   getConnectedAgentCount(): number {
     return this.agentServer.sockets.sockets.size;
   }

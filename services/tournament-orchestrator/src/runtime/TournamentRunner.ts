@@ -377,6 +377,27 @@ export class TournamentRunner {
     );
     console.log(`  ${gameIds.length} games started on engine.`);
 
+    // 2b. Notify the gateway so it pushes game:started to agents via socket + webhook.
+    // This solves the chicken-and-egg problem: agents can't subscribe to a game room
+    // before they know the gameId, and game:started on the engine fires before they know.
+    if (this.gatewayUrl) {
+      const games = roundResult.pairings.map(p => ({
+        gameId: `t${this.config.tournamentId}-r${round}-g${p.gameIndex}`,
+        white: p.white,
+        black: p.black,
+        tournamentId: this.config.tournamentId,
+      }));
+      fetch(`${this.gatewayUrl}/api/internal/game-started`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.serviceKey ? { 'x-service-key': this.serviceKey } : {}),
+        },
+        body: JSON.stringify({ games }),
+        signal: AbortSignal.timeout(5000),
+      }).catch(err => console.warn(`  Failed to notify gateway of game starts: ${(err as Error).message}`));
+    }
+
     // 3. Create games on-chain (now that engine is ready)
     // TO-H1(R7): Check if games were already created on-chain for this round (crash recovery).
     // If we crash after on-chain creation but before completion, we must not re-create.
@@ -617,6 +638,25 @@ export class TournamentRunner {
       this.config.timeControl,
     );
     console.log(`  ${gameIds.length} board games started on engine.`);
+
+    // 2b. Notify gateway so agents receive game:started push (same fix as runRound)
+    if (this.gatewayUrl) {
+      const games = roundResult.pairings.map(p => ({
+        gameId: `t${this.config.tournamentId}-r${round}-g${p.gameIndex}`,
+        white: p.white,
+        black: p.black,
+        tournamentId: this.config.tournamentId,
+      }));
+      fetch(`${this.gatewayUrl}/api/internal/game-started`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.serviceKey ? { 'x-service-key': this.serviceKey } : {}),
+        },
+        body: JSON.stringify({ games }),
+        signal: AbortSignal.timeout(5000),
+      }).catch(err => console.warn(`  Failed to notify gateway of game starts: ${(err as Error).message}`));
+    }
 
     // 3. Create games on-chain
     const roundAlreadyCreatedOnChain = this.stateManager?.isRoundCreatedOnChain(this.config.tournamentId, round) || false;
