@@ -49,4 +49,10 @@ export const CONFIG = {
 
   // Block at which the V3 contract was deployed (for event scanning)
   deployBlock: BigInt(process.env.DEPLOY_BLOCK || '56622904'),
+
+  // Legacy contracts — agent stats are summed across all deployments for cumulative totals
+  legacyContracts: [
+    { address: '0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8', deployBlock: 55948950n },  // V2
+    { address: '0x952d995DA79deDC98dD20A18036eb7464f0002fd', deployBlock: 55948950n },  // V3 (uint8 limit)
+  ],
 } as const;

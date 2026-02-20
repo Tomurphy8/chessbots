@@ -58,6 +58,7 @@ async function main() {
     publicClient,
     CONFIG.contractAddress as Address,
     CONFIG.deployBlock,
+    CONFIG.legacyContracts,
   );
 
   const gameArchive = new GameArchive();
