@@ -48,8 +48,8 @@ contract ChessBotsTournamentV3 is IChessBotsTournamentV3 {
         uint64 totalTournaments;
         uint256 totalPrizeDistributed;
         bool paused;
-        uint8 sponsoredFreeTournaments;
-        uint8 maxFreeTournaments;
+        uint16 sponsoredFreeTournaments;
+        uint16 maxFreeTournaments;
     }
 
     uint64 public totalGamesPlayed;
@@ -297,7 +297,7 @@ contract ChessBotsTournamentV3 is IChessBotsTournamentV3 {
         emit TreasuryUpdated(oldTreasury, _newTreasury);
     }
 
-    function setFreeTournamentLimit(uint8 _newLimit) external onlyAuthority {
+    function setFreeTournamentLimit(uint16 _newLimit) external onlyAuthority {
         protocol.maxFreeTournaments = _newLimit;
         emit FreeTournamentLimitUpdated(_newLimit);
     }

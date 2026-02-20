@@ -35,7 +35,7 @@ library TournamentLibV3 {
     enum AgentType { OpenClaw, SolanaAgentKit, Custom }
 
     uint256 constant LEGENDS_MIN_ENTRY = 500e6;
-    uint8 constant MAX_SPONSORED_FREE_DEFAULT = 10;
+    uint16 constant MAX_SPONSORED_FREE_DEFAULT = 10;
 
     function entryFee(Tier tier) internal pure returns (uint256) {
         if (tier == Tier.Rookie) return 5e6;

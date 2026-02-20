@@ -39,7 +39,7 @@ interface IChessBotsTournamentV3 {
     event AuthorityTransferAccepted(address indexed oldAuthority, address indexed newAuthority);
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event TournamentFunded(uint256 indexed tournamentId, uint256 amount);
-    event FreeTournamentLimitUpdated(uint8 newLimit);
+    event FreeTournamentLimitUpdated(uint16 newLimit);
 
     // --- Referral Events ---
     event ReferralRegistered(address indexed agent, address indexed referrer);
