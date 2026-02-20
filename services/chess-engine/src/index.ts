@@ -32,6 +32,12 @@ async function main() {
   });
   const gameManager = new GameManager();
 
+  // Emit game:ended via Socket.IO when a game times out (previously silent)
+  gameManager.onGameTimeout = (gameId, info) => {
+    io.to(`game:${gameId}`).emit('game:ended', info);
+    io.to(`tournament:${info.tournamentId}`).emit('game:ended', info);
+  };
+
   const GAME_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
 
   io.on('connection', (socket) => {

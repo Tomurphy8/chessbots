@@ -8,6 +8,8 @@ const TIMEOUT_CHECK_INTERVAL_MS = 1_000; // CE-H6: check timeouts every 1s — f
 export class GameManager {
   private games: Map<string, ChessGame> = new Map();
   private completedTimestamps: Map<string, number> = new Map();
+  /** Callback fired when a game ends via timeout (so Socket.IO can emit game:ended) */
+  public onGameTimeout: ((gameId: string, info: GameInfo) => void) | null = null;
 
   constructor() {
     // CE-H4: periodic cleanup of completed games
@@ -97,9 +99,18 @@ export class GameManager {
   }
 
   // CE-H6: check all active games for timeouts
+  // Now emits game:ended via callback so Socket.IO can notify agents
   private checkAllTimeouts(): void {
     for (const game of this.games.values()) {
-      game.checkTimeout();
+      const wasActive = !game.isGameOver();
+      const timedOut = game.checkTimeout();
+      if (timedOut && wasActive) {
+        const info = game.getInfo();
+        this.markCompleted(info.gameId);
+        if (this.onGameTimeout) {
+          this.onGameTimeout(info.gameId, info);
+        }
+      }
     }
   }
 }

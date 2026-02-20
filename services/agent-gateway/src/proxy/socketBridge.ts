@@ -38,7 +38,14 @@ export class SocketBridge {
   // Track game participants so we can push game:move directly to wallets
   private gameParticipants = new Map<string, { white: string; black: string }>();
   // Diagnostic counters for health endpoint
-  public diagnostics = { notifyGameStarted: 0, gameMoveRelayed: 0, walletPushSent: 0 };
+  public diagnostics = {
+    notifyGameStarted: 0,
+    gameMoveRelayed: 0,
+    walletPushSent: 0,
+    gameEndedRelayed: 0,
+    autoJoinSuccess: 0,
+    autoJoinEmpty: 0,
+  };
 
   constructor(agentServer: SocketServer, webhookRegistry?: WebhookRegistry) {
     this.agentServer = agentServer;
@@ -102,6 +109,7 @@ export class SocketBridge {
     });
 
     this.engineClient.on('game:ended', (data: any) => {
+      this.diagnostics.gameEndedRelayed++;
       this.agentServer.to(`game:${data.gameId}`).emit('game:ended', data);
       this.agentServer.of('/spectator').to(`game:${data.gameId}`).emit('game:ended', data);
       if (data.tournamentId) {
@@ -365,19 +373,21 @@ export class SocketBridge {
       const sockets = this.agentServer.in(walletRoom).fetchSockets();
       // fetchSockets returns a Promise — fire-and-forget but fast (local adapter)
       (sockets as unknown as Promise<any[]>).then((matched) => {
-        for (const s of matched) {
-          s.join(gameRoom);
-          // Track subscription on the socket so cleanup on disconnect works
-          if (s.subscribedGames) {
-            s.subscribedGames.add(gameId);
-          }
-        }
         if (matched.length > 0) {
-          // Bump ref count for engine-side tracking
+          this.diagnostics.autoJoinSuccess++;
+          for (const s of matched) {
+            s.join(gameRoom);
+            if (s.subscribedGames) {
+              s.subscribedGames.add(gameId);
+            }
+          }
           const count = this.gameRefCount.get(gameId) || 0;
           this.gameRefCount.set(gameId, count + matched.length);
+        } else {
+          this.diagnostics.autoJoinEmpty++;
+          console.log(`[SocketBridge] auto-join: no sockets found for ${wallet.slice(0,10)} in ${walletRoom}`);
         }
-      }).catch(() => {}); // Agent not connected — webhook fallback below
+      }).catch(() => { this.diagnostics.autoJoinEmpty++; });
     }
 
     // 4. Build the game:started payload
