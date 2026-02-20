@@ -31,6 +31,8 @@ export interface TournamentState {
   completedRounds: number[];
   // TO-H1(R7): Track which rounds have had games created on-chain (for mid-round crash recovery)
   roundsCreatedOnChain: number[];
+  // TO-H7: Track which rounds have had executeRound called on-chain (prevents "Wrong round" revert)
+  roundsExecutedOnChain: number[];
   startedOnChain: boolean;
   fundedOnChain: boolean;
   finalized: boolean;
@@ -137,6 +139,7 @@ export class StateManager {
       registeredWallets: wallets,
       completedRounds: [],
       roundsCreatedOnChain: [],
+      roundsExecutedOnChain: [],
       startedOnChain: false,
       fundedOnChain: false,
       finalized: false,
@@ -266,6 +269,32 @@ export class StateManager {
   isRoundCreatedOnChain(tournamentId: number, round: number): boolean {
     const t = this.state.activeTournaments[tournamentId];
     return t ? (t.roundsCreatedOnChain || []).includes(round) : false;
+  }
+
+  /**
+   * TO-H7: Mark that executeRound has been called on-chain for a specific round.
+   * This prevents the "Wrong round" contract revert during crash recovery:
+   * executeRound advances currentRound on-chain, so calling it twice for the
+   * same round causes `require(t.currentRound == round)` to fail.
+   */
+  markRoundExecutedOnChain(tournamentId: number, round: number): void {
+    const t = this.state.activeTournaments[tournamentId];
+    if (t) {
+      if (!t.roundsExecutedOnChain) t.roundsExecutedOnChain = [];
+      if (!t.roundsExecutedOnChain.includes(round)) {
+        t.roundsExecutedOnChain.push(round);
+      }
+      t.lastUpdatedAt = new Date().toISOString();
+      this.save();
+    }
+  }
+
+  /**
+   * TO-H7: Check if executeRound was already called on-chain for a round.
+   */
+  isRoundExecutedOnChain(tournamentId: number, round: number): boolean {
+    const t = this.state.activeTournaments[tournamentId];
+    return t ? (t.roundsExecutedOnChain || []).includes(round) : false;
   }
 
   /**

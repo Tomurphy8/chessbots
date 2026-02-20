@@ -501,23 +501,32 @@ export class TournamentRunner {
     }
 
     // 6. Submit round results on-chain
+    // TO-H7: Check if executeRound was already called on-chain (crash recovery).
+    // executeRound advances currentRound on-chain, so calling it twice causes
+    // "Wrong round" contract revert. This was the root cause of rounds 2+ failing.
+    const roundAlreadyExecutedOnChain = this.stateManager?.isRoundExecutedOnChain(this.config.tournamentId, round) || false;
     const standings = this.manager.getStandings();
     const isLastRound = round === this.config.totalRounds;
 
-    console.log('  Submitting results on-chain...');
-    await this.chain.executeRound(
-      tournamentId,
-      round,
-      chainResults,
-      standings.map(s => ({
-        ...s,
-        gamesPlayed: s.gamesPlayed,
-        gamesWon: s.gamesWon,
-        gamesDrawn: s.gamesDrawn,
-        gamesLost: s.gamesLost,
-      })),
-      !isLastRound, // advance = true if not the last round
-    );
+    if (roundAlreadyExecutedOnChain) {
+      console.log('  Round already executed on-chain (crash recovery), skipping executeRound.');
+    } else {
+      console.log('  Submitting results on-chain...');
+      await this.chain.executeRound(
+        tournamentId,
+        round,
+        chainResults,
+        standings.map(s => ({
+          ...s,
+          gamesPlayed: s.gamesPlayed,
+          gamesWon: s.gamesWon,
+          gamesDrawn: s.gamesDrawn,
+          gamesLost: s.gamesLost,
+        })),
+        !isLastRound, // advance = true if not the last round
+      );
+      this.stateManager?.markRoundExecutedOnChain(this.config.tournamentId, round);
+    }
 
     // Print standings
     console.log(`\n  Standings after round ${round}:`);
@@ -773,15 +782,22 @@ export class TournamentRunner {
     const standings = this.manager.getStandings();
     const isLastRound = round === this.config.totalRounds;
 
-    console.log('  Submitting results on-chain...');
-    await this.chain.executeRound(
-      tournamentId, round, chainResults,
-      standings.map(s => ({
-        ...s, gamesPlayed: s.gamesPlayed, gamesWon: s.gamesWon,
-        gamesDrawn: s.gamesDrawn, gamesLost: s.gamesLost,
-      })),
-      !isLastRound,
-    );
+    // TO-H7: Check if executeRound was already called on-chain (crash recovery).
+    const teamRoundAlreadyExecuted = this.stateManager?.isRoundExecutedOnChain(this.config.tournamentId, round) || false;
+    if (teamRoundAlreadyExecuted) {
+      console.log('  Round already executed on-chain (crash recovery), skipping executeRound.');
+    } else {
+      console.log('  Submitting results on-chain...');
+      await this.chain.executeRound(
+        tournamentId, round, chainResults,
+        standings.map(s => ({
+          ...s, gamesPlayed: s.gamesPlayed, gamesWon: s.gamesWon,
+          gamesDrawn: s.gamesDrawn, gamesLost: s.gamesLost,
+        })),
+        !isLastRound,
+      );
+      this.stateManager?.markRoundExecutedOnChain(this.config.tournamentId, round);
+    }
 
     // Print team standings
     console.log(`\n  Team standings after round ${round}:`);
