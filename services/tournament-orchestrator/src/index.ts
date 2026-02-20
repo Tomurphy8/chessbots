@@ -469,7 +469,7 @@ async function main() {
           const sponsoredFree = Number(proto[8]); // sponsoredFreeTournaments
           const maxFree = Number(proto[9]);        // maxFreeTournaments
           if (maxFree > 0 && maxFree - sponsoredFree <= 2) {
-            const newLimit = Math.min(maxFree + 20, 255); // uint8 max = 255
+            const newLimit = Math.min(maxFree + 50, 65535); // uint16 max = 65535
             log('info', `Free tournament cap near limit (${sponsoredFree}/${maxFree}), bumping to ${newLimit}`);
             await chain.setFreeTournamentLimit(newLimit);
           }

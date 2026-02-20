@@ -133,15 +133,15 @@ const TOURNAMENT_ABI = [
       { name: 'totalTournaments', type: 'uint64' },
       { name: 'totalPrizeDistributed', type: 'uint64' },
       { name: 'paused', type: 'bool' },
-      { name: 'sponsoredFreeTournaments', type: 'uint8' },
-      { name: 'maxFreeTournaments', type: 'uint8' },
+      { name: 'sponsoredFreeTournaments', type: 'uint16' },
+      { name: 'maxFreeTournaments', type: 'uint16' },
     ],
     stateMutability: 'view',
     type: 'function',
   },
   // setFreeTournamentLimit (write) — authority only
   {
-    inputs: [{ name: '_newLimit', type: 'uint8' }],
+    inputs: [{ name: '_newLimit', type: 'uint16' }],
     name: 'setFreeTournamentLimit',
     outputs: [],
     stateMutability: 'nonpayable',

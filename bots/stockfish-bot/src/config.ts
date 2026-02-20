@@ -13,7 +13,7 @@ export const monad = defineChain({
 // ─── Addresses ───────────────────────────────────────────────────────────────
 
 export const GATEWAY = process.env.GATEWAY_URL || 'https://agent-gateway-production-590d.up.railway.app';
-export const CONTRACT: Address = '0x952d995DA79deDC98dD20A18036eb7464f0002fd';
+export const CONTRACT: Address = '0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e';
 export const USDC: Address = '0x754704Bc059F8C67012fEd69BC8A327a5aafb603';
 
 // ─── ABIs (minimal — only what the bot needs) ────────────────────────────────
