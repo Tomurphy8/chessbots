@@ -37,15 +37,38 @@ export function useProtocolStats() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const [protocol, totalGames] = await Promise.all([
-        publicClient.readContract({ address: CONTRACT, abi: CHESSBOTS_ABI, functionName: 'protocol' }),
-        publicClient.readContract({ address: CONTRACT, abi: CHESSBOTS_ABI, functionName: 'totalGamesPlayed' }),
+      // Sum stats across current + legacy contracts for cumulative totals
+      const allContracts = [CONTRACT, ...CHAIN.legacyContracts.map(a => a as Address)];
+
+      const calls = allContracts.flatMap(addr => [
+        { address: addr, abi: CHESSBOTS_ABI, functionName: 'protocol' as const },
+        { address: addr, abi: CHESSBOTS_ABI, functionName: 'totalGamesPlayed' as const },
       ]);
+
+      const results = await publicClient.multicall({ contracts: calls, allowFailure: true });
+
+      let totalTournaments = 0;
+      let totalGamesPlayed = 0;
+      let totalPrizeDistributed = BigInt(0);
+
+      for (let i = 0; i < allContracts.length; i++) {
+        const protocolResult = results[i * 2];
+        const gamesResult = results[i * 2 + 1];
+
+        if (protocolResult.status === 'success') {
+          const protocol = protocolResult.result as unknown as any[];
+          totalTournaments += Number(protocol[5]);
+          totalPrizeDistributed += protocol[6] as bigint;
+        }
+        if (gamesResult.status === 'success') {
+          totalGamesPlayed += Number(gamesResult.result);
+        }
+      }
+
       setStats({
-        totalTournaments: Number(protocol[5]),
-        totalGamesPlayed: Number(totalGames),
-        // FE-H1(R7): Keep as string from formatUnits to preserve uint256 precision
-        totalPrizeDistributed: formatUnits(protocol[6] as bigint, 6),
+        totalTournaments,
+        totalGamesPlayed,
+        totalPrizeDistributed: formatUnits(totalPrizeDistributed, 6),
       });
     } catch (e) {
       console.error('Failed to fetch protocol stats:', e);

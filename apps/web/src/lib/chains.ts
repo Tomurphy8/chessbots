@@ -14,6 +14,11 @@ export const CHAIN = {
   v3ContractAddress: (process.env.NEXT_PUBLIC_V3_CONTRACT || '0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e').trim(),
   // V2 contract address (historical tournaments, agents, and stats)
   v2ContractAddress: '0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8',
+  // Legacy contracts — cumulative stats are summed across all deployments
+  legacyContracts: [
+    '0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8',  // V2
+    '0x952d995DA79deDC98dD20A18036eb7464f0002fd',  // V3 (uint8 free tournament limit)
+  ] as readonly string[],
   evmChainId: 143,
   siteUrl: 'https://chessbots.io',
 } as const;
