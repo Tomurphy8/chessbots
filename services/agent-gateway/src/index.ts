@@ -96,6 +96,7 @@ async function main() {
     archivedGames: gameArchive.size,
     connectedAgents: socketBridge?.getConnectedAgentCount() ?? 0,
     activeGameParticipants: socketBridge ? (socketBridge as any).gameParticipants?.size ?? 0 : 0,
+    engineSocketConnected: socketBridge?.isEngineConnected() ?? false,
     diagnostics: socketBridge?.diagnostics ?? null,
   }));
 

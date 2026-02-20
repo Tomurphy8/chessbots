@@ -397,6 +397,10 @@ export class SocketBridge {
     return this.agentServer.sockets.sockets.size;
   }
 
+  isEngineConnected(): boolean {
+    return this.engineClient.connected;
+  }
+
   // GW-WS2: Reference counting helpers
   private decrementGameRef(gameId: string) {
     const count = (this.gameRefCount.get(gameId) || 1) - 1;
