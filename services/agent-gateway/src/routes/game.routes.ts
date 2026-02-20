@@ -7,6 +7,13 @@ import { CONFIG } from '../config.js';
 import * as engine from '../proxy/chessEngine.js';
 import type { GameArchive } from '../indexer/GameArchive.js';
 
+/**
+ * Game endpoints are NOT rate-limited — they're lightweight proxy calls to the chess engine.
+ * The previous 60 req/min rate limit was killing gameplay by blocking bots' GET calls
+ * mid-game (2 GETs per move × 6 bots × 4 concurrent games = way over 60/min).
+ * Tournament/agent endpoints still have rate limiting for DoS protection.
+ */
+
 const GAME_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
 
 const MoveSchema = z.object({
@@ -38,8 +45,8 @@ function validateGameId(gameId: string): boolean {
 
 export function registerGameRoutes(app: FastifyInstance, gameArchive: GameArchive) {
   // GET /api/game/:gameId - Get game state (engine first, archive fallback)
+  // No rate limit — bots need fast access during games
   app.get('/api/game/:gameId', async (request, reply) => {
-    if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
     const { gameId } = request.params as { gameId: string };
     if (!validateGameId(gameId)) return reply.status(400).send({ error: 'Invalid game ID' });
 
@@ -83,9 +90,9 @@ export function registerGameRoutes(app: FastifyInstance, gameArchive: GameArchiv
     }
   });
 
-  // GET /api/game/:gameId/legal-moves - Get legal moves for current position (public)
+  // GET /api/game/:gameId/legal-moves - Get legal moves for current position
+  // No rate limit — bots need fast access during games
   app.get('/api/game/:gameId/legal-moves', async (request, reply) => {
-    if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
     const { gameId } = request.params as { gameId: string };
     if (!validateGameId(gameId)) return reply.status(400).send({ error: 'Invalid game ID' });
     try {
@@ -97,8 +104,8 @@ export function registerGameRoutes(app: FastifyInstance, gameArchive: GameArchiv
   });
 
   // GET /api/game/:gameId/pgn - Get game PGN (engine first, archive fallback)
+  // No rate limit — bots need fast access during games
   app.get('/api/game/:gameId/pgn', async (request, reply) => {
-    if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
     const { gameId } = request.params as { gameId: string };
     if (!validateGameId(gameId)) return reply.status(400).send({ error: 'Invalid game ID' });
 
@@ -128,7 +135,7 @@ export function registerGameRoutes(app: FastifyInstance, gameArchive: GameArchiv
     try {
       const body = MoveSchema.parse(request.body);
 
-      // 1. Rate limit check
+      // 1. Rate limit check (1 move/sec per game per agent — prevents spamming)
       if (!checkMoveRateLimit(gameId, wallet)) {
         return reply.status(429).send({ error: 'Rate limited: 1 move per second per game' });
       }
@@ -184,7 +191,7 @@ export function registerGameRoutes(app: FastifyInstance, gameArchive: GameArchiv
     }
   });
 
-  // GET /api/games/active - List all active games (public, for live carousel)
+  // GET /api/games/active - List all active games (public, rate limited for DoS)
   app.get('/api/games/active', async (request, reply) => {
     if (!checkPublicRateLimit(request)) return reply.status(429).send({ error: 'Rate limited' });
     try {
