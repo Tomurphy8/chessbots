@@ -105,46 +105,50 @@ async function ensureRegistered() {
       console.log('Agent already registered on-chain.');
       return;
     }
-  } catch { /* not registered yet */ }
+  } catch { /* gateway may not be ready — try on-chain registration below */ }
 
   const agentName = process.env.AGENT_NAME || 'StarterBot';
   const referrer = process.env.REFERRER_ADDRESS;
 
-  if (referrer && /^0x[a-fA-F0-9]{40}$/.test(referrer)) {
-    // Register with referral — both you and the referrer earn rewards:
-    // • You get 1% discount on tournament entry fees (first 25 tournaments)
-    // • Referrer earns 5-10% of your entry fees (based on their referral tier)
-    console.log(`Registering with referral (referrer: ${referrer})...`);
-    const hash = await walletClient.writeContract({
-      address: CONTRACT,
-      abi: CHESSBOTS_ABI,
-      functionName: 'registerAgentWithReferral',
-      args: [agentName, '', 2, referrer as `0x${string}`],
-    });
-    console.log(`Registered with referral! TX: ${hash}`);
-    await publicClient.waitForTransactionReceipt({ hash });
-  } else {
-    console.log('Registering agent on-chain...');
-    const hash = await walletClient.writeContract({
-      address: CONTRACT,
-      abi: CHESSBOTS_ABI,
-      functionName: 'registerAgent',
-      args: [agentName, '', 2],
-    });
-    console.log(`Registered! TX: ${hash}`);
-    await publicClient.waitForTransactionReceipt({ hash });
-  }
+  try {
+    if (referrer && /^0x[a-fA-F0-9]{40}$/.test(referrer)) {
+      // Register with referral — both you and the referrer earn rewards:
+      // * You get 1% discount on tournament entry fees (first 25 tournaments)
+      // * Referrer earns 5-10% of your entry fees (based on their referral tier)
+      console.log(`Registering with referral (referrer: ${referrer})...`);
+      const hash = await walletClient.writeContract({
+        address: CONTRACT,
+        abi: CHESSBOTS_ABI,
+        functionName: 'registerAgentWithReferral',
+        args: [agentName, '', 2, referrer as `0x${string}`],
+      });
+      console.log(`Registered with referral! TX: ${hash}`);
+      await publicClient.waitForTransactionReceipt({ hash });
+    } else {
+      console.log('Registering agent on-chain...');
+      const hash = await walletClient.writeContract({
+        address: CONTRACT,
+        abi: CHESSBOTS_ABI,
+        functionName: 'registerAgent',
+        args: [agentName, '', 2],
+      });
+      console.log(`Registered! TX: ${hash}`);
+      await publicClient.waitForTransactionReceipt({ hash });
+    }
 
-  // Referral program info — earn USDC by referring other agents!
-  console.log(`\n${'─'.repeat(60)}`);
-  console.log(`  💰 EARN USDC: Refer other agents to ChessBots!`);
-  console.log(`  Share your address as their REFERRER_ADDRESS:`);
-  console.log(`  ${account.address}`);
-  console.log(`  • Bronze (1-9 referrals): 5% of their entry fees`);
-  console.log(`  • Silver (10-24 referrals): 7% of their entry fees`);
-  console.log(`  • Gold (25+ referrals): 10% of their entry fees`);
-  console.log(`  Learn more: https://chessbots.io/earn`);
-  console.log(`${'─'.repeat(60)}\n`);
+    // Referral program info — earn USDC by referring other agents!
+    console.log(`\n${'─'.repeat(60)}`);
+    console.log(`  Share your address as their REFERRER_ADDRESS:`);
+    console.log(`  ${account.address}`);
+    console.log(`${'─'.repeat(60)}\n`);
+  } catch (err: any) {
+    // "Already registered" is expected if gateway index wasn't ready
+    if (err?.cause?.reason === 'Already registered' || err?.message?.includes('Already registered')) {
+      console.log('Agent already registered on-chain (confirmed via revert).');
+    } else {
+      throw err; // Re-throw unexpected errors
+    }
+  }
 }
 
 async function joinTournament(tournamentId: number) {
@@ -225,8 +229,69 @@ async function main() {
 
   // ── Game events ────────────────────────────────────────────────────────────
 
+  // Track active games and prevent duplicate processing
+  const startedGames = new Set<string>();
+  const activePollers = new Map<string, boolean>(); // gameId -> polling flag
+
+  // Poll-based game loop: check if it's our turn and play.
+  // This guarantees the bot plays even if Socket.IO events are missed
+  // (network blips, reconnects, engine restarts, etc.).
+  async function pollGame(gameId: string, myColor: 'white' | 'black') {
+    activePollers.set(gameId, true);
+    const POLL_INTERVAL = 2000; // 2 seconds between polls
+
+    while (activePollers.get(gameId)) {
+      try {
+        // Check game state
+        const gameRes = await fetch(`${GATEWAY}/api/game/${gameId}`);
+        if (!gameRes.ok) {
+          // Game might not exist yet or already ended
+          if (gameRes.status === 404) break;
+          await new Promise(r => setTimeout(r, POLL_INTERVAL));
+          continue;
+        }
+
+        const game = await gameRes.json();
+
+        // Game over? Stop polling
+        if (game.status === 'completed' || game.status === 'adjudicated' || game.result !== 'undecided') {
+          const won =
+            (game.result === 'white_wins' && myColor === 'white') ||
+            (game.result === 'black_wins' && myColor === 'black');
+          const status = game.result === 'draw' ? 'DRAW' : won ? 'WIN' : 'LOSS';
+          console.log(`Game ${gameId} ended: ${status} (${game.moveCount} moves)`);
+          break;
+        }
+
+        // Is it our turn?
+        const isWhiteTurn = game.fen.split(' ')[1] === 'w';
+        const isOurTurn = (isWhiteTurn && myColor === 'white') || (!isWhiteTurn && myColor === 'black');
+
+        if (isOurTurn) {
+          await makeMove(gameId, token);
+        }
+      } catch (err) {
+        console.error(`Poll error for ${gameId}:`, (err as Error).message);
+      }
+
+      await new Promise(r => setTimeout(r, POLL_INTERVAL));
+    }
+
+    activePollers.delete(gameId);
+    startedGames.delete(gameId);
+  }
+
   socket.on('game:started', async (data: any) => {
-    const color = data.white.toLowerCase() === account.address.toLowerCase() ? 'white' : 'black';
+    // Only react to games we're actually participating in
+    const myAddr = account.address.toLowerCase();
+    const isParticipant = data.white?.toLowerCase() === myAddr || data.black?.toLowerCase() === myAddr;
+    if (!isParticipant) return;
+
+    // Deduplicate — gateway may deliver game:started via multiple paths
+    if (startedGames.has(data.gameId)) return;
+    startedGames.add(data.gameId);
+
+    const color = data.white.toLowerCase() === myAddr ? 'white' : 'black';
     console.log(`\nGame started: ${data.gameId} — playing as ${color}`);
     socket.emit('subscribe:game', data.gameId);
 
@@ -234,36 +299,52 @@ async function main() {
     if (color === 'white') {
       await makeMove(data.gameId, token);
     }
+
+    // Start polling loop for this game (handles missed Socket.IO events)
+    pollGame(data.gameId, color);
   });
 
+  // Socket.IO event handler — fires immediately when available (faster than polling)
   socket.on('game:move', async (data: any) => {
     const { gameId, fen, white, black, legalMoves } = data;
-    const isWhiteTurn = fen.split(' ')[1] === 'w';
-    const weAreWhite = white?.toLowerCase() === account.address.toLowerCase();
+    const myAddr = account.address.toLowerCase();
 
-    if ((isWhiteTurn && weAreWhite) || (!isWhiteTurn && !weAreWhite)) {
-      // Use enriched event data if available (avoids HTTP calls + rate limits)
+    // If white/black addresses are available, use them for fast filtering
+    if (white && black) {
+      const weAreWhite = white.toLowerCase() === myAddr;
+      const weAreBlack = black.toLowerCase() === myAddr;
+      if (!weAreWhite && !weAreBlack) return;
+
+      const isWhiteTurn = fen.split(' ')[1] === 'w';
+      const isOurTurn = (isWhiteTurn && weAreWhite) || (!isWhiteTurn && weAreBlack);
+      if (!isOurTurn) return;
+
+      // Use enriched event data (avoids HTTP calls + rate limits)
       if (legalMoves && legalMoves.length > 0) {
-        const move = selectMove(legalMoves, fen);
-        console.log(`  Playing: ${move}`);
-        await fetch(`${GATEWAY}/api/game/${gameId}/move`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ move }),
-        }).catch(err => console.error(`Move failed for ${gameId}:`, (err as Error).message));
-      } else {
-        // Fallback: fetch legal moves via HTTP (older engine without enriched events)
-        await makeMove(gameId, token);
+        try {
+          const move = selectMove(legalMoves, fen);
+          console.log(`  Playing: ${move}`);
+          const res = await fetch(`${GATEWAY}/api/game/${gameId}/move`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ move }),
+          });
+          if (!res.ok) {
+            const errBody = await res.text();
+            console.error(`  Move POST ${res.status}: ${errBody}`);
+          }
+        } catch (err) {
+          console.error(`Move failed for ${gameId}:`, (err as Error).message);
+        }
       }
     }
+    // If white/black not in event, the polling loop handles it via HTTP
   });
 
   socket.on('game:ended', (data: any) => {
-    const won =
-      (data.result === 'white_wins' && data.white.toLowerCase() === account.address.toLowerCase()) ||
-      (data.result === 'black_wins' && data.black.toLowerCase() === account.address.toLowerCase());
-    const status = data.result === 'draw' ? 'DRAW' : won ? 'WIN' : 'LOSS';
-    console.log(`Game ${data.gameId} ended: ${status} (${data.moveCount} moves)`);
+    // Stop the polling loop for this game
+    activePollers.set(data.gameId, false);
+    startedGames.delete(data.gameId);
   });
 
   // ── Tournament result notifications ───────────────────────────────────────

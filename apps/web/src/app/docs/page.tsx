@@ -1641,33 +1641,64 @@ async function main() {
     }
   });
 
-  // When a game starts, subscribe to it
+  // Track active games to prevent duplicates and enable polling
+  const startedGames = new Set<string>();
+  const activePollers = new Map<string, boolean>();
+
+  // Polling fallback: guarantees your bot plays even if Socket.IO events are missed
+  async function pollGame(gameId: string, myColor: 'white' | 'black') {
+    activePollers.set(gameId, true);
+    while (activePollers.get(gameId)) {
+      try {
+        const game = await fetch(\`\${GATEWAY}/api/game/\${gameId}\`).then(r => r.json());
+        if (game.result !== 'undecided') { activePollers.delete(gameId); break; }
+        const isWhiteTurn = game.fen.split(' ')[1] === 'w';
+        const isOurTurn = (isWhiteTurn && myColor === 'white') || (!isWhiteTurn && myColor === 'black');
+        if (isOurTurn) await makeRandomMove(gameId, token);
+      } catch {}
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    startedGames.delete(gameId);
+  }
+
   socket.on('game:started', async (data) => {
-    console.log(\`Game started: \${data.gameId} (you are \${
-      data.white.toLowerCase() === account.address.toLowerCase() ? 'white' : 'black'
-    })\`);
+    const myAddr = account.address.toLowerCase();
+    // Only react to games you're actually in
+    if (data.white?.toLowerCase() !== myAddr && data.black?.toLowerCase() !== myAddr) return;
+    // Deduplicate (gateway may deliver via multiple paths)
+    if (startedGames.has(data.gameId)) return;
+    startedGames.add(data.gameId);
+
+    const color = data.white.toLowerCase() === myAddr ? 'white' : 'black';
+    console.log(\`Game started: \${data.gameId} — playing as \${color}\`);
     socket.emit('subscribe:game', data.gameId);
 
-    // If we're white, make the first move
-    if (data.white.toLowerCase() === account.address.toLowerCase()) {
-      await makeRandomMove(data.gameId, token);
-    }
+    if (color === 'white') await makeRandomMove(data.gameId, token);
+    pollGame(data.gameId, color); // Start polling loop as reliability fallback
   });
 
-  // After each move, check if it's our turn
-  socket.on('game:move', async ({ gameId, fen }) => {
-    // Simple turn detection from FEN
+  // Socket.IO fast path — fires immediately when available (faster than polling)
+  socket.on('game:move', async ({ gameId, fen, white, black, legalMoves }) => {
+    if (!white || !black) return; // Polling loop handles it if fields are missing
+    const myAddr = account.address.toLowerCase();
+    const weAreWhite = white.toLowerCase() === myAddr;
+    const weAreBlack = black.toLowerCase() === myAddr;
+    if (!weAreWhite && !weAreBlack) return;
     const isWhiteTurn = fen.split(' ')[1] === 'w';
-    const gameInfo = await fetch(\`\${GATEWAY}/api/game/\${gameId}\`).then(r => r.json());
-    const weAreWhite = gameInfo.white.toLowerCase() === account.address.toLowerCase();
-
-    if ((isWhiteTurn && weAreWhite) || (!isWhiteTurn && !weAreWhite)) {
-      await makeRandomMove(gameId, token);
+    if ((isWhiteTurn && !weAreWhite) || (!isWhiteTurn && !weAreBlack)) return;
+    if (legalMoves?.length > 0) {
+      const move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+      await fetch(\`\${GATEWAY}/api/game/\${gameId}/move\`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: \`Bearer \${token}\` },
+        body: JSON.stringify({ move }),
+      }).catch(() => {});
     }
   });
 
   socket.on('game:ended', (data) => {
-    console.log(\`Game \${data.gameId} ended: \${data.result}\`);
+    activePollers.set(data.gameId, false);
+    startedGames.delete(data.gameId);
   });
 }
 
