@@ -10,7 +10,18 @@ const HOST = process.env.HOST || '::'; // '::' binds to both IPv4 and IPv6 (requ
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3002').split(',').map(s => s.trim());
 
 async function main() {
-  const app = Fastify({ logger: true, bodyLimit: 8192 }); // Limit body size
+  // Create the HTTP server FIRST, then pass it to Fastify via serverFactory.
+  // This ensures Socket.IO and Fastify share the same HTTP server.
+  const httpServer = createServer();
+
+  const app = Fastify({
+    logger: true,
+    bodyLimit: 8192,
+    serverFactory: (handler) => {
+      httpServer.on('request', handler);
+      return httpServer;
+    },
+  });
   await app.register(cors, { origin: ALLOWED_ORIGINS }); // Locked-down CORS
 
   // Allow POST requests with Content-Type: application/json but empty body
@@ -24,7 +35,6 @@ async function main() {
     }
   });
 
-  const httpServer = createServer(app.server);
   const io = new Server(httpServer, {
     cors: { origin: ALLOWED_ORIGINS, methods: ['GET', 'POST'] },
     maxHttpBufferSize: 1e6, // 1MB max
@@ -65,8 +75,9 @@ async function main() {
   });
 
   registerGameRoutes(app, gameManager, io);
+  // When using serverFactory, Fastify's listen() starts the shared httpServer
   await app.listen({ port: PORT, host: HOST });
-  console.log(`Chess engine service running on ${HOST}:${PORT}`);
+  console.log(`Chess engine service running on ${HOST}:${PORT} (Socket.IO enabled)`);
 }
 
 main().catch(console.error);
