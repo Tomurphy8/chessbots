@@ -225,8 +225,55 @@ async function main() {
 
   // ── Game events ────────────────────────────────────────────────────────────
 
-  // Track games we've already started handling to prevent duplicate game:started events
+  // Track active games and prevent duplicate processing
   const startedGames = new Set<string>();
+  const activePollers = new Map<string, boolean>(); // gameId -> polling flag
+
+  // Poll-based game loop: check if it's our turn and play
+  async function pollGame(gameId: string, myColor: 'white' | 'black') {
+    activePollers.set(gameId, true);
+    const POLL_INTERVAL = 2000; // 2 seconds between polls
+
+    while (activePollers.get(gameId)) {
+      try {
+        // Check game state
+        const gameRes = await fetch(`${GATEWAY}/api/game/${gameId}`);
+        if (!gameRes.ok) {
+          // Game might not exist yet or already ended
+          if (gameRes.status === 404) break;
+          await new Promise(r => setTimeout(r, POLL_INTERVAL));
+          continue;
+        }
+
+        const game = await gameRes.json();
+
+        // Game over? Stop polling
+        if (game.status === 'completed' || game.status === 'adjudicated' || game.result !== 'undecided') {
+          const won =
+            (game.result === 'white_wins' && myColor === 'white') ||
+            (game.result === 'black_wins' && myColor === 'black');
+          const status = game.result === 'draw' ? 'DRAW' : won ? 'WIN' : 'LOSS';
+          console.log(`Game ${gameId} ended: ${status} (${game.moveCount} moves)`);
+          break;
+        }
+
+        // Is it our turn?
+        const isWhiteTurn = game.fen.split(' ')[1] === 'w';
+        const isOurTurn = (isWhiteTurn && myColor === 'white') || (!isWhiteTurn && myColor === 'black');
+
+        if (isOurTurn) {
+          await makeMove(gameId, token);
+        }
+      } catch (err) {
+        console.error(`Poll error for ${gameId}:`, (err as Error).message);
+      }
+
+      await new Promise(r => setTimeout(r, POLL_INTERVAL));
+    }
+
+    activePollers.delete(gameId);
+    startedGames.delete(gameId);
+  }
 
   socket.on('game:started', async (data: any) => {
     // Only react to games we're actually participating in
@@ -246,8 +293,12 @@ async function main() {
     if (color === 'white') {
       await makeMove(data.gameId, token);
     }
+
+    // Start polling loop for this game (handles missed Socket.IO events)
+    pollGame(data.gameId, color);
   });
 
+  // Socket.IO event handler — fires immediately when available (faster than polling)
   socket.on('game:move', async (data: any) => {
     const { gameId, fen, white, black, legalMoves } = data;
     const myAddr = account.address.toLowerCase();
@@ -262,7 +313,7 @@ async function main() {
       const isOurTurn = (isWhiteTurn && weAreWhite) || (!isWhiteTurn && weAreBlack);
       if (!isOurTurn) return;
 
-      // Use enriched event data if available (avoids HTTP calls + rate limits)
+      // Use enriched event data (avoids HTTP calls + rate limits)
       if (legalMoves && legalMoves.length > 0) {
         try {
           const move = await selectMove(legalMoves, fen);
@@ -279,23 +330,14 @@ async function main() {
         } catch (err) {
           console.error(`Move failed for ${gameId}:`, (err as Error).message);
         }
-        return;
       }
     }
-
-    // Fallback: white/black not in event OR no enriched legalMoves — use HTTP
-    // Only attempt if this is a game we've seen via game:started
-    if (!startedGames.has(gameId)) return;
-    await makeMove(gameId, token);
   });
 
   socket.on('game:ended', (data: any) => {
+    // Stop the polling loop for this game
+    activePollers.set(data.gameId, false);
     startedGames.delete(data.gameId);
-    const won =
-      (data.result === 'white_wins' && data.white.toLowerCase() === account.address.toLowerCase()) ||
-      (data.result === 'black_wins' && data.black.toLowerCase() === account.address.toLowerCase());
-    const status = data.result === 'draw' ? 'DRAW' : won ? 'WIN' : 'LOSS';
-    console.log(`Game ${data.gameId} ended: ${status} (${data.moveCount} moves)`);
   });
 
   // ── Tournament result notifications ───────────────────────────────────────
