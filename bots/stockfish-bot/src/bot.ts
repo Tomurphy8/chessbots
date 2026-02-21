@@ -101,46 +101,47 @@ async function ensureRegistered() {
       console.log('Agent already registered on-chain.');
       return;
     }
-  } catch { /* not registered yet */ }
+  } catch { /* gateway may not be ready — try on-chain registration below */ }
 
   const agentName = process.env.AGENT_NAME || 'StockfishBot';
   const referrer = process.env.REFERRER_ADDRESS;
 
-  if (referrer && /^0x[a-fA-F0-9]{40}$/.test(referrer)) {
-    // Register with referral — both you and the referrer earn rewards:
-    // • You get 1% discount on tournament entry fees (first 25 tournaments)
-    // • Referrer earns 5-10% of your entry fees (based on their referral tier)
-    console.log(`Registering with referral (referrer: ${referrer})...`);
-    const hash = await walletClient.writeContract({
-      address: CONTRACT,
-      abi: CHESSBOTS_ABI,
-      functionName: 'registerAgentWithReferral',
-      args: [agentName, '', 2, referrer as `0x${string}`],
-    });
-    console.log(`Registered with referral! TX: ${hash}`);
-    await publicClient.waitForTransactionReceipt({ hash });
-  } else {
-    console.log('Registering agent on-chain...');
-    const hash = await walletClient.writeContract({
-      address: CONTRACT,
-      abi: CHESSBOTS_ABI,
-      functionName: 'registerAgent',
-      args: [agentName, '', 2],
-    });
-    console.log(`Registered! TX: ${hash}`);
-    await publicClient.waitForTransactionReceipt({ hash });
-  }
+  try {
+    if (referrer && /^0x[a-fA-F0-9]{40}$/.test(referrer)) {
+      console.log(`Registering with referral (referrer: ${referrer})...`);
+      const hash = await walletClient.writeContract({
+        address: CONTRACT,
+        abi: CHESSBOTS_ABI,
+        functionName: 'registerAgentWithReferral',
+        args: [agentName, '', 2, referrer as `0x${string}`],
+      });
+      console.log(`Registered with referral! TX: ${hash}`);
+      await publicClient.waitForTransactionReceipt({ hash });
+    } else {
+      console.log('Registering agent on-chain...');
+      const hash = await walletClient.writeContract({
+        address: CONTRACT,
+        abi: CHESSBOTS_ABI,
+        functionName: 'registerAgent',
+        args: [agentName, '', 2],
+      });
+      console.log(`Registered! TX: ${hash}`);
+      await publicClient.waitForTransactionReceipt({ hash });
+    }
 
-  // Referral program info — earn USDC by referring other agents!
-  console.log(`\n${'─'.repeat(60)}`);
-  console.log(`  💰 EARN USDC: Refer other agents to ChessBots!`);
-  console.log(`  Share your address as their REFERRER_ADDRESS:`);
-  console.log(`  ${account.address}`);
-  console.log(`  • Bronze (1-9 referrals): 5% of their entry fees`);
-  console.log(`  • Silver (10-24 referrals): 7% of their entry fees`);
-  console.log(`  • Gold (25+ referrals): 10% of their entry fees`);
-  console.log(`  Learn more: https://chessbots.io/earn`);
-  console.log(`${'─'.repeat(60)}\n`);
+    // Referral program info — earn USDC by referring other agents!
+    console.log(`\n${'─'.repeat(60)}`);
+    console.log(`  Share your address as their REFERRER_ADDRESS:`);
+    console.log(`  ${account.address}`);
+    console.log(`${'─'.repeat(60)}\n`);
+  } catch (err: any) {
+    // "Already registered" is expected if gateway index wasn't ready
+    if (err?.cause?.reason === 'Already registered' || err?.message?.includes('Already registered')) {
+      console.log('Agent already registered on-chain (confirmed via revert).');
+    } else {
+      throw err; // Re-throw unexpected errors
+    }
+  }
 }
 
 async function joinTournament(tournamentId: number) {
