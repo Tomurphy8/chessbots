@@ -250,45 +250,43 @@ async function main() {
 
   socket.on('game:move', async (data: any) => {
     const { gameId, fen, white, black, legalMoves } = data;
-    console.log(`  [game:move RAW] ${gameId} keys=${Object.keys(data).join(',')} white=${white?.slice(0,10)} black=${black?.slice(0,10)} fen_turn=${fen?.split(' ')[1]} myAddr=${account.address.slice(0,10)}`);
-
-    // Only respond to games we're actually participating in
     const myAddr = account.address.toLowerCase();
-    const weAreWhite = white?.toLowerCase() === myAddr;
-    const weAreBlack = black?.toLowerCase() === myAddr;
-    if (!weAreWhite && !weAreBlack) {
-      console.log(`  [game:move] ${gameId} — NOT participant, skipping`);
-      return;
-    }
 
-    const isWhiteTurn = fen.split(' ')[1] === 'w';
-    const isOurTurn = (isWhiteTurn && weAreWhite) || (!isWhiteTurn && weAreBlack);
-    if (!isOurTurn) return;
+    // If white/black addresses are available, use them for fast filtering
+    if (white && black) {
+      const weAreWhite = white.toLowerCase() === myAddr;
+      const weAreBlack = black.toLowerCase() === myAddr;
+      if (!weAreWhite && !weAreBlack) return;
 
-    console.log(`  [game:move] ${gameId} turn=${isWhiteTurn ? 'w' : 'b'} weAre=${weAreWhite ? 'white' : 'black'} legalMoves=${legalMoves?.length ?? 'none'}`);
+      const isWhiteTurn = fen.split(' ')[1] === 'w';
+      const isOurTurn = (isWhiteTurn && weAreWhite) || (!isWhiteTurn && weAreBlack);
+      if (!isOurTurn) return;
 
-    // Use enriched event data if available (avoids HTTP calls + rate limits)
-    if (legalMoves && legalMoves.length > 0) {
-      try {
-        const move = await selectMove(legalMoves, fen);
-        console.log(`  Playing: ${move}`);
-        const res = await fetch(`${GATEWAY}/api/game/${gameId}/move`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ move }),
-        });
-        if (!res.ok) {
-          const errBody = await res.text();
-          console.error(`  Move POST failed ${res.status}: ${errBody}`);
+      // Use enriched event data if available (avoids HTTP calls + rate limits)
+      if (legalMoves && legalMoves.length > 0) {
+        try {
+          const move = await selectMove(legalMoves, fen);
+          console.log(`  Playing: ${move}`);
+          const res = await fetch(`${GATEWAY}/api/game/${gameId}/move`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ move }),
+          });
+          if (!res.ok) {
+            const errBody = await res.text();
+            console.error(`  Move POST ${res.status}: ${errBody}`);
+          }
+        } catch (err) {
+          console.error(`Move failed for ${gameId}:`, (err as Error).message);
         }
-      } catch (err) {
-        console.error(`Move failed for ${gameId}:`, (err as Error).message);
+        return;
       }
-    } else {
-      // Fallback: fetch legal moves via HTTP (older engine without enriched events)
-      console.log(`  [game:move] ${gameId} — no enriched data, falling back to HTTP`);
-      await makeMove(gameId, token);
     }
+
+    // Fallback: white/black not in event OR no enriched legalMoves — use HTTP
+    // Only attempt if this is a game we've seen via game:started
+    if (!startedGames.has(gameId)) return;
+    await makeMove(gameId, token);
   });
 
   socket.on('game:ended', (data: any) => {
