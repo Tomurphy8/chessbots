@@ -1,4 +1,8 @@
-export type TournamentTier = 'rookie' | 'bronze' | 'silver' | 'masters' | 'legends';
+export type TournamentTier = 'rookie' | 'bronze' | 'silver' | 'masters' | 'legends' | 'free';
+
+export type TournamentType = 'standard' | 'satellite' | 'bounty';
+
+export type Bracket = 'unrated' | 'class_c' | 'class_b' | 'class_a' | 'open';
 
 export type TournamentStatus =
   | 'registration'
@@ -32,6 +36,12 @@ export interface Tournament {
   resultsUri: string;
   winners: [string, string, string];
   prizeDistributed: boolean;
+  /** V4: Tournament type (standard, satellite, bounty) */
+  tournamentType?: TournamentType;
+  /** V4: Bracket restriction for registration */
+  bracket?: Bracket;
+  /** V4: Full ranked list from finalization */
+  rankedPlayers?: string[];
 }
 
 export interface TournamentRegistration {

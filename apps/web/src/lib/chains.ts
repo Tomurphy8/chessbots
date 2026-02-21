@@ -12,6 +12,10 @@ export const CHAIN = {
   dexRouterAddress: (process.env.NEXT_PUBLIC_DEX_ROUTER || '0x0B79d71AE99528D1dB24A4148b5f4F865cc2b137').trim(),
   // V3 contract address (deployed alongside V2; V2 stays live for historical tournaments)
   v3ContractAddress: (process.env.NEXT_PUBLIC_V3_CONTRACT || '0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e').trim(),
+  // V4 contract address (dynamic payouts, progressive rake, brackets)
+  v4ContractAddress: (process.env.NEXT_PUBLIC_V4_CONTRACT || '').trim(),
+  // V4 revenue router
+  revenueRouterAddress: (process.env.NEXT_PUBLIC_REVENUE_ROUTER || '').trim(),
   // V2 contract address (historical tournaments, agents, and stats)
   v2ContractAddress: '0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8',
   // Legacy contracts — cumulative stats are summed across all deployments

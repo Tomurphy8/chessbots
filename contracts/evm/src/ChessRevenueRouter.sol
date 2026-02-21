@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-interface IERC20 {
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-    function transfer(address to, uint256 amount) external returns (bool);
-    function approve(address spender, uint256 amount) external returns (bool);
-    function balanceOf(address account) external view returns (uint256);
-}
+import "./interfaces/IERC20Minimal.sol";
 
 interface ISwapRouter {
     struct ExactInputSingleParams {
@@ -68,10 +63,10 @@ contract ChessRevenueRouter {
     address public seasonRewards;
 
     /// @notice USDC token (immutable after deployment)
-    IERC20 public immutable usdc;
+    IERC20Minimal public immutable usdc;
 
     /// @notice $CHESS protocol token
-    IERC20 public chessToken;
+    IERC20Minimal public chessToken;
 
     /// @notice DEX router for USDC → CHESS swaps
     ISwapRouter public dexRouter;
@@ -138,7 +133,7 @@ contract ChessRevenueRouter {
         require(_treasury != address(0), "Zero treasury address");
         require(_authority != address(0), "Zero authority address");
 
-        usdc = IERC20(_usdc);
+        usdc = IERC20Minimal(_usdc);
         treasury = _treasury;
         authority = _authority;
         _reentrancyStatus = _NOT_ENTERED;
@@ -262,7 +257,7 @@ contract ChessRevenueRouter {
     /// @param _token CHESS token contract address
     function setChessToken(address _token) external onlyAuthority {
         require(_token != address(0), "Zero address");
-        chessToken = IERC20(_token);
+        chessToken = IERC20Minimal(_token);
         emit ChessTokenUpdated(_token);
     }
 

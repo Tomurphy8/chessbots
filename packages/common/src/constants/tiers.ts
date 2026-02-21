@@ -9,18 +9,32 @@ export interface TierConfig {
   maxPlayers: number;
   minRounds: number;
   maxRounds: number;
+  /** V4: Protocol rake in basis points (10000 = 100%) */
+  rakeBps: number;
 }
 
 export const TIER_CONFIGS: Record<TournamentTier, TierConfig> = {
-  rookie: {
-    name: 'Rookie',
-    tier: 'rookie',
-    entryFeeUsdc: 0.1,
-    entryFeeLamports: 100_000,
-    minPlayers: 8,
+  free: {
+    name: 'Free',
+    tier: 'free',
+    entryFeeUsdc: 0,
+    entryFeeLamports: 0,
+    minPlayers: 4,
     maxPlayers: 32,
     minRounds: 2,
     maxRounds: 4,
+    rakeBps: 0,
+  },
+  rookie: {
+    name: 'Rookie',
+    tier: 'rookie',
+    entryFeeUsdc: 5,
+    entryFeeLamports: 100_000,
+    minPlayers: 4,
+    maxPlayers: 32,
+    minRounds: 2,
+    maxRounds: 4,
+    rakeBps: 1000,   // 10%
   },
   bronze: {
     name: 'Bronze',
@@ -31,6 +45,7 @@ export const TIER_CONFIGS: Record<TournamentTier, TierConfig> = {
     maxPlayers: 32,
     minRounds: 3,
     maxRounds: 5,
+    rakeBps: 800,    // 8%
   },
   silver: {
     name: 'Silver',
@@ -41,6 +56,7 @@ export const TIER_CONFIGS: Record<TournamentTier, TierConfig> = {
     maxPlayers: 32,
     minRounds: 4,
     maxRounds: 5,
+    rakeBps: 600,    // 6%
   },
   masters: {
     name: 'Masters',
@@ -51,6 +67,7 @@ export const TIER_CONFIGS: Record<TournamentTier, TierConfig> = {
     maxPlayers: 64,
     minRounds: 5,
     maxRounds: 6,
+    rakeBps: 500,    // 5%
   },
   legends: {
     name: 'Legends',
@@ -61,5 +78,6 @@ export const TIER_CONFIGS: Record<TournamentTier, TierConfig> = {
     maxPlayers: 64,
     minRounds: 5,
     maxRounds: 6,
+    rakeBps: 400,    // 4%
   },
 };
