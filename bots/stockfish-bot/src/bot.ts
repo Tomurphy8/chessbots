@@ -254,27 +254,30 @@ async function main() {
     const myAddr = account.address.toLowerCase();
     const weAreWhite = white?.toLowerCase() === myAddr;
     const weAreBlack = black?.toLowerCase() === myAddr;
-    if (!weAreWhite && !weAreBlack) return;
+    if (!weAreWhite && !weAreBlack) {
+      return;
+    }
 
     const isWhiteTurn = fen.split(' ')[1] === 'w';
-    if ((isWhiteTurn && weAreWhite) || (!isWhiteTurn && weAreBlack)) {
-      // Use enriched event data if available (avoids HTTP calls + rate limits)
-      if (legalMoves && legalMoves.length > 0) {
-        try {
-          const move = await selectMove(legalMoves, fen);
-          console.log(`  Playing: ${move}`);
-          await fetch(`${GATEWAY}/api/game/${gameId}/move`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ move }),
-          });
-        } catch (err) {
-          console.error(`Move failed for ${gameId}:`, (err as Error).message);
-        }
-      } else {
-        // Fallback: fetch legal moves via HTTP (older engine without enriched events)
-        await makeMove(gameId, token);
+    const isOurTurn = (isWhiteTurn && weAreWhite) || (!isWhiteTurn && weAreBlack);
+    if (!isOurTurn) return;
+
+    // Use enriched event data if available (avoids HTTP calls + rate limits)
+    if (legalMoves && legalMoves.length > 0) {
+      try {
+        const move = await selectMove(legalMoves, fen);
+        console.log(`  Playing: ${move}`);
+        await fetch(`${GATEWAY}/api/game/${gameId}/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ move }),
+        });
+      } catch (err) {
+        console.error(`Move failed for ${gameId}:`, (err as Error).message);
       }
+    } else {
+      // Fallback: fetch legal moves via HTTP (older engine without enriched events)
+      await makeMove(gameId, token);
     }
   });
 
