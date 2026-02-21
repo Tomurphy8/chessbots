@@ -37,6 +37,8 @@ export class SocketBridge {
   private tournamentRefCount = new Map<string, number>();
   // Track game participants so we can push game:move directly to wallets
   private gameParticipants = new Map<string, { white: string; black: string }>();
+  // Games already notified via notifyGameStarted() — suppress engine relay duplicate
+  private notifiedGames = new Set<string>();
   // Diagnostic counters for health endpoint
   public diagnostics = {
     notifyGameStarted: 0,
@@ -88,6 +90,9 @@ export class SocketBridge {
 
     // Bridge events from chess engine to agent-facing rooms AND spectator namespace
     this.engineClient.on('game:started', (data: any) => {
+      // Skip relay for games already notified via notifyGameStarted() to prevent
+      // duplicate game:started events (which cause bots to re-trigger move logic)
+      if (this.notifiedGames.has(data.gameId)) return;
       this.agentServer.to(`game:${data.gameId}`).emit('game:started', data);
       this.agentServer.of('/spectator').to(`game:${data.gameId}`).emit('game:started', data);
     });
@@ -123,6 +128,7 @@ export class SocketBridge {
         this.emitToWallet(gameInfo.black, 'game:ended', data);
         this.gameParticipants.delete(data.gameId);
       }
+      this.notifiedGames.delete(data.gameId);
     });
   }
 
@@ -351,6 +357,8 @@ export class SocketBridge {
    */
   notifyGameStarted(gameId: string, white: string, black: string, tournamentId?: number): void {
     this.diagnostics.notifyGameStarted++;
+    // Mark as notified so the engine relay doesn't duplicate the event
+    this.notifiedGames.add(gameId);
     console.log(`[SocketBridge] notifyGameStarted: ${gameId} white=${white.slice(0,10)} black=${black.slice(0,10)}`);
     // 1. Pre-subscribe to this game room on the chess engine so future
     //    game:move and game:ended events relay through the bridge.

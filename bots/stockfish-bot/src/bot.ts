@@ -224,7 +224,14 @@ async function main() {
 
   // ── Game events ────────────────────────────────────────────────────────────
 
+  // Track games we've already started handling to prevent duplicate game:started events
+  const startedGames = new Set<string>();
+
   socket.on('game:started', async (data: any) => {
+    // Deduplicate — gateway may deliver game:started via multiple paths
+    if (startedGames.has(data.gameId)) return;
+    startedGames.add(data.gameId);
+
     const color = data.white.toLowerCase() === account.address.toLowerCase() ? 'white' : 'black';
     console.log(`\nGame started: ${data.gameId} — playing as ${color}`);
     socket.emit('subscribe:game', data.gameId);
@@ -262,6 +269,7 @@ async function main() {
   });
 
   socket.on('game:ended', (data: any) => {
+    startedGames.delete(data.gameId);
     const won =
       (data.result === 'white_wins' && data.white.toLowerCase() === account.address.toLowerCase()) ||
       (data.result === 'black_wins' && data.black.toLowerCase() === account.address.toLowerCase());

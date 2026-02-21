@@ -44,12 +44,12 @@ function log(level: 'info' | 'warn' | 'error', message: string, meta?: Record<st
 // ── Tier defaults ────────────────────────────────────────────────────────────
 
 const TIER_DEFAULTS: Record<TournamentTier, { timeControl: { baseTimeSeconds: number; incrementSeconds: number } }> = {
-  rookie:  { timeControl: { baseTimeSeconds: 30,  incrementSeconds: 1 } },
+  rookie:  { timeControl: { baseTimeSeconds: 60,  incrementSeconds: 2 } },
   bronze:  { timeControl: { baseTimeSeconds: 60,  incrementSeconds: 2 } },
-  silver:  { timeControl: { baseTimeSeconds: 60,  incrementSeconds: 2 } },
+  silver:  { timeControl: { baseTimeSeconds: 90,  incrementSeconds: 2 } },
   masters: { timeControl: { baseTimeSeconds: 120, incrementSeconds: 3 } },
   legends: { timeControl: { baseTimeSeconds: 120, incrementSeconds: 3 } },
-  free:    { timeControl: { baseTimeSeconds: 30,  incrementSeconds: 1 } },
+  free:    { timeControl: { baseTimeSeconds: 60,  incrementSeconds: 2 } },
 };
 
 // ── Graceful shutdown ────────────────────────────────────────────────────────
