@@ -249,12 +249,14 @@ async function main() {
 
   socket.on('game:move', async (data: any) => {
     const { gameId, fen, white, black, legalMoves } = data;
+    console.log(`  [game:move RAW] ${gameId} white=${white?.slice(0,10)} black=${black?.slice(0,10)} fen_turn=${fen?.split(' ')[1]} myAddr=${account.address.slice(0,10)}`);
 
     // Only respond to games we're actually participating in
     const myAddr = account.address.toLowerCase();
     const weAreWhite = white?.toLowerCase() === myAddr;
     const weAreBlack = black?.toLowerCase() === myAddr;
     if (!weAreWhite && !weAreBlack) {
+      console.log(`  [game:move] ${gameId} — NOT participant, skipping`);
       return;
     }
 
@@ -262,21 +264,28 @@ async function main() {
     const isOurTurn = (isWhiteTurn && weAreWhite) || (!isWhiteTurn && weAreBlack);
     if (!isOurTurn) return;
 
+    console.log(`  [game:move] ${gameId} turn=${isWhiteTurn ? 'w' : 'b'} weAre=${weAreWhite ? 'white' : 'black'} legalMoves=${legalMoves?.length ?? 'none'}`);
+
     // Use enriched event data if available (avoids HTTP calls + rate limits)
     if (legalMoves && legalMoves.length > 0) {
       try {
         const move = await selectMove(legalMoves, fen);
         console.log(`  Playing: ${move}`);
-        await fetch(`${GATEWAY}/api/game/${gameId}/move`, {
+        const res = await fetch(`${GATEWAY}/api/game/${gameId}/move`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ move }),
         });
+        if (!res.ok) {
+          const errBody = await res.text();
+          console.error(`  Move POST failed ${res.status}: ${errBody}`);
+        }
       } catch (err) {
         console.error(`Move failed for ${gameId}:`, (err as Error).message);
       }
     } else {
       // Fallback: fetch legal moves via HTTP (older engine without enriched events)
+      console.log(`  [game:move] ${gameId} — no enriched data, falling back to HTTP`);
       await makeMove(gameId, token);
     }
   });
