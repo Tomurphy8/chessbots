@@ -228,11 +228,16 @@ async function main() {
   const startedGames = new Set<string>();
 
   socket.on('game:started', async (data: any) => {
+    // Only react to games we're actually participating in
+    const myAddr = account.address.toLowerCase();
+    const isParticipant = data.white?.toLowerCase() === myAddr || data.black?.toLowerCase() === myAddr;
+    if (!isParticipant) return;
+
     // Deduplicate — gateway may deliver game:started via multiple paths
     if (startedGames.has(data.gameId)) return;
     startedGames.add(data.gameId);
 
-    const color = data.white.toLowerCase() === account.address.toLowerCase() ? 'white' : 'black';
+    const color = data.white.toLowerCase() === myAddr ? 'white' : 'black';
     console.log(`\nGame started: ${data.gameId} — playing as ${color}`);
     socket.emit('subscribe:game', data.gameId);
 
@@ -244,10 +249,15 @@ async function main() {
 
   socket.on('game:move', async (data: any) => {
     const { gameId, fen, white, black, legalMoves } = data;
-    const isWhiteTurn = fen.split(' ')[1] === 'w';
-    const weAreWhite = white?.toLowerCase() === account.address.toLowerCase();
 
-    if ((isWhiteTurn && weAreWhite) || (!isWhiteTurn && !weAreWhite)) {
+    // Only respond to games we're actually participating in
+    const myAddr = account.address.toLowerCase();
+    const weAreWhite = white?.toLowerCase() === myAddr;
+    const weAreBlack = black?.toLowerCase() === myAddr;
+    if (!weAreWhite && !weAreBlack) return;
+
+    const isWhiteTurn = fen.split(' ')[1] === 'w';
+    if ((isWhiteTurn && weAreWhite) || (!isWhiteTurn && weAreBlack)) {
       // Use enriched event data if available (avoids HTTP calls + rate limits)
       if (legalMoves && legalMoves.length > 0) {
         try {
