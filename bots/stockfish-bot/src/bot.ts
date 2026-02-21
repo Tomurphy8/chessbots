@@ -249,7 +249,7 @@ async function main() {
 
   socket.on('game:move', async (data: any) => {
     const { gameId, fen, white, black, legalMoves } = data;
-    console.log(`  [game:move RAW] ${gameId} white=${white?.slice(0,10)} black=${black?.slice(0,10)} fen_turn=${fen?.split(' ')[1]} myAddr=${account.address.slice(0,10)}`);
+    console.log(`  [game:move RAW] ${gameId} keys=${Object.keys(data).join(',')} white=${white?.slice(0,10)} black=${black?.slice(0,10)} fen_turn=${fen?.split(' ')[1]} myAddr=${account.address.slice(0,10)}`);
 
     // Only respond to games we're actually participating in
     const myAddr = account.address.toLowerCase();
