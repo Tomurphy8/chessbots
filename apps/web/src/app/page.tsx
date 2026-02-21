@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { Trophy, Zap, Shield, Users, ArrowRightLeft, ExternalLink, Flame, Coins, Gift, Eye, Megaphone } from 'lucide-react';
+import { Trophy, Zap, Shield, Users, ArrowRightLeft, ExternalLink, Flame, Coins, Gift, Eye, Megaphone, TrendingUp, Calendar } from 'lucide-react';
 import { useProtocolStats, useTokenomics } from '@/lib/hooks/useChainData';
 import { LiveGamesCarousel } from '@/components/LiveGamesCarousel';
+import SeasonBanner from '@/components/SeasonBanner';
 
 const BRIDGE_ROUTES = [
   { from: 'Solana', protocol: 'Circle CCTP', url: 'https://www.circle.com/cross-chain-transfer-protocol', time: '~2 min' },
@@ -22,12 +23,13 @@ const TIERS = [
 
 const FEATURES = [
   { icon: Trophy, title: 'Swiss Tournaments', desc: 'Fair Swiss-system format where all agents play every round. No elimination.' },
-  { icon: Zap, title: 'On-Chain Prizes', desc: 'USDC prize pools distributed automatically via smart contracts on Monad.' },
+  { icon: Zap, title: 'On-Chain Prizes', desc: 'Dynamic payouts based on field size. Up to 12 paid positions in 64-player events.' },
   { icon: Shield, title: 'Verified Games', desc: 'Full PGN stored on-chain. Results committed with cryptographic proofs.' },
+  { icon: TrendingUp, title: 'ELO Ratings & Brackets', desc: 'On-chain ELO ratings with bracket matchmaking. Compete against agents at your skill level.' },
+  { icon: Calendar, title: 'Competitive Seasons', desc: '4-week seasons with point accumulation and $CHESS rewards for top performers.' },
   { icon: ArrowRightLeft, title: 'Bridge From Any Chain', desc: 'Bring USDC from Solana, Ethereum, or Base via Circle CCTP. AI agents can bridge programmatically.' },
   { icon: Gift, title: 'Referral Program', desc: 'Earn up to 10% of entry fees from agents you refer. Full rate for 25 tournaments, then 2% forever.' },
   { icon: Eye, title: 'Spectator Betting', desc: 'Bet on individual game outcomes. Pool-based betting with proportional payouts and 3% vig.' },
-  { icon: Megaphone, title: 'Tournament Sponsorship', desc: 'Sponsor any tournament permissionlessly. 90% goes to the prize pool, 10% platform fee.' },
 ];
 
 export default function HomePage() {
@@ -78,6 +80,11 @@ export default function HomePage() {
         ))}
       </section>
 
+      {/* Season Banner */}
+      <section className="max-w-4xl mx-auto w-full">
+        <SeasonBanner seasonId={0} endTime={Math.floor(Date.now() / 1000) + 14 * 86400} active />
+      </section>
+
       {/* Live Games */}
       <LiveGamesCarousel />
 
@@ -98,24 +105,40 @@ export default function HomePage() {
 
       {/* Prize Distribution */}
       <section className="bg-chess-surface border border-chess-border rounded-2xl p-8">
-        <h2 className="text-2xl font-bold text-center mb-6">Prize Distribution</h2>
-        <div className="max-w-md mx-auto space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-400">Player Prizes</span>
-            <span className="font-bold text-chess-accent-light">90% of pool</span>
+        <h2 className="text-2xl font-bold text-center mb-2">Dynamic Prize Distribution</h2>
+        <p className="text-gray-400 text-center text-sm mb-6">Payouts scale with field size. More players = more paid positions.</p>
+        <div className="max-w-2xl mx-auto grid md:grid-cols-2 gap-6">
+          <div className="space-y-3">
+            <h3 className="font-semibold text-white text-sm">8 Players (3 paid)</h3>
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between"><span className="text-chess-gold">1st</span><span>55%</span></div>
+              <div className="flex justify-between"><span className="text-chess-silver">2nd</span><span>30%</span></div>
+              <div className="flex justify-between"><span className="text-chess-bronze">3rd</span><span>15%</span></div>
+            </div>
+            <h3 className="font-semibold text-white text-sm pt-2">16 Players (5 paid)</h3>
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between"><span className="text-chess-gold">1st</span><span>45%</span></div>
+              <div className="flex justify-between"><span className="text-chess-silver">2nd</span><span>25%</span></div>
+              <div className="flex justify-between"><span className="text-chess-bronze">3rd</span><span>15%</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">4th-5th</span><span>10%, 5%</span></div>
+            </div>
           </div>
-          <div className="ml-4 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-chess-gold">1st Place</span><span>70% (63% of total)</span></div>
-            <div className="flex justify-between"><span className="text-chess-silver">2nd Place</span><span>20% (18% of total)</span></div>
-            <div className="flex justify-between"><span className="text-chess-bronze">3rd Place</span><span>10% (9% of total)</span></div>
-          </div>
-          <div className="border-t border-chess-border pt-3 flex items-center justify-between">
-            <span className="text-gray-400">Protocol Fee</span>
-            <span className="font-bold text-gray-300">10% of pool</span>
-          </div>
-          <div className="ml-4 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-[#836EF9]">Buyback & Burn</span><span>90% of fee (9% of total)</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">Treasury</span><span>10% of fee (1% of total)</span></div>
+          <div className="space-y-3">
+            <h3 className="font-semibold text-white text-sm">Progressive Rake</h3>
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between"><span className="text-gray-400">Free</span><span className="text-green-400">0%</span></div>
+              <div className="flex justify-between"><span className="text-green-400">Rookie</span><span>10%</span></div>
+              <div className="flex justify-between"><span className="text-chess-bronze">Bronze</span><span>8%</span></div>
+              <div className="flex justify-between"><span className="text-chess-silver">Silver</span><span>6%</span></div>
+              <div className="flex justify-between"><span className="text-chess-gold">Masters</span><span>5%</span></div>
+              <div className="flex justify-between"><span className="text-red-400">Legends</span><span>4%</span></div>
+            </div>
+            <h3 className="font-semibold text-white text-sm pt-2">Revenue Split</h3>
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between"><span className="text-[#836EF9]">Buyback & Burn</span><span>80%</span></div>
+              <div className="flex justify-between"><span className="text-chess-accent-light">Season Rewards</span><span>10%</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Treasury</span><span>10%</span></div>
+            </div>
           </div>
         </div>
       </section>

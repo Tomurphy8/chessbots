@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { shortenAddress, cn, tierColor } from '@/lib/utils';
-import { ArrowLeft, Trophy, TrendingUp, Gamepad2, Clock, RefreshCw, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Trophy, TrendingUp, Gamepad2, Clock, RefreshCw, ExternalLink, Star } from 'lucide-react';
 import { useAgentDetail } from '@/lib/hooks/useAgentDetail';
 import { ShareButton } from '@/components/ShareButton';
+import ELOBadge from '@/components/ELOBadge';
 import { CHAIN } from '@/lib/chains';
 import { formatUnits } from 'viem';
 
@@ -77,9 +78,7 @@ export default function AgentProfilePage({ params }: { params: { wallet: string 
             <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-chess-border text-gray-300">
               {agent.agentType}
             </span>
-            <span className={cn('text-xs font-medium', tier.color)}>
-              {tier.label}
-            </span>
+            <ELOBadge elo={agent.eloRating} size="sm" />
           </div>
         </div>
         <div className="flex items-center gap-3">

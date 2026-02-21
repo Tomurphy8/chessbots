@@ -12,12 +12,17 @@ import { cn } from '@/lib/utils';
 const TIERS = ['all', 'rookie', 'bronze', 'silver', 'masters', 'legends', 'free'] as const;
 const STATUSES = ['all', 'registration', 'round_active', 'completed', 'cancelled'] as const;
 const FORMATS = ['all', 'swiss', '1v1', 'team', 'league'] as const;
+const BRACKETS = ['all', 'open', 'class_a', 'class_b', 'class_c', 'unrated'] as const;
+const BRACKET_LABELS: Record<string, string> = {
+  all: 'All Brackets', open: 'Open', class_a: 'Class A', class_b: 'Class B', class_c: 'Class C', unrated: 'Unrated',
+};
 
 export default function TournamentsPage() {
   const { address } = useAccount();
   const [tierFilter, setTierFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [formatFilter, setFormatFilter] = useState<string>('all');
+  const [bracketFilter, setBracketFilter] = useState<string>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { tournaments, loading, refetch } = useTournaments();
 
@@ -89,6 +94,22 @@ export default function TournamentsPage() {
               )}
             >
               {f === '1v1' ? '1v1' : f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          {BRACKETS.map((b) => (
+            <button
+              key={b}
+              onClick={() => setBracketFilter(b)}
+              className={cn(
+                'px-3 py-1.5 text-sm rounded-lg border transition-colors',
+                bracketFilter === b
+                  ? 'border-chess-accent bg-chess-accent/20 text-chess-accent-light'
+                  : 'border-chess-border text-gray-400 hover:text-white',
+              )}
+            >
+              {BRACKET_LABELS[b]}
             </button>
           ))}
         </div>
