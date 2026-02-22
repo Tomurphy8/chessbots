@@ -53,6 +53,10 @@ export interface TournamentConfig {
   bestOf?: number;
   /** For team format: number of players per team */
   teamSize?: number;
+  /** Whether this tournament is on the V4 contract */
+  useV4?: boolean;
+  /** Bracket filter (0=Open, 1=Unrated, 2=ClassC, 3=ClassB, 4=ClassA) */
+  bracket?: number;
 }
 
 /** Team standing for team tournaments */

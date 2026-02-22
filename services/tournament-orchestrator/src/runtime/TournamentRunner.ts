@@ -54,6 +54,9 @@ export class TournamentRunner {
   private teamStandings: TeamStanding[] = [];
   private teams: TeamInfo[] = [];
 
+  // V4: Game history for post-tournament ELO updates
+  private gameHistory: Array<{ white: string; black: string; result: 'white' | 'black' | 'draw' }> = [];
+
   constructor(
     chain: MonadClient,
     engine: ChessEngineClient,
@@ -128,7 +131,10 @@ export class TournamentRunner {
     }
 
     // Check on-chain status to determine if funding/starting has already happened
-    const onChainState = await this.chain.getTournament(tournamentId);
+    const useV4 = this.config.useV4 || false;
+    const onChainState = useV4
+      ? await this.chain.getV4Tournament(tournamentId)
+      : await this.chain.getTournament(tournamentId);
     const alreadyStartedOnChain = existingState?.startedOnChain || onChainState.status >= 2;
     const alreadyFunded = existingState?.fundedOnChain || onChainState.status >= 2;
 
@@ -142,14 +148,24 @@ export class TournamentRunner {
 
         try {
           // Ensure USDC allowance is sufficient
-          const currentAllowance = await this.chain.getUsdcAllowance();
+          const currentAllowance = useV4
+            ? await this.chain.getV4UsdcAllowance()
+            : await this.chain.getUsdcAllowance();
           if (currentAllowance < amountRaw) {
             const approveAmount = amountRaw * 10n; // Approve 10x to avoid repeated approvals
             console.log(`  USDC allowance insufficient (${currentAllowance}), approving ${approveAmount}...`);
-            await this.chain.approveUsdc(approveAmount);
+            if (useV4) {
+              await this.chain.approveV4Usdc(approveAmount);
+            } else {
+              await this.chain.approveUsdc(approveAmount);
+            }
           }
 
-          await this.chain.fundTournament(tournamentId, amountRaw);
+          if (useV4) {
+            await this.chain.fundV4Tournament(tournamentId, amountRaw);
+          } else {
+            await this.chain.fundTournament(tournamentId, amountRaw);
+          }
           this.stateManager?.markFundedOnChain(this.config.tournamentId);
           console.log(`Free tournament funded with ${this.config.freeTierPrizeUsdc} USDC.\n`);
         } catch (err: any) {
@@ -165,9 +181,13 @@ export class TournamentRunner {
     if (alreadyStartedOnChain) {
       console.log('Tournament already started on-chain, skipping startTournament call.\n');
     } else {
-      console.log('Starting tournament on-chain...');
+      console.log(`Starting tournament on-chain (${useV4 ? 'V4' : 'V3'})...`);
       try {
-        await this.chain.startTournament(tournamentId);
+        if (useV4) {
+          await this.chain.startV4Tournament(tournamentId);
+        } else {
+          await this.chain.startTournament(tournamentId);
+        }
         console.log('Tournament started on-chain.\n');
         this.stateManager?.markStartedOnChain(this.config.tournamentId);
       } catch (err: any) {
@@ -178,7 +198,9 @@ export class TournamentRunner {
 
     // Re-read tournament from chain to get totalRounds (calculated on-chain during startTournament)
     if (this.config.totalRounds === 0) {
-      const onChainTournament = await this.chain.getTournament(tournamentId);
+      const onChainTournament = useV4
+        ? await this.chain.getV4Tournament(tournamentId)
+        : await this.chain.getTournament(tournamentId);
       if (onChainTournament.totalRounds > 0) {
         this.config.totalRounds = onChainTournament.totalRounds;
         console.log(`  Updated totalRounds from chain: ${this.config.totalRounds}`);
@@ -250,6 +272,12 @@ export class TournamentRunner {
       winners = this.manager.getWinners();
     }
 
+    // Get full ranked list for V4 (all players sorted by score)
+    const finalStandings = format === 'team'
+      ? this.manager.getStandings()
+      : this.manager.getStandings();
+    const rankedPlayers: Address[] = finalStandings.map(s => getAddress(s.wallet) as Address);
+
     // Format-aware winner addresses:
     // Match format uses address(0) for 2nd/3rd since only 1 winner
     const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address;
@@ -262,13 +290,21 @@ export class TournamentRunner {
     if (alreadyFinalized) {
       console.log('Tournament already finalized on-chain (crash recovery), skipping.');
     } else {
-      console.log('Finalizing tournament on-chain...');
+      console.log(`Finalizing tournament on-chain (${useV4 ? 'V4 ranked list' : 'V3 winners'})...`);
       try {
-        await this.chain.finalizeTournament(
-          tournamentId,
-          winnersArray,
-          `chessbots://tournament/${this.config.tournamentId}/results`,
-        );
+        if (useV4) {
+          await this.chain.finalizeV4Tournament(
+            tournamentId,
+            rankedPlayers,
+            `chessbots://tournament/${this.config.tournamentId}/results`,
+          );
+        } else {
+          await this.chain.finalizeTournament(
+            tournamentId,
+            winnersArray,
+            `chessbots://tournament/${this.config.tournamentId}/results`,
+          );
+        }
         this.stateManager?.finalizeTournament(this.config.tournamentId);
       } catch (err: any) {
         console.error(`Failed to finalize tournament: ${err.message}`);
@@ -282,15 +318,24 @@ export class TournamentRunner {
     } else {
       console.log('Distributing prizes...');
       try {
-        await this.chain.distributePrizes(tournamentId);
+        if (useV4) {
+          await this.chain.distributeV4Prizes(tournamentId);
+        } else {
+          await this.chain.distributePrizes(tournamentId);
+        }
         this.stateManager?.markPrizesDistributed(this.config.tournamentId);
       } catch (err: any) {
         // Prize distribution can fail if no funds were deposited (e.g. insufficient USDC).
         // Don't let this block the rest of tournament completion.
-        console.warn(`  ⚠ Prize distribution failed: ${err.message}`);
+        console.warn(`  Prize distribution failed: ${err.message}`);
         console.warn(`  Tournament will complete without prize distribution.`);
         this.stateManager?.markPrizesDistributed(this.config.tournamentId); // Mark done to avoid retries
       }
+    }
+
+    // V4: Update ELO ratings and Season points after finalization
+    if (useV4) {
+      await this.updateEloAndSeason(tournamentId, rankedPlayers, registeredWallets);
     }
 
     // Notify gateway of tournament completion with winner details
@@ -416,11 +461,11 @@ export class TournamentRunner {
       console.log('  Games already created on-chain for this round (crash recovery), skipping.');
     } else {
       console.log('  Submitting pairings on-chain...');
-      await this.chain.batchCreateAndStartGames(
-        tournamentId,
-        round,
-        roundResult.pairings,
-      );
+      if (this.config.useV4) {
+        await this.chain.batchCreateAndStartV4Games(tournamentId, round, roundResult.pairings);
+      } else {
+        await this.chain.batchCreateAndStartGames(tournamentId, round, roundResult.pairings);
+      }
       // Persist that on-chain creation succeeded for this round
       this.stateManager?.markRoundCreatedOnChain(this.config.tournamentId, round);
     }
@@ -452,6 +497,9 @@ export class TournamentRunner {
         const result = mapResult(gameInfo.result);
         this.manager.recordGameResult(pairing.white, pairing.black, result);
 
+        // V4: Accumulate game history for post-tournament ELO update
+        this.gameHistory.push({ white: pairing.white, black: pairing.black, result });
+
         // Generate hashes for on-chain submission
         const pgnHash = keccak256(toHex(gameInfo.pgn || gameId)) as `0x${string}`;
         const resultHash = keccak256(toHex(`${gameId}:${gameInfo.result}`)) as `0x${string}`;
@@ -467,6 +515,7 @@ export class TournamentRunner {
         // TO-R5: Handle missing game results — default to draw
         console.warn(`  Game ${gameId}: no result received, defaulting to draw`);
         this.manager.recordGameResult(pairing.white, pairing.black, 'draw');
+        this.gameHistory.push({ white: pairing.white, black: pairing.black, result: 'draw' });
         const pgnHash = keccak256(toHex(gameId)) as `0x${string}`;
         const resultHash = keccak256(toHex(`${gameId}:timeout_draw`)) as `0x${string}`;
         chainResults.push({
@@ -512,19 +561,18 @@ export class TournamentRunner {
       console.log('  Round already executed on-chain (crash recovery), skipping executeRound.');
     } else {
       console.log('  Submitting results on-chain...');
-      await this.chain.executeRound(
-        tournamentId,
-        round,
-        chainResults,
-        standings.map(s => ({
-          ...s,
-          gamesPlayed: s.gamesPlayed,
-          gamesWon: s.gamesWon,
-          gamesDrawn: s.gamesDrawn,
-          gamesLost: s.gamesLost,
-        })),
-        !isLastRound, // advance = true if not the last round
-      );
+      const standingInputs = standings.map(s => ({
+        ...s,
+        gamesPlayed: s.gamesPlayed,
+        gamesWon: s.gamesWon,
+        gamesDrawn: s.gamesDrawn,
+        gamesLost: s.gamesLost,
+      }));
+      if (this.config.useV4) {
+        await this.chain.executeV4Round(tournamentId, round, chainResults, standingInputs, !isLastRound);
+      } else {
+        await this.chain.executeRound(tournamentId, round, chainResults, standingInputs, !isLastRound);
+      }
       this.stateManager?.markRoundExecutedOnChain(this.config.tournamentId, round);
     }
 
@@ -683,7 +731,11 @@ export class TournamentRunner {
       console.log('  Games already created on-chain for this round (crash recovery), skipping.');
     } else {
       console.log('  Submitting board pairings on-chain...');
-      await this.chain.batchCreateAndStartGames(tournamentId, round, roundResult.pairings);
+      if (this.config.useV4) {
+        await this.chain.batchCreateAndStartV4Games(tournamentId, round, roundResult.pairings);
+      } else {
+        await this.chain.batchCreateAndStartGames(tournamentId, round, roundResult.pairings);
+      }
       this.stateManager?.markRoundCreatedOnChain(this.config.tournamentId, round);
     }
 
@@ -712,6 +764,8 @@ export class TournamentRunner {
 
       // Record individual game result in TournamentManager (for on-chain standings)
       this.manager.recordGameResult(pairing.white, pairing.black, result);
+      // V4: Accumulate game history for post-tournament ELO update
+      this.gameHistory.push({ white: pairing.white, black: pairing.black, result });
 
       // Determine which team match this board belongs to
       for (const tp of teamPairings) {
@@ -788,14 +842,15 @@ export class TournamentRunner {
       console.log('  Round already executed on-chain (crash recovery), skipping executeRound.');
     } else {
       console.log('  Submitting results on-chain...');
-      await this.chain.executeRound(
-        tournamentId, round, chainResults,
-        standings.map(s => ({
-          ...s, gamesPlayed: s.gamesPlayed, gamesWon: s.gamesWon,
-          gamesDrawn: s.gamesDrawn, gamesLost: s.gamesLost,
-        })),
-        !isLastRound,
-      );
+      const teamStandingInputs = standings.map(s => ({
+        ...s, gamesPlayed: s.gamesPlayed, gamesWon: s.gamesWon,
+        gamesDrawn: s.gamesDrawn, gamesLost: s.gamesLost,
+      }));
+      if (this.config.useV4) {
+        await this.chain.executeV4Round(tournamentId, round, chainResults, teamStandingInputs, !isLastRound);
+      } else {
+        await this.chain.executeRound(tournamentId, round, chainResults, teamStandingInputs, !isLastRound);
+      }
       this.stateManager?.markRoundExecutedOnChain(this.config.tournamentId, round);
     }
 
@@ -821,5 +876,101 @@ export class TournamentRunner {
       second: sorted[1]?.captain || '',
       third: sorted[2]?.captain || '',
     };
+  }
+
+  // ── V4 Post-Finalization: ELO + Season ────────────────────────────────────
+
+  /**
+   * Update ELO ratings and record season results after V4 tournament finalization.
+   * Non-fatal: failures are logged but don't block tournament completion.
+   */
+  private async updateEloAndSeason(
+    tournamentId: bigint,
+    rankedPlayers: Address[],
+    registeredWallets: string[],
+  ): Promise<void> {
+    const allParticipants = rankedPlayers.length > 0
+      ? rankedPlayers
+      : registeredWallets.map(w => getAddress(w) as Address);
+
+    // 1. Initialize ELO for any uninitialized agents
+    console.log('  Initializing ELO for new agents...');
+    let initCount = 0;
+    for (const agent of allParticipants) {
+      try {
+        await this.chain.initializeEloAgent(agent, 1200);
+        initCount++;
+      } catch (err: any) {
+        // "already initialized" is expected — skip silently
+        if (!err.message?.includes('already') && !err.message?.includes('initialized')) {
+          console.warn(`  ELO init failed for ${(agent as string).slice(0, 10)}...: ${err.message}`);
+        }
+      }
+    }
+    if (initCount > 0) {
+      console.log(`  Initialized ELO for ${initCount} new agents`);
+    }
+
+    // 2. Update ELO ratings from game history
+    if (this.gameHistory.length > 0) {
+      console.log(`  Updating ELO ratings (${this.gameHistory.length} games)...`);
+      try {
+        // ELO contract expects parallel arrays: players[], opponents[], results[]
+        // where results use 1000=win, 500=draw, 0=loss (from player's perspective)
+        const players: Address[] = [];
+        const opponents: Address[] = [];
+        const results: bigint[] = [];
+
+        for (const game of this.gameHistory) {
+          const white = getAddress(game.white) as Address;
+          const black = getAddress(game.black) as Address;
+
+          // White's perspective
+          players.push(white);
+          opponents.push(black);
+          results.push(game.result === 'white' ? 1000n : game.result === 'draw' ? 500n : 0n);
+
+          // Black's perspective
+          players.push(black);
+          opponents.push(white);
+          results.push(game.result === 'black' ? 1000n : game.result === 'draw' ? 500n : 0n);
+        }
+
+        await this.chain.updateEloRatings(tournamentId, players, opponents, results);
+        console.log(`  ELO ratings updated for ${this.gameHistory.length} games`);
+      } catch (err: any) {
+        console.warn(`  ELO rating update failed: ${err.message}`);
+      }
+    }
+
+    // 3. Record tournament completion for all participants
+    try {
+      await this.chain.recordTournamentCompletion(allParticipants);
+      console.log(`  Tournament completion recorded for ${allParticipants.length} agents`);
+    } catch (err: any) {
+      console.warn(`  Tournament completion recording failed: ${err.message}`);
+    }
+
+    // 4. Record season result if season is active
+    try {
+      const season = await this.chain.getCurrentSeason();
+      if (season.active) {
+        const TIER_INDICES: Record<string, number> = {
+          'rookie': 0, 'bronze': 1, 'silver': 2, 'masters': 3, 'legends': 4, 'free': 5,
+        };
+        const tierIndex = TIER_INDICES[this.config.tier] ?? 0;
+        await this.chain.recordSeasonResult(
+          season.id,
+          tournamentId,
+          allParticipants,
+          tierIndex,
+        );
+        console.log(`  Season ${season.id} result recorded (tier=${this.config.tier})`);
+      } else {
+        console.log('  No active season — skipping season recording');
+      }
+    } catch (err: any) {
+      console.warn(`  Season recording failed: ${err.message}`);
+    }
   }
 }

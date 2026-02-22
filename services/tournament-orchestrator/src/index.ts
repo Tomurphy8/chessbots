@@ -134,16 +134,38 @@ async function main() {
     case 'run': {
       const tournamentIdArg = process.argv[3];
       if (tournamentIdArg === undefined || tournamentIdArg === '') {
-        log('error', 'Usage: orchestrator run <tournament-id> <wallet1,wallet2,...>');
+        log('error', 'Usage: orchestrator run <tournament-id> <wallet1,wallet2,...> [--v4]');
         process.exit(1);
       }
       const tournamentId = parseInt(tournamentIdArg);
 
-      const t = await chain.getTournament(BigInt(tournamentId));
+      // Detect V4: --v4 flag or try V4 first then V3
+      const forceV4 = process.argv.includes('--v4');
+      let t: any;
+      let isV4 = forceV4;
+
+      if (forceV4) {
+        t = await chain.getV4Tournament(BigInt(tournamentId));
+      } else {
+        // Try V4 first, fall back to V3
+        try {
+          const v4t = await chain.getV4Tournament(BigInt(tournamentId));
+          if (v4t.exists) {
+            t = v4t;
+            isV4 = true;
+          }
+        } catch { /* V4 lookup failed, try V3 */ }
+        if (!t) {
+          t = await chain.getTournament(BigInt(tournamentId));
+        }
+      }
+
       if (!t.exists) {
-        log('error', `Tournament ${tournamentId} not found on-chain`, { tournamentId });
+        log('error', `Tournament ${tournamentId} not found on-chain (checked ${isV4 ? 'V4' : 'V3 and V4'})`, { tournamentId });
         process.exit(1);
       }
+
+      log('info', `Running tournament #${tournamentId} on ${isV4 ? 'V4' : 'V3'} contract`);
 
       const TIER_NAMES: TournamentTier[] = ['rookie', 'bronze', 'silver', 'masters', 'legends', 'free'];
       const tier = TIER_NAMES[t.tier] || 'rookie';
@@ -164,6 +186,7 @@ async function main() {
         freeTierPrizeUsdc: tier === 'free' ? freeTierPrizeUsdc : undefined,
         bestOf: t.bestOf,
         teamSize: t.teamSize,
+        useV4: isV4,
       };
 
       const playerWalletsArg = process.argv[4];
@@ -266,69 +289,71 @@ async function main() {
       }
 
       while (!isShuttingDown) {
-        try {
-          const protocol = await chain.getProtocolState();
+        // ── Scan helper: shared logic for scanning V3 or V4 contract ──
+        const scanContract = async (isV4: boolean) => {
+          const protocol = isV4
+            ? await chain.getV4ProtocolState()
+            : await chain.getProtocolState();
           const totalTournaments = Number(protocol[5]);
+          const contractLabel = isV4 ? 'V4' : 'V3';
 
           // Tournament IDs are 0-indexed: iterate from 0 to totalTournaments - 1
           // Only check recent tournaments (last 30) to avoid scanning the full history.
           // Scan NEWEST first (descending) so new Registration tournaments get priority
-          // over old stuck InProgress/RoundActive ones that would consume the runner slot.
           const scanStart = Math.max(0, totalTournaments - 30);
           for (let id = totalTournaments - 1; id >= scanStart; id--) {
             if (isShuttingDown) break;
-            if (runningTournaments.has(id)) continue;
-            if (completedTournaments.has(id)) continue;
-            // Skip tournaments that have failed too many times
-            if ((failureCount.get(id) || 0) >= MAX_FAILURES) {
-              completedTournaments.add(id);
-              log('warn', `Tournament #${id} permanently skipped after ${MAX_FAILURES} failures`, { tournamentId: id });
+            // Use composite key for V4 to avoid ID collisions with V3
+            const trackingKey = isV4 ? id + 100_000 : id;
+            if (runningTournaments.has(trackingKey)) continue;
+            if (completedTournaments.has(trackingKey)) continue;
+            if ((failureCount.get(trackingKey) || 0) >= MAX_FAILURES) {
+              completedTournaments.add(trackingKey);
+              log('warn', `${contractLabel} Tournament #${id} permanently skipped after ${MAX_FAILURES} failures`, { tournamentId: id });
               continue;
             }
 
-            const t = await chain.getTournament(BigInt(id));
+            const t = isV4
+              ? await chain.getV4Tournament(BigInt(id))
+              : await chain.getTournament(BigInt(id));
             if (!t.exists) {
-              completedTournaments.add(id);
+              completedTournaments.add(trackingKey);
               continue;
             }
 
-            // Skip completed/cancelled tournaments (4 = Completed, 5 = Cancelled)
             if (t.status >= 4) {
-              completedTournaments.add(id);
+              completedTournaments.add(trackingKey);
               continue;
             }
 
-            // Also skip RoundComplete (3) — waiting for on-chain advancement
             if (t.status === 3) {
               continue;
             }
 
-            // Helper: launch a tournament runner concurrently (fire-and-forget).
-            // IMPORTANT: adds to runningTournaments synchronously to prevent
-            // double-triggering on the next poll cycle, then runs async.
             const launchRunner = (reason: string) => {
-              // Immediately mark as running + completed to prevent re-triggering
-              runningTournaments.add(id);
-              completedTournaments.add(id);
+              runningTournaments.add(trackingKey);
+              completedTournaments.add(trackingKey);
 
-              log('info', `Tournament #${id} ${reason} — launching runner`, {
+              log('info', `${contractLabel} Tournament #${id} ${reason} — launching runner`, {
                 tournamentId: id,
+                contract: contractLabel,
                 status: t.status,
                 playerCount: t.registeredCount,
                 tier: t.tier,
                 concurrentRunners: runningTournaments.size,
               });
 
-              // Fire-and-forget — don't block the watch loop
               (async () => {
                 try {
-                  const wallets = await chain.getRegisteredWallets(BigInt(id), t.registeredCount);
+                  const wallets = isV4
+                    ? await chain.getV4RegisteredWallets(BigInt(id), t.registeredCount)
+                    : await chain.getRegisteredWallets(BigInt(id), t.registeredCount);
                   if (wallets.length < t.minPlayers) {
-                    log('warn', `Tournament #${id}: found ${wallets.length} wallets but need ${t.minPlayers}, skipping`, {
+                    log('warn', `${contractLabel} Tournament #${id}: found ${wallets.length} wallets but need ${t.minPlayers}, skipping`, {
                       tournamentId: id,
                     });
-                    runningTournaments.delete(id);
-                    completedTournaments.delete(id); // Allow retry
+                    runningTournaments.delete(trackingKey);
+                    completedTournaments.delete(trackingKey);
                     return;
                   }
 
@@ -351,42 +376,36 @@ async function main() {
                     freeTierPrizeUsdc: tier === 'free' ? freeTierPrizeUsdc : undefined,
                     bestOf: t.bestOf,
                     teamSize: t.teamSize,
+                    useV4: isV4,
                   };
 
                   const runner = new TournamentRunner(chain, engine, config, stateManager, gatewayUrl, serviceKey);
                   await runner.run(wallets);
-                  log('info', `Tournament #${id} completed successfully`, { tournamentId: id });
+                  log('info', `${contractLabel} Tournament #${id} completed successfully`, { tournamentId: id });
                 } catch (err: any) {
-                  const failures = (failureCount.get(id) || 0) + 1;
-                  failureCount.set(id, failures);
-                  // Store last error for health endpoint diagnostics
-                  lastErrors.set(id, `${err.message}`.slice(0, 200));
-                  log('error', `Tournament #${id} failed (attempt ${failures}/${MAX_FAILURES}) — ${failures >= MAX_FAILURES ? 'permanently skipping' : 'will retry'}`, {
+                  const failures = (failureCount.get(trackingKey) || 0) + 1;
+                  failureCount.set(trackingKey, failures);
+                  lastErrors.set(trackingKey, `${err.message}`.slice(0, 200));
+                  log('error', `${contractLabel} Tournament #${id} failed (attempt ${failures}/${MAX_FAILURES}) — ${failures >= MAX_FAILURES ? 'permanently skipping' : 'will retry'}`, {
                     tournamentId: id,
                     error: err.message,
                     failures,
                   });
-                  // Remove from completedTournaments so it gets retried on next poll cycle
-                  // (unless max failures reached — handled at the top of the loop).
-                  completedTournaments.delete(id);
+                  completedTournaments.delete(trackingKey);
                 } finally {
-                  runningTournaments.delete(id);
+                  runningTournaments.delete(trackingKey);
                 }
               })();
             };
 
-            // Registration (status 0): start when full, start at deadline, or cancel if expired with too few players
             if (t.status === 0) {
               const deadline = Number(t.registrationDeadline);
               const now = Math.floor(Date.now() / 1000);
               const deadlinePassed = deadline > 0 && now >= deadline;
 
-              // Notify the gateway about open tournaments so agents can discover them.
-              // Pushes on every poll (not deduped) so the gateway always has fresh data,
-              // even after a gateway restart. The gateway deduplicates internally.
               if (!deadlinePassed && gatewayUrl) {
                 const entryFeeRaw = BigInt(t.entryFee ?? 0);
-                const entryFee = Number(entryFeeRaw) / 1e6; // USDC has 6 decimals
+                const entryFee = Number(entryFeeRaw) / 1e6;
                 fetch(`${gatewayUrl}/api/internal/tournament-notify`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', 'x-service-key': serviceKey },
@@ -396,69 +415,76 @@ async function main() {
                       tier: t.tier, format: t.format ?? 0, entryFee, maxPlayers: t.maxPlayers,
                       startTime: Number(t.startTime), registrationDeadline: deadline,
                       baseTimeSeconds: t.baseTimeSeconds || 300, incrementSeconds: t.incrementSeconds || 3,
+                      isV4,
                     },
                   }),
                   signal: AbortSignal.timeout(5000),
-                }).catch(err => log('warn', `Failed to notify gateway of tournament #${id}`, { error: (err as Error).message }));
+                }).catch(err => log('warn', `Failed to notify gateway of ${contractLabel} tournament #${id}`, { error: (err as Error).message }));
               }
 
               if (t.registeredCount >= t.minPlayers) {
-                // Start immediately if FULL — no more players can join anyway
                 if (t.registeredCount >= t.maxPlayers) {
                   if (runningTournaments.size >= MAX_CONCURRENT_RUNNERS) {
-                    log('info', `Tournament #${id} full but ${runningTournaments.size} runners active — deferring`, { tournamentId: id });
+                    log('info', `${contractLabel} Tournament #${id} full but ${runningTournaments.size} runners active — deferring`, { tournamentId: id });
                   } else {
                     launchRunner('full — starting immediately');
                   }
                   continue;
                 }
-                // minPlayers reached but not full — give a short grace period for
-                // more players to join, then start. Track when we first noticed.
-                if (!minPlayersReadyAt.has(id)) {
-                  minPlayersReadyAt.set(id, now);
-                  log('info', `Tournament #${id} has ${t.registeredCount}/${t.maxPlayers} players (min=${t.minPlayers}) — starting in ${EARLY_START_GRACE_SEC}s`, { tournamentId: id });
+                const minKey = isV4 ? trackingKey : id;
+                if (!minPlayersReadyAt.has(minKey)) {
+                  minPlayersReadyAt.set(minKey, now);
+                  log('info', `${contractLabel} Tournament #${id} has ${t.registeredCount}/${t.maxPlayers} players (min=${t.minPlayers}) — starting in ${EARLY_START_GRACE_SEC}s`, { tournamentId: id });
                 }
-                const readySince = minPlayersReadyAt.get(id)!;
+                const readySince = minPlayersReadyAt.get(minKey)!;
                 if (deadlinePassed || (now - readySince) >= EARLY_START_GRACE_SEC) {
                   if (runningTournaments.size >= MAX_CONCURRENT_RUNNERS) {
-                    log('info', `Tournament #${id} ready but ${runningTournaments.size} runners active — deferring`, { tournamentId: id });
+                    log('info', `${contractLabel} Tournament #${id} ready but ${runningTournaments.size} runners active — deferring`, { tournamentId: id });
                   } else {
-                    minPlayersReadyAt.delete(id);
+                    minPlayersReadyAt.delete(minKey);
                     launchRunner(`minPlayers reached (${t.registeredCount}/${t.maxPlayers}) — grace period elapsed`);
                   }
                   continue;
                 }
               } else if (deadlinePassed) {
-                // Deadline passed but not enough players — cancel this zombie tournament
-                log('info', `Tournament #${id} expired with ${t.registeredCount}/${t.minPlayers} players — cancelling`, {
+                log('info', `${contractLabel} Tournament #${id} expired with ${t.registeredCount}/${t.minPlayers} players — cancelling`, {
                   tournamentId: id,
                   registeredCount: t.registeredCount,
                   minPlayers: t.minPlayers,
                   deadline,
                 });
                 try {
-                  await chain.cancelTournament(BigInt(id));
-                  log('info', `Tournament #${id} cancelled on-chain`, { tournamentId: id });
+                  if (isV4) {
+                    await chain.cancelV4Tournament(BigInt(id));
+                  } else {
+                    await chain.cancelTournament(BigInt(id));
+                  }
+                  log('info', `${contractLabel} Tournament #${id} cancelled on-chain`, { tournamentId: id });
                 } catch (err: any) {
-                  log('warn', `Failed to cancel tournament #${id}`, {
+                  log('warn', `Failed to cancel ${contractLabel} tournament #${id}`, {
                     tournamentId: id,
                     error: (err as Error).message,
                   });
                 }
-                completedTournaments.add(id);
+                completedTournaments.add(trackingKey);
               }
               continue;
             }
 
-            // InProgress (1) or RoundActive (2): resume — tournament was started but runner isn't running
             if (t.status === 1 || t.status === 2) {
               if (runningTournaments.size >= MAX_CONCURRENT_RUNNERS) {
-                log('info', `Tournament #${id} needs resume but ${runningTournaments.size} runners active — deferring`, { tournamentId: id });
+                log('info', `${contractLabel} Tournament #${id} needs resume but ${runningTournaments.size} runners active — deferring`, { tournamentId: id });
               } else {
                 launchRunner(`needs resume (status=${t.status}, round=${t.currentRound}/${t.totalRounds})`);
               }
             }
           }
+        };
+
+        try {
+          // Scan V4 contract first (priority), then V3 for backward compat
+          await scanContract(true);  // V4
+          await scanContract(false); // V3
         } catch (err: any) {
           log('error', 'Poll error', { error: err.message });
         }
@@ -478,49 +504,70 @@ async function main() {
         }
 
         // ── Auto-create: ensure there's one tournament per game type in registration ──
-        // Only creates a new tournament for a (tier, format) pair when no active registration
-        // tournament exists for that pair. This funnels agents into existing tournaments
-        // instead of fragmenting them across many half-empty ones.
+        // Now creates on V4 contract. Checks both V3 and V4 for existing open tournaments
+        // to avoid creating duplicates during the transition period.
         try {
-          const proto = await chain.getProtocolState();
-          const totalTournaments = Number(proto[5]);
           const now = Math.floor(Date.now() / 1000);
-
-          // Track which (tier:format) combinations already have an open registration tournament
           const openGameTypes = new Set<string>();
-          for (let id = Math.max(0, totalTournaments - 20); id < totalTournaments; id++) {
-            if (completedTournaments.has(id) || runningTournaments.has(id)) continue;
-            const t = await chain.getTournament(BigInt(id));
-            if (t.exists && t.status === 0) {
-              const deadline = Number(t.registrationDeadline);
-              if (deadline <= 0 || now < deadline) {
-                openGameTypes.add(`${t.tier}:${t.format ?? 0}`);
+
+          // Check V4 for open tournaments
+          try {
+            const v4Proto = await chain.getV4ProtocolState();
+            const v4Total = Number(v4Proto[5]);
+            for (let id = Math.max(0, v4Total - 20); id < v4Total; id++) {
+              const trackingKey = id + 100_000;
+              if (completedTournaments.has(trackingKey) || runningTournaments.has(trackingKey)) continue;
+              const t = await chain.getV4Tournament(BigInt(id));
+              if (t.exists && t.status === 0) {
+                const deadline = Number(t.registrationDeadline);
+                if (deadline <= 0 || now < deadline) {
+                  openGameTypes.add(`${t.tier}:${t.format ?? 0}`);
+                }
               }
             }
+          } catch (err: any) {
+            log('warn', 'Failed to scan V4 for open tournaments', { error: err.message });
           }
 
-          // Helper to auto-create a tournament for a specific game type if not already open
+          // Also check V3 for open tournaments (transition period)
+          try {
+            const v3Proto = await chain.getProtocolState();
+            const v3Total = Number(v3Proto[5]);
+            for (let id = Math.max(0, v3Total - 20); id < v3Total; id++) {
+              if (completedTournaments.has(id) || runningTournaments.has(id)) continue;
+              const t = await chain.getTournament(BigInt(id));
+              if (t.exists && t.status === 0) {
+                const deadline = Number(t.registrationDeadline);
+                if (deadline <= 0 || now < deadline) {
+                  openGameTypes.add(`${t.tier}:${t.format ?? 0}`);
+                }
+              }
+            }
+          } catch (err: any) {
+            log('warn', 'Failed to scan V3 for open tournaments', { error: err.message });
+          }
+
+          // Helper to auto-create a V4 tournament if not already open
           const autoCreateIfNeeded = async (
             tier: number, format: number, maxPlayers: number, minPlayers: number,
             baseTime: number, increment: number, label: string,
           ) => {
             const key = `${tier}:${format}`;
-            if (openGameTypes.has(key)) return; // Already one open — funnel agents there
+            if (openGameTypes.has(key)) return;
 
-            await chain.createTournament(
-              tier, format, maxPlayers, minPlayers,
-              BigInt(now + 120),   // startTime: 2 min
-              BigInt(now + 90),    // deadline: 90s
+            await chain.createV4Tournament(
+              tier, format, 0, // bracket=0 (Open)
+              maxPlayers, minPlayers,
+              BigInt(now + 120),
+              BigInt(now + 90),
               baseTime, increment,
             );
-            log('info', `Auto-created ${label} tournament (no open ${key} found)`);
+            log('info', `Auto-created V4 ${label} tournament (no open ${key} found)`);
 
-            // Mark as open so we don't create duplicates in same poll cycle
             openGameTypes.add(key);
 
-            // Notify agent-gateway to broadcast to connected agents
             if (gatewayUrl) {
-              const newProto = await chain.getProtocolState();
+              const newProto = await chain.getV4ProtocolState();
               const newId = Number(newProto[5]) - 1;
               fetch(`${gatewayUrl}/api/internal/tournament-notify`, {
                 method: 'POST',
@@ -531,15 +578,16 @@ async function main() {
                     tier, format, entryFee: 0, maxPlayers,
                     startTime: now + 120, registrationDeadline: now + 90,
                     baseTimeSeconds: baseTime, incrementSeconds: increment,
+                    isV4: true,
                   },
                 }),
                 signal: AbortSignal.timeout(5000),
-              }).catch(err => log('warn', 'Failed to notify gateway of new tournament', { error: (err as Error).message }));
+              }).catch(err => log('warn', 'Failed to notify gateway of new V4 tournament', { error: (err as Error).message }));
             }
           };
 
           // Only create one Free Swiss at a time — agents funnel into this one tournament
-          // Bullet time control: 30s + 1s increment — AI bots move in <1s, games finish in ~2 min
+          // Bullet time control: 30s + 1s increment
           await autoCreateIfNeeded(5, 0, 8, 2, 30, 1, 'Free Swiss');
 
         } catch (err: any) {
@@ -584,6 +632,9 @@ async function main() {
 
       const formatIndex = FORMAT_NAMES.indexOf(format);
 
+      // Use V4 contract for all new tournaments (unless --v3 flag is set)
+      const useV3 = args.includes('--v3');
+      const bracket = parseInt(getArg('bracket', '0')!); // 0=Open by default
       let txHash: string;
 
       switch (format) {
@@ -591,12 +642,19 @@ async function main() {
         case 'league': {
           const maxPlayers = parseInt(getArg('max', '8')!);
           const minPlayers = parseInt(getArg('min', '4')!);
-          txHash = await chain.createTournament(
-            tierIndex, formatIndex, maxPlayers, minPlayers,
-            startTime, registrationDeadline, baseTime, increment,
-          );
-          log('info', `Created ${format} tournament`, {
-            tier: tierName, maxPlayers, minPlayers, txHash,
+          if (useV3) {
+            txHash = await chain.createTournament(
+              tierIndex, formatIndex, maxPlayers, minPlayers,
+              startTime, registrationDeadline, baseTime, increment,
+            );
+          } else {
+            txHash = await chain.createV4Tournament(
+              tierIndex, formatIndex, bracket, maxPlayers, minPlayers,
+              startTime, registrationDeadline, baseTime, increment,
+            );
+          }
+          log('info', `Created ${format} tournament (${useV3 ? 'V3' : 'V4'})`, {
+            tier: tierName, maxPlayers, minPlayers, bracket, txHash,
           });
           break;
         }
@@ -604,6 +662,7 @@ async function main() {
         case 'match': {
           const bestOf = parseInt(getArg('best-of', '3')!);
           const opponent = (getArg('opponent') || '0x0000000000000000000000000000000000000000') as `0x${string}`;
+          // Match challenges still use V3 (V4 may not support createMatchChallenge)
           txHash = await chain.createMatchChallenge(
             tierIndex, startTime, registrationDeadline,
             baseTime, increment, bestOf, opponent,
@@ -618,19 +677,26 @@ async function main() {
           const maxTeams = parseInt(getArg('max-teams', '4')!);
           const minTeams = parseInt(getArg('min-teams', '2')!);
           const teamSize = parseInt(getArg('team-size', '5')!);
-          txHash = await chain.createTeamTournament(
-            tierIndex, maxTeams, minTeams,
-            startTime, registrationDeadline, baseTime, increment, teamSize,
-          );
-          log('info', `Created team tournament`, {
-            tier: tierName, maxTeams, minTeams, teamSize, txHash,
+          if (useV3) {
+            txHash = await chain.createTeamTournament(
+              tierIndex, maxTeams, minTeams,
+              startTime, registrationDeadline, baseTime, increment, teamSize,
+            );
+          } else {
+            txHash = await chain.createV4TeamTournament(
+              tierIndex, bracket, maxTeams, minTeams,
+              startTime, registrationDeadline, baseTime, increment, teamSize,
+            );
+          }
+          log('info', `Created team tournament (${useV3 ? 'V3' : 'V4'})`, {
+            tier: tierName, maxTeams, minTeams, teamSize, bracket, txHash,
           });
           break;
         }
       }
 
       // Read back the tournament to confirm
-      const protocol = await chain.getProtocolState();
+      const protocol = useV3 ? await chain.getProtocolState() : await chain.getV4ProtocolState();
       const newId = Number(protocol[5]) - 1;
       console.log(`\nTournament created successfully!`);
       console.log(`  ID: ${newId}`);

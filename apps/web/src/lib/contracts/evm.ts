@@ -658,6 +658,403 @@ export const BETTING_ABI = [
   },
 ] as const;
 
+// ABI for the ChessBotsTournament V4 contract (with bracket support)
+export const CHESSBOTS_V4_ABI = [
+  {
+    inputs: [{ name: 'tournamentId', type: 'uint256' }],
+    name: 'getTournament',
+    outputs: [{
+      components: [
+        { name: 'id', type: 'uint256' },
+        { name: 'authority', type: 'address' },
+        { name: 'tier', type: 'uint8' },
+        { name: 'format', type: 'uint8' },
+        { name: 'tournamentType', type: 'uint8' },
+        { name: 'bracket', type: 'uint8' },
+        { name: 'entryFee', type: 'uint256' },
+        { name: 'status', type: 'uint8' },
+        { name: 'maxPlayers', type: 'uint8' },
+        { name: 'minPlayers', type: 'uint8' },
+        { name: 'registeredCount', type: 'uint8' },
+        { name: 'currentRound', type: 'uint8' },
+        { name: 'totalRounds', type: 'uint8' },
+        { name: 'teamSize', type: 'uint8' },
+        { name: 'bestOf', type: 'uint8' },
+        { name: 'startTime', type: 'int64' },
+        { name: 'registrationDeadline', type: 'int64' },
+        { name: 'baseTimeSeconds', type: 'uint32' },
+        { name: 'incrementSeconds', type: 'uint32' },
+        { name: 'resultsUri', type: 'string' },
+        { name: 'prizeDistributed', type: 'bool' },
+        { name: 'exists', type: 'bool' },
+        { name: 'challengeTarget', type: 'address' },
+      ],
+      name: '',
+      type: 'tuple',
+    }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'wallet', type: 'address' }],
+    name: 'getAgent',
+    outputs: [{
+      components: [
+        { name: 'wallet', type: 'address' },
+        { name: 'name', type: 'string' },
+        { name: 'metadataUri', type: 'string' },
+        { name: 'agentType', type: 'uint8' },
+        { name: 'eloRating', type: 'uint16' },
+        { name: 'gamesPlayed', type: 'uint32' },
+        { name: 'gamesWon', type: 'uint32' },
+        { name: 'gamesDrawn', type: 'uint32' },
+        { name: 'gamesLost', type: 'uint32' },
+        { name: 'totalEarnings', type: 'uint64' },
+        { name: 'referredBy', type: 'address' },
+        { name: 'registered', type: 'bool' },
+      ],
+      name: '',
+      type: 'tuple',
+    }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'agent', type: 'address' },
+    ],
+    name: 'getRegistration',
+    outputs: [{
+      components: [
+        { name: 'agent', type: 'address' },
+        { name: 'score', type: 'uint16' },
+        { name: 'buchholz', type: 'uint16' },
+        { name: 'gamesPlayed', type: 'uint8' },
+        { name: 'gamesWon', type: 'uint8' },
+        { name: 'gamesDrawn', type: 'uint8' },
+        { name: 'gamesLost', type: 'uint8' },
+        { name: 'finalRank', type: 'uint8' },
+        { name: 'active', type: 'bool' },
+        { name: 'exists', type: 'bool' },
+      ],
+      name: '',
+      type: 'tuple',
+    }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'round', type: 'uint8' },
+      { name: 'gameIndex', type: 'uint8' },
+    ],
+    name: 'getGame',
+    outputs: [{
+      components: [
+        { name: 'tournamentId', type: 'uint256' },
+        { name: 'round', type: 'uint8' },
+        { name: 'gameIndex', type: 'uint8' },
+        { name: 'white', type: 'address' },
+        { name: 'black', type: 'address' },
+        { name: 'status', type: 'uint8' },
+        { name: 'result', type: 'uint8' },
+        { name: 'moveCount', type: 'uint16' },
+        { name: 'startedAt', type: 'int64' },
+        { name: 'endedAt', type: 'int64' },
+        { name: 'pgnHash', type: 'bytes32' },
+        { name: 'resultHash', type: 'bytes32' },
+        { name: 'arbiter', type: 'address' },
+        { name: 'exists', type: 'bool' },
+      ],
+      name: '',
+      type: 'tuple',
+    }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // protocol() — ProtocolState struct
+  {
+    inputs: [],
+    name: 'protocol',
+    outputs: [
+      { name: 'authority', type: 'address' },
+      { name: 'treasury', type: 'address' },
+      { name: 'protocolFeeBps', type: 'uint16' },
+      { name: 'buybackShareBps', type: 'uint16' },
+      { name: 'treasuryShareBps', type: 'uint16' },
+      { name: 'totalTournaments', type: 'uint64' },
+      { name: 'totalPrizeDistributed', type: 'uint256' },
+      { name: 'paused', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // totalGamesPlayed — separate storage slot
+  {
+    inputs: [],
+    name: 'totalGamesPlayed',
+    outputs: [{ name: '', type: 'uint64' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // getRankedPlayers — leaderboard
+  {
+    inputs: [{ name: 'tournamentId', type: 'uint256' }],
+    name: 'getRankedPlayers',
+    outputs: [{ name: '', type: 'address[]' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // pendingBuyback
+  {
+    inputs: [],
+    name: 'pendingBuyback',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // tournamentCollected
+  {
+    inputs: [{ name: 'tournamentId', type: 'uint256' }],
+    name: 'tournamentCollected',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // --- Write functions ---
+  {
+    inputs: [{ name: 'tournamentId', type: 'uint256' }],
+    name: 'registerForTournament',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'name', type: 'string' },
+      { name: 'metadataUri', type: 'string' },
+      { name: 'agentType', type: 'uint8' },
+    ],
+    name: 'registerAgent',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'name', type: 'string' },
+      { name: 'metadataUri', type: 'string' },
+      { name: 'agentType', type: 'uint8' },
+      { name: 'referrer', type: 'address' },
+    ],
+    name: 'registerAgentWithReferral',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // createTournament (write) — V4 with bracket param
+  {
+    inputs: [
+      { name: 'tier', type: 'uint8' },
+      { name: 'format', type: 'uint8' },
+      { name: 'bracket', type: 'uint8' },
+      { name: 'maxPlayers', type: 'uint8' },
+      { name: 'minPlayers', type: 'uint8' },
+      { name: 'startTime', type: 'int64' },
+      { name: 'registrationDeadline', type: 'int64' },
+      { name: 'baseTimeSeconds', type: 'uint32' },
+      { name: 'incrementSeconds', type: 'uint32' },
+    ],
+    name: 'createTournament',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // createMatchChallenge (write) — 1v1 match
+  {
+    inputs: [
+      { name: 'tier', type: 'uint8' },
+      { name: 'startTime', type: 'int64' },
+      { name: 'registrationDeadline', type: 'int64' },
+      { name: 'baseTimeSeconds', type: 'uint32' },
+      { name: 'incrementSeconds', type: 'uint32' },
+      { name: 'bestOf', type: 'uint8' },
+      { name: 'opponent', type: 'address' },
+    ],
+    name: 'createMatchChallenge',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // --- Referral functions ---
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'referralEarnings',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'referralCount',
+    outputs: [{ name: '', type: 'uint16' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'referrer', type: 'address' }],
+    name: 'getReferrerTier',
+    outputs: [
+      { name: 'tier', type: 'uint8' },
+      { name: 'rateBps', type: 'uint16' },
+      { name: 'count', type: 'uint16' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'claimReferralEarnings',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  // --- Sponsorship functions ---
+  {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'sponsorName', type: 'string' },
+      { name: 'sponsorUri', type: 'string' },
+    ],
+    name: 'sponsorTournament',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'tournamentId', type: 'uint256' }],
+    name: 'getSponsor',
+    outputs: [{
+      components: [
+        { name: 'sponsor', type: 'address' },
+        { name: 'name', type: 'string' },
+        { name: 'uri', type: 'string' },
+        { name: 'amount', type: 'uint256' },
+      ],
+      name: '',
+      type: 'tuple',
+    }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // executeBuyback — permissionless
+  {
+    inputs: [{ name: 'minChessOut', type: 'uint256' }],
+    name: 'executeBuyback',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+] as const;
+
+// ChessELO ABI — ELO rating and bracket system
+export const CHESS_ELO_ABI = [
+  {
+    inputs: [{ name: 'agent', type: 'address' }],
+    name: 'getELO',
+    outputs: [{ name: '', type: 'uint16' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'agent', type: 'address' }],
+    name: 'getBracket',
+    outputs: [{ name: '', type: 'uint8' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'agent', type: 'address' }],
+    name: 'getProfile',
+    outputs: [{
+      components: [
+        { name: 'elo', type: 'uint16' },
+        { name: 'bracket', type: 'uint8' },
+        { name: 'gamesPlayed', type: 'uint32' },
+        { name: 'tournamentsPlayed', type: 'uint32' },
+        { name: 'initialized', type: 'bool' },
+      ],
+      name: '',
+      type: 'tuple',
+    }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'agent', type: 'address' },
+      { name: 'bracket', type: 'uint8' },
+    ],
+    name: 'isEligible',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+// ChessSeason ABI — seasonal points and leaderboard
+export const CHESS_SEASON_ABI = [
+  {
+    inputs: [],
+    name: 'getCurrentSeason',
+    outputs: [
+      { name: 'seasonId', type: 'uint256' },
+      { name: 'startTime', type: 'uint256' },
+      { name: 'endTime', type: 'uint256' },
+      { name: 'active', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'seasonId', type: 'uint256' },
+      { name: 'agent', type: 'address' },
+    ],
+    name: 'getSeasonPoints',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'seasonId', type: 'uint256' },
+      { name: 'agent', type: 'address' },
+    ],
+    name: 'getSeasonPointsWithBonus',
+    outputs: [
+      { name: 'base', type: 'uint256' },
+      { name: 'bonus', type: 'uint256' },
+      { name: 'total', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'seasonId', type: 'uint256' },
+      { name: 'agent', type: 'address' },
+    ],
+    name: 'getTournamentCount',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
 // Market types enum matching V2 contract
 export const MarketType = {
   GameOutcome: 0,
@@ -700,6 +1097,18 @@ export function getBettingContract(address: Address, client: PublicClient) {
   return getContract({ address, abi: BETTING_ABI, client });
 }
 
+export function getV4Contract(address: Address, client: PublicClient) {
+  return getContract({ address, abi: CHESSBOTS_V4_ABI, client });
+}
+
+export function getEloContract(address: Address, client: PublicClient) {
+  return getContract({ address, abi: CHESS_ELO_ABI, client });
+}
+
+export function getSeasonContract(address: Address, client: PublicClient) {
+  return getContract({ address, abi: CHESS_SEASON_ABI, client });
+}
+
 // Enum mappings matching Solidity contract
 export const TierMap = { Rookie: 0, Bronze: 1, Silver: 2, Masters: 3, Legends: 4, Free: 5 } as const;
 export const TierNames = ['Rookie', 'Bronze', 'Silver', 'Masters', 'Legends', 'Free'] as const;
@@ -731,3 +1140,5 @@ export const FormatMap = {
   3: 'League',
 } as const;
 export const FormatNames = ['Swiss', '1v1', 'Team', 'League'] as const;
+export const BracketNames = ['Open', 'Unrated', 'Class C', 'Class B', 'Class A'] as const;
+export const TournamentTypeNames = ['Standard', 'Bracket'] as const;

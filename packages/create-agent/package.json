@@ -1,32 +1,32 @@
 {
-  "name": "@chessbots/agent-sdk",
+  "name": "@chessbots/create-agent",
   "version": "0.1.0",
-  "description": "SDK for building autonomous chess agents on the ChessBots platform",
+  "description": "Scaffold a new ChessBots autonomous chess agent",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "bin": {
+    "create-agent": "dist/index.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "socket.io-client": "^4.8.0",
-    "viem": "^2.21.0"
+    "prompts": "^2.4.2"
   },
   "devDependencies": {
     "typescript": "^5.3.0",
-    "@types/node": "^20.10.0"
+    "@types/node": "^20.10.0",
+    "@types/prompts": "^2.4.8"
   },
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
   "keywords": [
     "chess",
     "ai",
     "agent",
-    "blockchain",
-    "monad"
+    "scaffold",
+    "chessbots"
   ],
   "license": "MIT",
   "publishConfig": {

@@ -335,12 +335,177 @@ const AGENT_JOINED_EVENT = {
   ],
 };
 
+// ── V4 ABI additions ────────────────────────────────────────────────────────
+
+// V4 createTournament: adds bracket param
+const V4_CREATE_TOURNAMENT_ABI = [{
+  inputs: [
+    { name: 'tier', type: 'uint8' },
+    { name: 'format', type: 'uint8' },
+    { name: 'bracket', type: 'uint8' },
+    { name: 'maxPlayers', type: 'uint8' },
+    { name: 'minPlayers', type: 'uint8' },
+    { name: 'startTime', type: 'int64' },
+    { name: 'registrationDeadline', type: 'int64' },
+    { name: 'baseTimeSeconds', type: 'uint32' },
+    { name: 'incrementSeconds', type: 'uint32' },
+  ],
+  name: 'createTournament',
+  outputs: [],
+  stateMutability: 'nonpayable',
+  type: 'function',
+}] as const;
+
+// V4 createTeamTournament: adds bracket param
+const V4_CREATE_TEAM_ABI = [{
+  inputs: [
+    { name: 'tier', type: 'uint8' },
+    { name: 'bracket', type: 'uint8' },
+    { name: 'maxTeams', type: 'uint8' },
+    { name: 'minTeams', type: 'uint8' },
+    { name: 'startTime', type: 'int64' },
+    { name: 'registrationDeadline', type: 'int64' },
+    { name: 'baseTimeSeconds', type: 'uint32' },
+    { name: 'incrementSeconds', type: 'uint32' },
+    { name: 'teamSize', type: 'uint8' },
+  ],
+  name: 'createTeamTournament',
+  outputs: [],
+  stateMutability: 'nonpayable',
+  type: 'function',
+}] as const;
+
+// V4 finalizeTournament: takes ranked players array instead of fixed winners[3]
+const V4_FINALIZE_ABI = [{
+  inputs: [
+    { name: 'tournamentId', type: 'uint256' },
+    { name: 'rankedPlayers', type: 'address[]' },
+    { name: 'resultsUri', type: 'string' },
+  ],
+  name: 'finalizeTournament',
+  outputs: [],
+  stateMutability: 'nonpayable',
+  type: 'function',
+}] as const;
+
+// V4 getTournament: struct with tournamentType, bracket fields
+const V4_GET_TOURNAMENT_ABI = [{
+  inputs: [{ name: 'tournamentId', type: 'uint256' }],
+  name: 'getTournament',
+  outputs: [{
+    components: [
+      { name: 'id', type: 'uint256' },
+      { name: 'authority', type: 'address' },
+      { name: 'tier', type: 'uint8' },
+      { name: 'format', type: 'uint8' },
+      { name: 'tournamentType', type: 'uint8' },
+      { name: 'bracket', type: 'uint8' },
+      { name: 'entryFee', type: 'uint256' },
+      { name: 'status', type: 'uint8' },
+      { name: 'maxPlayers', type: 'uint8' },
+      { name: 'minPlayers', type: 'uint8' },
+      { name: 'registeredCount', type: 'uint8' },
+      { name: 'currentRound', type: 'uint8' },
+      { name: 'totalRounds', type: 'uint8' },
+      { name: 'teamSize', type: 'uint8' },
+      { name: 'bestOf', type: 'uint8' },
+      { name: 'startTime', type: 'int64' },
+      { name: 'registrationDeadline', type: 'int64' },
+      { name: 'baseTimeSeconds', type: 'uint32' },
+      { name: 'incrementSeconds', type: 'uint32' },
+      { name: 'resultsUri', type: 'string' },
+      { name: 'prizeDistributed', type: 'bool' },
+      { name: 'exists', type: 'bool' },
+      { name: 'challengeTarget', type: 'address' },
+    ],
+    name: '',
+    type: 'tuple',
+  }],
+  stateMutability: 'view',
+  type: 'function',
+}] as const;
+
+// V4 view functions
+const V4_VIEW_ABI = [
+  {
+    inputs: [{ name: 'tournamentId', type: 'uint256' }],
+    name: 'getRankedPlayers',
+    outputs: [{ name: '', type: 'address[]' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+// ChessELO ABI
+const CHESS_ELO_ABI = [
+  {
+    inputs: [
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'players', type: 'address[]' },
+      { name: 'opponents', type: 'address[]' },
+      { name: 'results', type: 'uint256[]' },
+    ],
+    name: 'updateRatings',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'participants', type: 'address[]' }],
+    name: 'recordTournamentCompletion',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'agent', type: 'address' },
+      { name: 'startingElo', type: 'uint16' },
+    ],
+    name: 'initializeAgent',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+] as const;
+
+// ChessSeason ABI
+const CHESS_SEASON_ABI = [
+  {
+    inputs: [
+      { name: 'seasonId', type: 'uint256' },
+      { name: 'tournamentId', type: 'uint256' },
+      { name: 'agents', type: 'address[]' },
+      { name: 'tier', type: 'uint8' },
+    ],
+    name: 'recordTournamentResult',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'getCurrentSeason',
+    outputs: [
+      { name: 'seasonId', type: 'uint256' },
+      { name: 'startTime', type: 'uint256' },
+      { name: 'endTime', type: 'uint256' },
+      { name: 'active', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
 export class MonadClient {
   private publicClient;
   private walletClient;
   private account;
   private contractAddress: Address;
   private usdcAddress: Address;
+  private v4ContractAddress: Address;
+  private eloContractAddress: Address;
+  private seasonContractAddress: Address;
 
   constructor(config: ChainConfig) {
     // TO-C4: Validate private key format at startup
@@ -350,6 +515,9 @@ export class MonadClient {
     this.account = privateKeyToAccount(config.privateKey as `0x${string}`);
     this.contractAddress = config.contractAddress as Address;
     this.usdcAddress = config.usdcAddress as Address;
+    this.v4ContractAddress = (config.v4ContractAddress || config.contractAddress) as Address;
+    this.eloContractAddress = (config.eloContractAddress || '0x0000000000000000000000000000000000000000') as Address;
+    this.seasonContractAddress = (config.seasonContractAddress || '0x0000000000000000000000000000000000000000') as Address;
 
     const chain = { ...monad, rpcUrls: { default: { http: [config.rpcUrl] } } };
 
@@ -363,6 +531,12 @@ export class MonadClient {
       chain,
       transport: http(config.rpcUrl),
     });
+
+    if (config.v4ContractAddress) {
+      console.log(`  [chain] V4 contract: ${this.v4ContractAddress}`);
+      console.log(`  [chain] ELO contract: ${this.eloContractAddress}`);
+      console.log(`  [chain] Season contract: ${this.seasonContractAddress}`);
+    }
   }
 
   // TO-C1: Wait for transaction receipt confirmation
@@ -782,5 +956,325 @@ export class MonadClient {
 
   getAddress(): Address {
     return this.account.address;
+  }
+
+  // ── V4 Economics Methods ──────────────────────────────────────────────────
+
+  async createV4Tournament(
+    tier: number, format: number, bracket: number,
+    maxPlayers: number, minPlayers: number,
+    startTime: bigint, registrationDeadline: bigint,
+    baseTimeSeconds: number, incrementSeconds: number,
+  ): Promise<Hash> {
+    const hash = await this.walletClient.writeContract({
+      address: this.v4ContractAddress,
+      abi: V4_CREATE_TOURNAMENT_ABI,
+      functionName: 'createTournament',
+      args: [tier, format, bracket, maxPlayers, minPlayers, startTime, registrationDeadline, baseTimeSeconds, incrementSeconds],
+    });
+    await this.confirmTx(hash, 'createV4Tournament');
+    return hash;
+  }
+
+  async createV4TeamTournament(
+    tier: number, bracket: number, maxTeams: number, minTeams: number,
+    startTime: bigint, registrationDeadline: bigint,
+    baseTimeSeconds: number, incrementSeconds: number,
+    teamSize: number,
+  ): Promise<Hash> {
+    const hash = await this.walletClient.writeContract({
+      address: this.v4ContractAddress,
+      abi: V4_CREATE_TEAM_ABI,
+      functionName: 'createTeamTournament',
+      args: [tier, bracket, maxTeams, minTeams, startTime, registrationDeadline, baseTimeSeconds, incrementSeconds, teamSize],
+    });
+    await this.confirmTx(hash, 'createV4TeamTournament');
+    return hash;
+  }
+
+  async getV4Tournament(tournamentId: bigint) {
+    return this.publicClient.readContract({
+      address: this.v4ContractAddress,
+      abi: V4_GET_TOURNAMENT_ABI,
+      functionName: 'getTournament',
+      args: [tournamentId],
+    });
+  }
+
+  async finalizeV4Tournament(
+    tournamentId: bigint,
+    rankedPlayers: Address[],
+    resultsUri: string,
+  ): Promise<Hash> {
+    return this.withRetry(async () => {
+      const hash = await this.walletClient.writeContract({
+        address: this.v4ContractAddress,
+        abi: V4_FINALIZE_ABI,
+        functionName: 'finalizeTournament',
+        args: [tournamentId, rankedPlayers, resultsUri],
+      });
+      await this.confirmTx(hash, `finalizeV4Tournament(${tournamentId})`);
+      return hash;
+    }, `finalizeV4Tournament(${tournamentId})`);
+  }
+
+  async distributeV4Prizes(tournamentId: bigint): Promise<Hash> {
+    return this.withRetry(async () => {
+      const hash = await this.walletClient.writeContract({
+        address: this.v4ContractAddress,
+        abi: TOURNAMENT_ABI,
+        functionName: 'distributePrizes',
+        args: [tournamentId],
+      });
+      await this.confirmTx(hash, `distributeV4Prizes(${tournamentId})`);
+      return hash;
+    }, `distributeV4Prizes(${tournamentId})`);
+  }
+
+  async startV4Tournament(tournamentId: bigint): Promise<Hash> {
+    return this.withRetry(async () => {
+      const hash = await this.walletClient.writeContract({
+        address: this.v4ContractAddress,
+        abi: TOURNAMENT_ABI,
+        functionName: 'startTournament',
+        args: [tournamentId],
+      });
+      await this.confirmTx(hash, `startV4Tournament(${tournamentId})`);
+      return hash;
+    }, `startV4Tournament(${tournamentId})`);
+  }
+
+  async cancelV4Tournament(tournamentId: bigint): Promise<Hash> {
+    const hash = await this.walletClient.writeContract({
+      address: this.v4ContractAddress,
+      abi: TOURNAMENT_ABI,
+      functionName: 'cancelTournament',
+      args: [tournamentId],
+    });
+    await this.confirmTx(hash, `cancelV4Tournament(${tournamentId})`);
+    return hash;
+  }
+
+  async batchCreateAndStartV4Games(
+    tournamentId: bigint, round: number, pairings: Pairing[],
+  ): Promise<Hash> {
+    return this.withRetry(async () => {
+      const gameInputs = pairings.map(p => ({
+        gameIndex: p.gameIndex,
+        white: p.white as Address,
+        black: p.black as Address,
+      }));
+      const hash = await this.walletClient.writeContract({
+        address: this.v4ContractAddress,
+        abi: TOURNAMENT_ABI,
+        functionName: 'batchCreateAndStartGames',
+        args: [tournamentId, round, gameInputs],
+      });
+      await this.confirmTx(hash, `batchCreateAndStartV4Games(${tournamentId}, round ${round})`);
+      return hash;
+    }, `batchCreateAndStartV4Games(${tournamentId}, round ${round})`);
+  }
+
+  async executeV4Round(
+    tournamentId: bigint, round: number,
+    results: Array<{ gameIndex: number; result: number; pgnHash: `0x${string}`; resultHash: `0x${string}`; moveCount: number }>,
+    standings: PlayerStanding[],
+    advance: boolean,
+  ): Promise<Hash> {
+    const resultInputs = results.map(r => ({
+      gameIndex: r.gameIndex,
+      result: r.result,
+      pgnHash: r.pgnHash,
+      resultHash: r.resultHash,
+      moveCount: r.moveCount,
+    }));
+    const standingInputs = standings.map(s => ({
+      agent: s.wallet as Address,
+      score: s.score,
+      buchholz: s.buchholz,
+      gamesPlayed: s.gamesPlayed,
+      gamesWon: s.gamesWon,
+      gamesDrawn: s.gamesDrawn,
+      gamesLost: s.gamesLost,
+    }));
+    return this.withRetry(async () => {
+      const hash = await this.walletClient.writeContract({
+        address: this.v4ContractAddress,
+        abi: TOURNAMENT_ABI,
+        functionName: 'executeRound',
+        args: [tournamentId, round, resultInputs, standingInputs, advance],
+      });
+      await this.confirmTx(hash, `executeV4Round(${tournamentId}, round ${round})`);
+      return hash;
+    }, `executeV4Round(${tournamentId}, round ${round})`);
+  }
+
+  async fundV4Tournament(tournamentId: bigint, amount: bigint): Promise<Hash> {
+    return this.withRetry(async () => {
+      const hash = await this.walletClient.writeContract({
+        address: this.v4ContractAddress,
+        abi: TOURNAMENT_ABI,
+        functionName: 'fundTournament',
+        args: [tournamentId, amount],
+      });
+      await this.confirmTx(hash, `fundV4Tournament(${tournamentId}, ${amount})`);
+      return hash;
+    }, `fundV4Tournament(${tournamentId})`);
+  }
+
+  async approveV4Usdc(amount: bigint): Promise<Hash> {
+    return this.withRetry(async () => {
+      const hash = await this.walletClient.writeContract({
+        address: this.usdcAddress,
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        args: [this.v4ContractAddress, amount],
+      });
+      await this.confirmTx(hash, `approveV4Usdc(${amount})`);
+      return hash;
+    }, `approveV4Usdc(${amount})`);
+  }
+
+  async getV4UsdcAllowance(): Promise<bigint> {
+    return this.publicClient.readContract({
+      address: this.usdcAddress,
+      abi: ERC20_ABI,
+      functionName: 'allowance',
+      args: [this.account.address, this.v4ContractAddress],
+    });
+  }
+
+  async getV4ProtocolState() {
+    return this.publicClient.readContract({
+      address: this.v4ContractAddress,
+      abi: TOURNAMENT_ABI,
+      functionName: 'protocol',
+    });
+  }
+
+  /** Scan V4 contract for AgentJoined events */
+  async getV4RegisteredWallets(tournamentId: bigint, expectedCount?: number): Promise<Address[]> {
+    const CHUNK_SIZE = 99n;
+    const PARALLEL_BATCH = 5;
+    const latestBlock = await this.publicClient.getBlockNumber();
+    const wallets: Address[] = [];
+
+    const scanRanges = [
+      { from: latestBlock > 10_000n ? latestBlock - 10_000n : 0n, to: latestBlock },
+      { from: latestBlock > 50_000n ? latestBlock - 50_000n : 0n, to: latestBlock > 10_000n ? latestBlock - 10_000n : 0n },
+      { from: latestBlock > 200_000n ? latestBlock - 200_000n : 0n, to: latestBlock > 50_000n ? latestBlock - 50_000n : 0n },
+    ];
+
+    for (const range of scanRanges) {
+      if (range.from >= range.to) continue;
+      const chunks: Array<{ from: bigint; to: bigint }> = [];
+      for (let from = range.from; from <= range.to; from += CHUNK_SIZE + 1n) {
+        const to = from + CHUNK_SIZE > range.to ? range.to : from + CHUNK_SIZE;
+        chunks.push({ from, to });
+      }
+      for (let i = 0; i < chunks.length; i += PARALLEL_BATCH) {
+        const batch = chunks.slice(i, i + PARALLEL_BATCH);
+        const results = await Promise.allSettled(
+          batch.map(chunk =>
+            this.publicClient.getLogs({
+              address: this.v4ContractAddress,
+              event: AGENT_JOINED_EVENT,
+              args: { tournamentId },
+              fromBlock: chunk.from,
+              toBlock: chunk.to,
+            })
+          )
+        );
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            for (const logEntry of result.value) {
+              const args = logEntry.args as Record<string, unknown>;
+              if (args.agent) wallets.push(args.agent as Address);
+            }
+          }
+        }
+      }
+      if (wallets.length > 0 && (!expectedCount || wallets.length >= expectedCount)) break;
+    }
+    console.log(`  Found ${wallets.length} V4 registered wallets for tournament #${tournamentId}`);
+    return wallets;
+  }
+
+  // ── ChessELO Methods ──────────────────────────────────────────────────────
+
+  async initializeEloAgent(agent: Address, startingElo: number = 1200): Promise<Hash> {
+    return this.withRetry(async () => {
+      const hash = await this.walletClient.writeContract({
+        address: this.eloContractAddress,
+        abi: CHESS_ELO_ABI,
+        functionName: 'initializeAgent',
+        args: [agent, startingElo],
+      });
+      await this.confirmTx(hash, `initializeEloAgent(${agent})`);
+      return hash;
+    }, `initializeEloAgent(${agent})`);
+  }
+
+  async updateEloRatings(
+    tournamentId: bigint,
+    players: Address[],
+    opponents: Address[],
+    results: bigint[],
+  ): Promise<Hash> {
+    return this.withRetry(async () => {
+      const hash = await this.walletClient.writeContract({
+        address: this.eloContractAddress,
+        abi: CHESS_ELO_ABI,
+        functionName: 'updateRatings',
+        args: [tournamentId, players, opponents, results],
+      });
+      await this.confirmTx(hash, `updateEloRatings(${tournamentId}, ${players.length} games)`);
+      return hash;
+    }, `updateEloRatings(${tournamentId})`);
+  }
+
+  async recordTournamentCompletion(participants: Address[]): Promise<Hash> {
+    return this.withRetry(async () => {
+      const hash = await this.walletClient.writeContract({
+        address: this.eloContractAddress,
+        abi: CHESS_ELO_ABI,
+        functionName: 'recordTournamentCompletion',
+        args: [participants],
+      });
+      await this.confirmTx(hash, `recordTournamentCompletion(${participants.length} agents)`);
+      return hash;
+    }, 'recordTournamentCompletion');
+  }
+
+  // ── ChessSeason Methods ───────────────────────────────────────────────────
+
+  async getCurrentSeason(): Promise<{ id: bigint; startTime: bigint; endTime: bigint; active: boolean }> {
+    const result = await this.publicClient.readContract({
+      address: this.seasonContractAddress,
+      abi: CHESS_SEASON_ABI,
+      functionName: 'getCurrentSeason',
+    });
+    return {
+      id: result[0],
+      startTime: result[1],
+      endTime: result[2],
+      active: result[3],
+    };
+  }
+
+  async recordSeasonResult(
+    seasonId: bigint, tournamentId: bigint,
+    agents: Address[], tier: number,
+  ): Promise<Hash> {
+    return this.withRetry(async () => {
+      const hash = await this.walletClient.writeContract({
+        address: this.seasonContractAddress,
+        abi: CHESS_SEASON_ABI,
+        functionName: 'recordTournamentResult',
+        args: [seasonId, tournamentId, agents, tier],
+      });
+      await this.confirmTx(hash, `recordSeasonResult(season ${seasonId}, tournament ${tournamentId})`);
+      return hash;
+    }, `recordSeasonResult(${seasonId}, ${tournamentId})`);
   }
 }
