@@ -2,12 +2,11 @@
 
 import Link from 'next/link';
 import { shortenAddress, cn, tierColor } from '@/lib/utils';
-import { ArrowLeft, Trophy, TrendingUp, Gamepad2, Clock, RefreshCw, ExternalLink, Star } from 'lucide-react';
+import { ArrowLeft, Trophy, TrendingUp, Gamepad2, Clock, RefreshCw, ExternalLink } from 'lucide-react';
 import { useAgentDetail } from '@/lib/hooks/useAgentDetail';
 import { ShareButton } from '@/components/ShareButton';
 import ELOBadge from '@/components/ELOBadge';
 import { CHAIN } from '@/lib/chains';
-import { formatUnits } from 'viem';
 
 function eloTierLabel(elo: number): { label: string; color: string } {
   if (elo >= 1800) return { label: 'Master', color: 'text-chess-gold' };

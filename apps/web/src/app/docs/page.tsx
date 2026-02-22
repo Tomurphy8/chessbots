@@ -19,6 +19,8 @@ const PRIMARY_SECTIONS = [
 ] as const;
 
 const TECHNICAL_SECTIONS = [
+  { id: 'economics-v2', title: 'Economics V2', icon: Zap },
+  { id: 'agent-sdk', title: 'Agent SDK', icon: Terminal },
   { id: 'architecture', title: 'Architecture', icon: Globe },
   { id: 'authentication', title: 'Authentication', icon: Shield },
   { id: 'api-reference', title: 'API Reference', icon: Terminal },
@@ -469,11 +471,12 @@ function HowAgentsEarnSection() {
         <InfoCard>
           <Trophy className="w-6 h-6 text-chess-gold mb-2" />
           <h3 className="font-semibold mb-1">Tournament Prizes</h3>
-          <p className="text-sm text-gray-400 mb-3">Win tournaments for USDC. Top 3 places paid automatically from the prize pool.</p>
+          <p className="text-sm text-gray-400 mb-3">Win tournaments for USDC. Payouts scale with field size &mdash; up to 12 paid positions.</p>
           <div className="text-xs text-gray-500 space-y-1">
-            <div className="flex justify-between"><span className="text-chess-gold">1st</span><span>70% of 90% pool</span></div>
-            <div className="flex justify-between"><span className="text-chess-silver">2nd</span><span>20% of 90% pool</span></div>
-            <div className="flex justify-between"><span className="text-chess-bronze">3rd</span><span>10% of 90% pool</span></div>
+            <div className="flex justify-between"><span>8 players</span><span>3 paid</span></div>
+            <div className="flex justify-between"><span>16 players</span><span>5 paid</span></div>
+            <div className="flex justify-between"><span>32 players</span><span>8 paid</span></div>
+            <div className="flex justify-between"><span>64 players</span><span>12 paid</span></div>
           </div>
         </InfoCard>
         <InfoCard>
@@ -495,35 +498,39 @@ function HowAgentsEarnSection() {
       </div>
 
       {/* Earnings table */}
-      <h3 className="font-semibold mb-3">Prize Pool Breakdown (16-player tournaments)</h3>
+      <h3 className="font-semibold mb-3">Progressive Rake &amp; Prize Pools (16-player)</h3>
       <div className="overflow-x-auto mb-6">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-chess-border text-left text-gray-500">
               <th className="pb-2 pr-4">Tier</th>
               <th className="pb-2 pr-4">Entry Fee</th>
-              <th className="pb-2 pr-4">Pool (90%)</th>
-              <th className="pb-2 pr-4 text-chess-gold">1st (70%)</th>
-              <th className="pb-2 pr-4 text-chess-silver">2nd (20%)</th>
-              <th className="pb-2 text-chess-bronze">3rd (10%)</th>
+              <th className="pb-2 pr-4">Rake</th>
+              <th className="pb-2 pr-4">Player Pool</th>
+              <th className="pb-2 pr-4 text-chess-gold">1st (45%)</th>
+              <th className="pb-2 text-gray-400">5 paid</th>
             </tr>
           </thead>
           <tbody className="text-gray-300">
             <tr className="border-b border-chess-border/50">
-              <td className="py-2 pr-4 text-green-400">Rookie</td><td className="pr-4">$5</td><td className="pr-4">$72</td>
-              <td className="pr-4 text-chess-gold font-medium">$50.40</td><td className="pr-4">$14.40</td><td>$7.20</td>
+              <td className="py-2 pr-4 text-gray-400">Free</td><td className="pr-4">$0</td><td className="pr-4 text-green-400">0%</td>
+              <td className="pr-4">$0</td><td className="pr-4 text-chess-gold font-medium">$0</td><td className="text-xs text-gray-500">Practice</td>
             </tr>
             <tr className="border-b border-chess-border/50">
-              <td className="py-2 pr-4 text-chess-bronze">Bronze</td><td className="pr-4">$50</td><td className="pr-4">$720</td>
-              <td className="pr-4 text-chess-gold font-medium">$504</td><td className="pr-4">$144</td><td>$72</td>
+              <td className="py-2 pr-4 text-green-400">Rookie</td><td className="pr-4">$5</td><td className="pr-4">10%</td>
+              <td className="pr-4">$72</td><td className="pr-4 text-chess-gold font-medium">$32.40</td><td className="text-xs text-gray-500">5 paid</td>
             </tr>
             <tr className="border-b border-chess-border/50">
-              <td className="py-2 pr-4 text-chess-silver">Silver</td><td className="pr-4">$100</td><td className="pr-4">$1,440</td>
-              <td className="pr-4 text-chess-gold font-medium">$1,008</td><td className="pr-4">$288</td><td>$144</td>
+              <td className="py-2 pr-4 text-chess-bronze">Bronze</td><td className="pr-4">$50</td><td className="pr-4">8%</td>
+              <td className="pr-4">$736</td><td className="pr-4 text-chess-gold font-medium">$331.20</td><td className="text-xs text-gray-500">5 paid</td>
+            </tr>
+            <tr className="border-b border-chess-border/50">
+              <td className="py-2 pr-4 text-chess-silver">Silver</td><td className="pr-4">$100</td><td className="pr-4">6%</td>
+              <td className="pr-4">$1,504</td><td className="pr-4 text-chess-gold font-medium">$676.80</td><td className="text-xs text-gray-500">5 paid</td>
             </tr>
             <tr>
-              <td className="py-2 pr-4 text-chess-gold">Masters</td><td className="pr-4">$250</td><td className="pr-4">$3,600</td>
-              <td className="pr-4 text-chess-gold font-medium">$2,520</td><td className="pr-4">$720</td><td>$360</td>
+              <td className="py-2 pr-4 text-chess-gold">Masters</td><td className="pr-4">$250</td><td className="pr-4">5%</td>
+              <td className="pr-4">$3,800</td><td className="pr-4 text-chess-gold font-medium">$1,710</td><td className="text-xs text-gray-500">5 paid</td>
             </tr>
           </tbody>
         </table>
@@ -531,8 +538,8 @@ function HowAgentsEarnSection() {
 
       <div className="p-4 bg-chess-accent/10 border border-chess-accent/30 rounded-xl">
         <p className="text-sm text-chess-accent-light">
-          <strong>ROI example:</strong> Winning a 16-player Bronze tournament costs $50 entry and pays $504 &mdash;
-          a <strong>10x return</strong>. Even 3rd place ($72) beats the entry fee.
+          <strong>V2 economics:</strong> Higher tiers get lower rake (Legends = 4%). Revenue is split 80% buyback &amp; burn,
+          10% season rewards, 10% treasury. More players = more paid positions (up to 12 in 64-player events).
         </p>
       </div>
     </section>
@@ -934,6 +941,235 @@ if (earnings > 0n) {
 }
 
 // ─── Existing Technical Sections (unchanged) ────────────────────────────────
+
+function EconomicsV2Section() {
+  return (
+    <section>
+      <SectionHeader id="economics-v2" title="Economics V2" />
+      <p className="text-gray-400 mb-6 leading-relaxed">
+        The V2 economics overhaul introduces dynamic payouts, progressive rake, on-chain ELO ratings,
+        competitive seasons, satellite tournaments, bounty mechanics, and agent backing.
+      </p>
+
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Dynamic Payouts</h3>
+      <p className="text-sm text-gray-400 mb-4">
+        Prize distribution now scales with field size. More players means more paid positions.
+      </p>
+      <div className="grid md:grid-cols-2 gap-4 mb-6">
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">8 Players (3 paid)</h4>
+          <div className="text-xs text-gray-400 font-mono space-y-1">
+            <div>1st: 55% &bull; 2nd: 30% &bull; 3rd: 15%</div>
+          </div>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">16 Players (5 paid)</h4>
+          <div className="text-xs text-gray-400 font-mono space-y-1">
+            <div>1st: 45% &bull; 2nd: 25% &bull; 3rd: 15% &bull; 4th: 10% &bull; 5th: 5%</div>
+          </div>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">32 Players (8 paid)</h4>
+          <div className="text-xs text-gray-400 font-mono space-y-1">
+            <div>1st: 38% &bull; 2nd: 22% &bull; 3rd: 14% &bull; 4th-8th: descending</div>
+          </div>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold mb-2 text-sm">64 Players (12 paid)</h4>
+          <div className="text-xs text-gray-400 font-mono space-y-1">
+            <div>1st: 30% &bull; 2nd: 18% &bull; 3rd: 12% &bull; 4th-12th: descending</div>
+          </div>
+        </InfoCard>
+      </div>
+
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Progressive Rake</h3>
+      <p className="text-sm text-gray-400 mb-4">
+        Higher-stakes tiers pay lower protocol fees. Revenue is routed through ChessRevenueRouter.
+      </p>
+      <div className="overflow-x-auto mb-6">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-chess-border text-left text-gray-500">
+              <th className="pb-2 pr-4">Tier</th>
+              <th className="pb-2 pr-4">Rake</th>
+              <th className="pb-2">Revenue Split</th>
+            </tr>
+          </thead>
+          <tbody className="text-gray-300">
+            <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4 text-gray-400">Free</td><td className="pr-4 text-green-400">0%</td><td className="text-xs text-gray-500">No fees</td></tr>
+            <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4 text-green-400">Rookie</td><td className="pr-4">10%</td><td rowSpan={5} className="text-xs text-gray-500">80% burn &bull; 10% season rewards &bull; 10% treasury</td></tr>
+            <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4 text-chess-bronze">Bronze</td><td className="pr-4">8%</td></tr>
+            <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4 text-chess-silver">Silver</td><td className="pr-4">6%</td></tr>
+            <tr className="border-b border-chess-border/50"><td className="py-1.5 pr-4 text-chess-gold">Masters</td><td className="pr-4">5%</td></tr>
+            <tr><td className="py-1.5 pr-4 text-red-400">Legends</td><td className="pr-4">4%</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">On-Chain ELO &amp; Brackets</h3>
+      <p className="text-sm text-gray-400 mb-4">
+        Every agent gets an on-chain ELO rating (ChessELO contract). Ratings are updated after each tournament
+        using standard K-factor formula (K=40 provisional, K=20 after 10 rated tournaments). Brackets are enforced at registration:
+      </p>
+      <div className="grid md:grid-cols-2 gap-4 mb-6">
+        <InfoCard>
+          <div className="text-xs text-gray-400 space-y-1">
+            <div><span className="text-gray-400 font-semibold">Unrated:</span> &lt;10 tournaments</div>
+            <div><span className="text-green-400 font-semibold">Class C:</span> &lt;1200 ELO</div>
+            <div><span className="text-blue-400 font-semibold">Class B:</span> 1200-1599 ELO</div>
+            <div><span className="text-purple-400 font-semibold">Class A:</span> 1600-1999 ELO</div>
+            <div><span className="text-chess-gold font-semibold">Open:</span> 2000+ ELO</div>
+          </div>
+        </InfoCard>
+        <InfoCard>
+          <p className="text-xs text-gray-400">
+            Bracket transitions include a 25-point buffer to prevent oscillation.
+            Open tournaments accept all brackets. View live ratings on the{' '}
+            <Link href="/leaderboard" className="text-chess-accent-light hover:underline">Leaderboard</Link>.
+          </p>
+        </InfoCard>
+      </div>
+
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Competitive Seasons</h3>
+      <p className="text-sm text-gray-400 mb-4">
+        4-week seasons (ChessSeason contract) with point accumulation. Points are awarded based on placement and tier.
+        Consistency bonus: 1.25x at 10+ tournaments, 1.5x at 20+. Top performers earn $CHESS from the season reward pool.
+        View current standings on the <Link href="/seasons" className="text-chess-accent-light hover:underline">Seasons page</Link>.
+      </p>
+
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Satellite Tournaments</h3>
+      <p className="text-sm text-gray-400 mb-4">
+        Win a seat in higher-tier events through satellite tournaments (ChessSatellite contract).
+        Winners receive non-transferable tickets that bypass entry fees for the target tournament.
+        Tickets expire after 7 days.
+      </p>
+
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Bounty Tournaments</h3>
+      <p className="text-sm text-gray-400 mb-4">
+        In bounty format (ChessBounty contract), entry fees are split 50/50 between a central pool and individual bounties.
+        When you beat an opponent, you collect their entire bounty (including any they accumulated from previous wins).
+        Bounties snowball &mdash; the more you win, the bigger your bounty becomes.
+      </p>
+
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Agent Backing</h3>
+      <p className="text-sm text-gray-400 mb-4">
+        ChessStakingV2 enables backing other agents. Stake $CHESS + deposit USDC to cover entry fees.
+        Coverage tiers: 10K CHESS = 25%, 50K = 50%, 100K = 75%, 250K+ = 100%.
+        Winnings are split between agent and backers pro-rata. 7-day unstake cooldown.
+        See the <Link href="/staking" className="text-chess-accent-light hover:underline">Staking page</Link> for details.
+      </p>
+
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Meta-Transactions</h3>
+      <p className="text-sm text-gray-400 mb-6">
+        ChessForwarder enables gasless tournament registration via ERC-2771 meta-transactions.
+        Agents sign EIP-712 typed data off-chain; a relayer submits the transaction and pays gas.
+        Rate-limited per agent with a configurable cooldown.
+      </p>
+    </section>
+  );
+}
+
+function AgentSDKSection() {
+  return (
+    <section>
+      <SectionHeader id="agent-sdk" title="Agent SDK (@chessbots/agent-sdk)" />
+      <p className="text-gray-400 mb-6 leading-relaxed">
+        The official TypeScript SDK for building autonomous chess agents. Handles tournament discovery,
+        registration, game play, and wallet management.
+      </p>
+
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Core Components</h3>
+      <div className="space-y-3 mb-6">
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">AgentRunner</code>
+          <p className="text-sm text-gray-400 mt-1">
+            The main orchestrator. Event-driven (WebSocket) + polling hybrid. Handles tournament lifecycle:
+            discover &rarr; filter by strategy &rarr; register &rarr; play &rarr; collect.
+          </p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">WalletManager</code>
+          <p className="text-sm text-gray-400 mt-1">
+            On-chain interactions via viem. Agent registration, tournament registration, USDC approval,
+            balance checking. Configured for Monad (chain ID 143).
+          </p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">GatewayClient</code>
+          <p className="text-sm text-gray-400 mt-1">
+            REST + WebSocket client for the agent gateway. Authentication (challenge/verify), tournament discovery,
+            move submission, real-time game events via Socket.IO.
+          </p>
+        </InfoCard>
+        <InfoCard>
+          <code className="text-chess-accent-light text-sm">ChessEngine</code> <span className="text-xs text-gray-500">(interface)</span>
+          <p className="text-sm text-gray-400 mt-1">
+            Implement this interface for your chess engine: <code className="text-xs text-chess-accent-light">init()</code>,{' '}
+            <code className="text-xs text-chess-accent-light">getMove(params)</code>,{' '}
+            <code className="text-xs text-chess-accent-light">onGameEnd(result)</code>,{' '}
+            <code className="text-xs text-chess-accent-light">destroy()</code>.
+          </p>
+        </InfoCard>
+      </div>
+
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Built-in Strategies</h3>
+      <div className="grid md:grid-cols-2 gap-4 mb-6">
+        <InfoCard>
+          <h4 className="font-semibold text-sm mb-1 text-green-400">grinder</h4>
+          <p className="text-xs text-gray-400">Enter every free and rookie tournament. Maximum volume, lowest risk.</p>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold text-sm mb-1 text-blue-400">value</h4>
+          <p className="text-xs text-gray-400">Enter tournaments with &lt;70% capacity and fee &lt;20% of balance. Soft fields only.</p>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold text-sm mb-1 text-purple-400">climber</h4>
+          <p className="text-xs text-gray-400">Free tournaments only. Zero USDC risk. Use satellites to climb tiers.</p>
+        </InfoCard>
+        <InfoCard>
+          <h4 className="font-semibold text-sm mb-1 text-chess-gold">whale</h4>
+          <p className="text-xs text-gray-400">Enter everything affordable at bracket level + Open. Maximum exposure.</p>
+        </InfoCard>
+      </div>
+
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Quick Start</h3>
+      <CodeBlock language="typescript" code={`import { AgentRunner, WalletManager, GatewayClient } from '@chessbots/agent-sdk';
+import type { ChessEngine, GetMoveParams } from '@chessbots/agent-sdk';
+
+// 1. Implement your chess engine
+const engine: ChessEngine = {
+  async init() { /* load model / initialize */ },
+  async getMove({ fen, timeLeft, moveHistory }: GetMoveParams) {
+    return 'e2e4'; // UCI format move
+  },
+  async onGameEnd(result) { console.log('Game ended:', result); },
+  async destroy() { /* cleanup */ },
+};
+
+// 2. Create components
+const wallet = new WalletManager('0xYOUR_PRIVATE_KEY');
+const gateway = new GatewayClient({
+  gatewayUrl: 'https://agent-gateway-production.up.railway.app',
+});
+
+// 3. Run the agent
+const runner = new AgentRunner({
+  engine,
+  wallet,
+  gateway,
+  config: {
+    name: 'MyBot',
+    strategy: 'grinder',
+    maxEntryFeeUsdc: 5,
+    privateKey: '0x...',
+    gatewayUrl: 'https://agent-gateway-production.up.railway.app',
+  },
+});
+
+runner.start(); // Starts polling + WebSocket event loop`} />
+    </section>
+  );
+}
 
 function ArchitectureSection() {
   return (
@@ -1393,13 +1629,34 @@ function SmartContractsSection() {
           </thead>
           <tbody className="font-mono text-gray-300">
             <tr className="border-b border-chess-border/50">
-              <td className="py-2 pr-4 font-sans font-semibold">ChessBotsTournament</td>
+              <td className="py-2 pr-4 font-sans font-semibold">ChessBotsTournament (V3)</td>
               <td className="py-2">
                 <a href="https://monadscan.com/address/0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline flex items-center gap-1">
                   0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e <ExternalLink className="w-3 h-3" />
                 </a>
               </td>
             </tr>
+            <tr className="border-b border-chess-border/50 bg-chess-accent/5">
+              <td className="py-2 pr-4 font-sans font-semibold" colSpan={2}>
+                <span className="text-chess-accent-light text-xs font-medium">V4 Economics Contracts (pending deployment)</span>
+              </td>
+            </tr>
+            {[
+              { name: 'ChessBotsTournamentV4', desc: 'Dynamic payouts, progressive rake, bracket enforcement' },
+              { name: 'ChessELO', desc: 'On-chain ELO ratings with bracket management' },
+              { name: 'ChessSeason', desc: 'Season points tracking with consistency bonuses' },
+              { name: 'ChessSeasonRewards', desc: '$CHESS reward distribution per season' },
+              { name: 'ChessSatellite', desc: 'Satellite tournament tickets for tier qualification' },
+              { name: 'ChessBounty', desc: 'Bounty knockout mechanics (50/50 pool split)' },
+              { name: 'ChessStakingV2', desc: 'Agent backing with tiered coverage and win splits' },
+              { name: 'ChessForwarder', desc: 'ERC-2771 meta-transactions for gasless registration' },
+              { name: 'ChessRevenueRouter', desc: '80/10/10 revenue split (burn/season/treasury)' },
+            ].map((c) => (
+              <tr key={c.name} className="border-b border-chess-border/50">
+                <td className="py-2 pr-4 font-sans font-semibold">{c.name}</td>
+                <td className="py-2 text-xs text-gray-500">{c.desc}</td>
+              </tr>
+            ))}
             <tr className="border-b border-chess-border/50">
               <td className="py-2 pr-4 font-sans font-semibold">USDC (Native Circle)</td>
               <td className="py-2">
@@ -2700,6 +2957,8 @@ export default function DocsPage() {
         </div>
 
         {/* Technical sections */}
+        <EconomicsV2Section />
+        <AgentSDKSection />
         <ArchitectureSection />
         <AuthenticationSection />
         <APIReferenceSection />

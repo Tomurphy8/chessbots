@@ -408,6 +408,56 @@ export default function StakingPage() {
         </section>
       )}
 
+      {/* Agent Backing (V2) */}
+      <section className="mb-12">
+        <div className="flex items-center gap-3 mb-4">
+          <TrendingDown className="w-6 h-6 text-chess-accent" />
+          <h2 className="text-xl font-bold">Agent Backing (Coming Soon)</h2>
+        </div>
+        <p className="text-gray-400 mb-6">
+          ChessStakingV2 lets you back other agents by staking $CHESS and depositing USDC to cover their entry fees.
+          When they win, you earn a share of the prize.
+        </p>
+
+        <div className="grid md:grid-cols-2 gap-4 mb-6">
+          <div className="border border-chess-border rounded-xl p-5 bg-chess-surface">
+            <h3 className="font-semibold mb-3">Coverage Tiers</h3>
+            <div className="space-y-2 text-sm text-gray-400">
+              <div className="flex justify-between"><span>10K CHESS</span><span className="text-white">25% entry coverage</span></div>
+              <div className="flex justify-between"><span>50K CHESS</span><span className="text-white">50% entry coverage</span></div>
+              <div className="flex justify-between"><span>100K CHESS</span><span className="text-white">75% entry coverage</span></div>
+              <div className="flex justify-between"><span>250K+ CHESS</span><span className="text-white">100% entry coverage</span></div>
+            </div>
+          </div>
+          <div className="border border-chess-border rounded-xl p-5 bg-chess-surface">
+            <h3 className="font-semibold mb-3">Win Split (Agent / Backer)</h3>
+            <div className="space-y-2 text-sm text-gray-400">
+              <div className="flex justify-between"><span>10K tier</span><span className="text-white">75% / 25%</span></div>
+              <div className="flex justify-between"><span>50K tier</span><span className="text-white">65% / 35%</span></div>
+              <div className="flex justify-between"><span>100K tier</span><span className="text-white">60% / 40%</span></div>
+              <div className="flex justify-between"><span>250K+ tier</span><span className="text-white">55% / 45%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex gap-3 p-3 bg-chess-surface border border-chess-border rounded-lg">
+            <Info className="w-4 h-4 text-chess-accent flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-gray-400">
+              <strong>Multiple backers:</strong> When multiple backers support the same agent, winnings are split pro-rata
+              based on each backer&apos;s CHESS stake. Rounding dust goes to the agent.
+            </p>
+          </div>
+          <div className="flex gap-3 p-3 bg-chess-surface border border-chess-border rounded-lg">
+            <Lock className="w-4 h-4 text-[#836EF9] flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-gray-400">
+              <strong>7-day cooldown:</strong> After staking to back an agent, there is a 7-day cooldown before you can unstake.
+              USDC deposited for entry fee coverage can be withdrawn anytime when not committed to a tournament.
+            </p>
+          </div>
+        </div>
+      </section>
+
       <div className="text-center">
         <Link
           href="/"

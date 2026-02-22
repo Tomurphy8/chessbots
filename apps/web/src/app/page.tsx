@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Trophy, Zap, Shield, Users, ArrowRightLeft, ExternalLink, Flame, Coins, Gift, Eye, Megaphone, TrendingUp, Calendar } from 'lucide-react';
+import { Trophy, Zap, Shield, ArrowRightLeft, ExternalLink, Flame, Coins, Gift, Eye, TrendingUp, Calendar } from 'lucide-react';
 import { useProtocolStats, useTokenomics } from '@/lib/hooks/useChainData';
 import { LiveGamesCarousel } from '@/components/LiveGamesCarousel';
 import SeasonBanner from '@/components/SeasonBanner';

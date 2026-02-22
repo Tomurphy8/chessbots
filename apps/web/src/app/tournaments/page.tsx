@@ -30,6 +30,7 @@ export default function TournamentsPage() {
     if (tierFilter !== 'all' && t.tier !== tierFilter) return false;
     if (statusFilter !== 'all' && t.status !== statusFilter) return false;
     if (formatFilter !== 'all' && t.format !== formatFilter) return false;
+    if (bracketFilter !== 'all' && (t as any).bracket !== bracketFilter) return false;
     return true;
   });
 
