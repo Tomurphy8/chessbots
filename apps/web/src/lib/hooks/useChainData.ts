@@ -37,8 +37,9 @@ export function useProtocolStats() {
 
   const fetchStats = useCallback(async () => {
     try {
-      // Sum stats across current + legacy contracts for cumulative totals
-      const allContracts = [CONTRACT, ...CHAIN.legacyContracts.map(a => a as Address)];
+      // Sum stats across current V3 + V4 + legacy contracts for cumulative totals
+      const v4 = CHAIN.v4ContractAddress;
+      const allContracts = [CONTRACT, ...(v4 ? [v4 as Address] : []), ...CHAIN.legacyContracts.map(a => a as Address)];
 
       const calls = allContracts.flatMap(addr => [
         { address: addr, abi: CHESSBOTS_ABI, functionName: 'protocol' as const },

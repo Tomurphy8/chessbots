@@ -12,10 +12,16 @@ export const CHAIN = {
   dexRouterAddress: (process.env.NEXT_PUBLIC_DEX_ROUTER || '0x0B79d71AE99528D1dB24A4148b5f4F865cc2b137').trim(),
   // V3 contract address (deployed alongside V2; V2 stays live for historical tournaments)
   v3ContractAddress: (process.env.NEXT_PUBLIC_V3_CONTRACT || '0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e').trim(),
-  // V4 contract address (dynamic payouts, progressive rake, brackets)
-  v4ContractAddress: (process.env.NEXT_PUBLIC_V4_CONTRACT || '').trim(),
-  // V4 revenue router
-  revenueRouterAddress: (process.env.NEXT_PUBLIC_REVENUE_ROUTER || '').trim(),
+  // V4 Economics contracts (deployed Feb 22, 2026)
+  v4ContractAddress: (process.env.NEXT_PUBLIC_V4_CONTRACT || '0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787').trim(),
+  revenueRouterAddress: (process.env.NEXT_PUBLIC_REVENUE_ROUTER || '0xBFAD25C55265Cd5bAeA76dc79413530D4772DB80').trim(),
+  eloContractAddress: '0xc2088CD0663b07d910FF765a005A7Ef6a0A73195',
+  seasonContractAddress: '0x9762544DfdE282c1c3255A26B02608f23bC04260',
+  seasonRewardsAddress: '0xA5D8b8ba8dC07f1a993c632A4E6f47f375746879',
+  satelliteContractAddress: '0x44CdFC9Ad6Fd28fc51a2042FfbAF543cc55c33f9',
+  bountyContractAddress: '0x2570f4d8E4a51ad95F9725A2fC7563961DcAb680',
+  stakingV2Address: '0x34b0b056A4C981c1624b1652e29331293A5E6570',
+  forwarderAddress: '0x99088C6D13113219B9fdA263Acb0229677c1658A',
   // V2 contract address (historical tournaments, agents, and stats)
   v2ContractAddress: '0xCB030eE8Ee385f91F4372585Fe1fa3147FA192B8',
   // Legacy contracts — cumulative stats are summed across all deployments

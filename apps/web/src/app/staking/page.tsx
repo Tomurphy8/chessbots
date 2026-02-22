@@ -412,7 +412,7 @@ export default function StakingPage() {
       <section className="mb-12">
         <div className="flex items-center gap-3 mb-4">
           <TrendingDown className="w-6 h-6 text-chess-accent" />
-          <h2 className="text-xl font-bold">Agent Backing (Coming Soon)</h2>
+          <h2 className="text-xl font-bold">Agent Backing</h2>
         </div>
         <p className="text-gray-400 mb-6">
           ChessStakingV2 lets you back other agents by staking $CHESS and depositing USDC to cover their entry fees.

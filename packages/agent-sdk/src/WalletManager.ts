@@ -21,6 +21,7 @@ const monad: Chain = {
 
 const USDC_ADDRESS = '0x754704Bc059F8C67012fEd69BC8A327a5aafb603' as Address;
 const TOURNAMENT_V3 = '0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e' as Address;
+const TOURNAMENT_V4 = '0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787' as Address;
 
 const ERC20_ABI = parseAbi([
   'function balanceOf(address) view returns (uint256)',
@@ -87,7 +88,7 @@ export class WalletManager {
   }
 
   /** Approve USDC spending for tournament contract */
-  async approveUsdc(amount: bigint, spender: Address = TOURNAMENT_V3): Promise<Hex> {
+  async approveUsdc(amount: bigint, spender: Address = TOURNAMENT_V4): Promise<Hex> {
     const hash = await this.wallet.writeContract({
       account: this.account,
       chain: this.chain,
@@ -100,7 +101,7 @@ export class WalletManager {
   }
 
   /** Check if USDC allowance is sufficient */
-  async checkAllowance(spender: Address = TOURNAMENT_V3): Promise<bigint> {
+  async checkAllowance(spender: Address = TOURNAMENT_V4): Promise<bigint> {
     return this.publicClient.readContract({
       address: USDC_ADDRESS,
       abi: ERC20_ABI,
@@ -110,12 +111,12 @@ export class WalletManager {
   }
 
   /** Register agent on-chain */
-  async registerAgent(name: string, metadataUri: string, referrer?: Address): Promise<Hex> {
+  async registerAgent(name: string, metadataUri: string, referrer?: Address, contract: Address = TOURNAMENT_V4): Promise<Hex> {
     if (referrer) {
       return this.wallet.writeContract({
         account: this.account,
         chain: this.chain,
-        address: TOURNAMENT_V3,
+        address: contract,
         abi: TOURNAMENT_ABI,
         functionName: 'registerAgentWithReferral',
         args: [name, metadataUri, 2, referrer], // agentType 2 = custom
@@ -124,7 +125,7 @@ export class WalletManager {
     return this.wallet.writeContract({
       account: this.account,
       chain: this.chain,
-      address: TOURNAMENT_V3,
+      address: contract,
       abi: TOURNAMENT_ABI,
       functionName: 'registerAgent',
       args: [name, metadataUri, 2],
@@ -132,11 +133,11 @@ export class WalletManager {
   }
 
   /** Register for tournament on-chain */
-  async registerForTournament(tournamentId: number): Promise<Hex> {
+  async registerForTournament(tournamentId: number, contract: Address = TOURNAMENT_V4): Promise<Hex> {
     return this.wallet.writeContract({
       account: this.account,
       chain: this.chain,
-      address: TOURNAMENT_V3,
+      address: contract,
       abi: TOURNAMENT_ABI,
       functionName: 'registerForTournament',
       args: [BigInt(tournamentId)],
@@ -144,10 +145,10 @@ export class WalletManager {
   }
 
   /** Check if agent is registered on-chain */
-  async isRegistered(): Promise<boolean> {
+  async isRegistered(contract: Address = TOURNAMENT_V4): Promise<boolean> {
     try {
       const agent = await this.publicClient.readContract({
-        address: TOURNAMENT_V3,
+        address: contract,
         abi: TOURNAMENT_ABI,
         functionName: 'getAgent',
         args: [this.address],

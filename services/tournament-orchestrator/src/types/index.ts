@@ -29,6 +29,11 @@ export interface ChainConfig {
   chessTokenAddress: string;
   stakingAddress: string;
   privateKey: string;
+  // V4 Economics contracts
+  v4ContractAddress?: string;
+  revenueRouterAddress?: string;
+  eloContractAddress?: string;
+  seasonContractAddress?: string;
 }
 
 export type TournamentTier = 'rookie' | 'bronze' | 'silver' | 'masters' | 'legends' | 'free';

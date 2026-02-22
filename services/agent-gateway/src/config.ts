@@ -47,6 +47,12 @@ export const CONFIG = {
   contractAddress: process.env.MONAD_CONTRACT || '0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e',
   usdcAddress: process.env.USDC_ADDRESS || '0x754704Bc059F8C67012fEd69BC8A327a5aafb603',
 
+  // V4 Economics contracts (deployed Feb 22, 2026)
+  v4ContractAddress: process.env.V4_CONTRACT || '0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787',
+  revenueRouterAddress: process.env.REVENUE_ROUTER || '0xBFAD25C55265Cd5bAeA76dc79413530D4772DB80',
+  eloContractAddress: '0xc2088CD0663b07d910FF765a005A7Ef6a0A73195',
+  seasonContractAddress: '0x9762544DfdE282c1c3255A26B02608f23bC04260',
+
   // Block at which the V3 contract was deployed (for event scanning)
   deployBlock: BigInt(process.env.DEPLOY_BLOCK || '56622904'),
 

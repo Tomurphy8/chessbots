@@ -1638,23 +1638,27 @@ function SmartContractsSection() {
             </tr>
             <tr className="border-b border-chess-border/50 bg-chess-accent/5">
               <td className="py-2 pr-4 font-sans font-semibold" colSpan={2}>
-                <span className="text-chess-accent-light text-xs font-medium">V4 Economics Contracts (pending deployment)</span>
+                <span className="text-chess-accent-light text-xs font-medium">V4 Economics Contracts</span>
               </td>
             </tr>
             {[
-              { name: 'ChessBotsTournamentV4', desc: 'Dynamic payouts, progressive rake, bracket enforcement' },
-              { name: 'ChessELO', desc: 'On-chain ELO ratings with bracket management' },
-              { name: 'ChessSeason', desc: 'Season points tracking with consistency bonuses' },
-              { name: 'ChessSeasonRewards', desc: '$CHESS reward distribution per season' },
-              { name: 'ChessSatellite', desc: 'Satellite tournament tickets for tier qualification' },
-              { name: 'ChessBounty', desc: 'Bounty knockout mechanics (50/50 pool split)' },
-              { name: 'ChessStakingV2', desc: 'Agent backing with tiered coverage and win splits' },
-              { name: 'ChessForwarder', desc: 'ERC-2771 meta-transactions for gasless registration' },
-              { name: 'ChessRevenueRouter', desc: '80/10/10 revenue split (burn/season/treasury)' },
+              { name: 'ChessBotsTournamentV4', address: '0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787' },
+              { name: 'ChessELO', address: '0xc2088CD0663b07d910FF765a005A7Ef6a0A73195' },
+              { name: 'ChessSeason', address: '0x9762544DfdE282c1c3255A26B02608f23bC04260' },
+              { name: 'ChessSeasonRewards', address: '0xA5D8b8ba8dC07f1a993c632A4E6f47f375746879' },
+              { name: 'ChessSatellite', address: '0x44CdFC9Ad6Fd28fc51a2042FfbAF543cc55c33f9' },
+              { name: 'ChessBounty', address: '0x2570f4d8E4a51ad95F9725A2fC7563961DcAb680' },
+              { name: 'ChessStakingV2', address: '0x34b0b056A4C981c1624b1652e29331293A5E6570' },
+              { name: 'ChessForwarder', address: '0x99088C6D13113219B9fdA263Acb0229677c1658A' },
+              { name: 'ChessRevenueRouter', address: '0xBFAD25C55265Cd5bAeA76dc79413530D4772DB80' },
             ].map((c) => (
               <tr key={c.name} className="border-b border-chess-border/50">
                 <td className="py-2 pr-4 font-sans font-semibold">{c.name}</td>
-                <td className="py-2 text-xs text-gray-500">{c.desc}</td>
+                <td className="py-2">
+                  <a href={`https://monadscan.com/address/${c.address}`} target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline flex items-center gap-1">
+                    {c.address} <ExternalLink className="w-3 h-3" />
+                  </a>
+                </td>
               </tr>
             ))}
             <tr className="border-b border-chess-border/50">
