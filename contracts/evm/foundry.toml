@@ -10,3 +10,6 @@ via_ir = true
 [rpc_endpoints]
 monad_testnet = "https://testnet-rpc.monad.xyz/"
 monad_mainnet = "https://rpc.monad.xyz"
+
+[etherscan]
+monad_mainnet = { key = "${ETHERSCAN_API_KEY}", chain = 143 }
