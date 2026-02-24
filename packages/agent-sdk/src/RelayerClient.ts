@@ -1,7 +1,7 @@
 import type { Address, Hex } from 'viem';
 
 // Production relayer URL on Railway (updated after deployment)
-const DEFAULT_RELAYER_URL = 'https://relayer-production.up.railway.app';
+const DEFAULT_RELAYER_URL = 'https://relayer-production-f6ec.up.railway.app';
 
 export interface RelayRequest {
   from: string;
