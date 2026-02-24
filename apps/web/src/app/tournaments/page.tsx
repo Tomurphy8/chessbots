@@ -7,10 +7,10 @@ import { useAccount } from 'wagmi';
 import { TournamentCard } from '@/components/TournamentCard';
 import { CreateTournamentModal } from '@/components/CreateTournamentModal';
 import { useTournaments } from '@/lib/hooks/useChainData';
-import { cn } from '@/lib/utils';
+import { cn, formatStatus } from '@/lib/utils';
 
 const TIERS = ['all', 'rookie', 'bronze', 'silver', 'masters', 'legends', 'free'] as const;
-const STATUSES = ['all', 'registration', 'round_active', 'completed', 'cancelled'] as const;
+const STATUSES = ['all', 'registration', 'in_progress', 'round_active', 'round_complete', 'completed', 'cancelled'] as const;
 const FORMATS = ['all', 'swiss', '1v1', 'team', 'league'] as const;
 const BRACKETS = ['all', 'open', 'class_a', 'class_b', 'class_c', 'unrated'] as const;
 const BRACKET_LABELS: Record<string, string> = {
@@ -72,13 +72,13 @@ export default function TournamentsPage() {
               key={status}
               onClick={() => setStatusFilter(status)}
               className={cn(
-                'px-3 py-1.5 text-sm rounded-lg border transition-colors capitalize',
+                'px-3 py-1.5 text-sm rounded-lg border transition-colors',
                 statusFilter === status
                   ? 'border-chess-accent bg-chess-accent/20 text-chess-accent-light'
                   : 'border-chess-border text-gray-400 hover:text-white',
               )}
             >
-              {status.replace('_', ' ')}
+              {status === 'all' ? 'All' : formatStatus(status)}
             </button>
           ))}
         </div>

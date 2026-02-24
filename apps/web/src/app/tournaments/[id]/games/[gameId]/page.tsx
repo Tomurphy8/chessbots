@@ -65,9 +65,13 @@ export default function GameViewerPage({ params }: { params: { id: string; gameI
   // Betting pool
   const bettingPool = useBettingPool(tournamentId, round, gameIndex);
 
-  // Mode detection
-  const isLive = liveState.isLive || (chainGame?.status === 1);
-  const isCompleted = chainGame?.status === 2;
+  // Mode detection — engine/gateway state is the real-time source of truth.
+  // Chain state may lag behind (between engine game end and executeRound on-chain).
+  // Only fall back to chain status when engine data hasn't loaded yet.
+  const isLive = liveState.loading
+    ? (chainGame?.status === 1)
+    : liveState.isLive;
+  const isCompleted = chainGame?.status === 2 || liveState.gameStatus === 'completed';
 
   // PGN fallback: when primary game data has no moves, try fetching PGN and parsing moves from it
   const [pgnFallbackMoves, setPgnFallbackMoves] = useState<string[]>([]);
@@ -179,6 +183,9 @@ export default function GameViewerPage({ params }: { params: { id: string; gameI
       if (name === 'Draw') return '½ - ½';
     }
     if (liveState.gameResult && liveState.gameResult !== 'undecided') {
+      if (liveState.gameResult === 'white_wins' || liveState.gameResult === 'white_forfeit') return '1 - 0';
+      if (liveState.gameResult === 'black_wins' || liveState.gameResult === 'black_forfeit') return '0 - 1';
+      if (liveState.gameResult === 'draw') return '½ - ½';
       return liveState.gameResult;
     }
     return isLive ? 'In Progress' : '';

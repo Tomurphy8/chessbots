@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { cn, tierColor, tierBorderColor, statusBadgeColor } from '@/lib/utils';
+import { cn, tierColor, tierBorderColor, statusBadgeColor, formatStatus } from '@/lib/utils';
 import { Trophy, Users, Clock } from 'lucide-react';
 
 function formatTimestamp(unixSec: number): string {
@@ -61,7 +61,7 @@ export function TournamentCard({
             )}
           </div>
           <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', statusBadgeColor(status))}>
-            {status.replace('_', ' ')}
+            {formatStatus(status)}
           </span>
         </div>
 
