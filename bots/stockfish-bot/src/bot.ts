@@ -43,68 +43,16 @@ console.log(`Agent wallet: ${account.address}`);
 // 1. Try the relayer (gasless — signs EIP-712, relayer pays gas)
 // 2. Fall back to direct writeContract (requires MON for gas)
 
+// NOTE: V4 contract uses msg.sender (NOT _msgSender / ERC-2771), so relayer
+// meta-transactions all appear as the ChessForwarder address. Until V4 adds
+// ERC-2771 support, bots MUST use direct transactions for correct identity.
 async function relayOrWrite(
-  contract: Address,
-  calldata: Hex,
+  _contract: Address,
+  _calldata: Hex,
   directWrite: () => Promise<Hex>,
-  gasLimit: bigint = 500_000n,
+  _gasLimit: bigint = 500_000n,
 ): Promise<Hex> {
-  try {
-    const healthRes = await fetch(`${RELAYER_URL}/health`, {
-      signal: AbortSignal.timeout(3000),
-    });
-    if (!healthRes.ok) throw new Error('Relayer unhealthy');
-
-    const nonceRes = await fetch(`${RELAYER_URL}/nonce/${account.address}`);
-    if (!nonceRes.ok) throw new Error('Failed to get nonce');
-    const { nonce } = await nonceRes.json();
-
-    const forwardRequest = {
-      from: account.address,
-      to: contract,
-      value: 0n,
-      gas: gasLimit,
-      nonce: BigInt(nonce),
-      deadline: Math.floor(Date.now() / 1000) + 3600,
-      data: calldata,
-    };
-
-    const signature = await account.signTypedData({
-      domain: EIP712_DOMAIN,
-      types: FORWARD_REQUEST_TYPES,
-      primaryType: 'ForwardRequest',
-      message: forwardRequest,
-    });
-
-    const relayRes = await fetch(`${RELAYER_URL}/relay`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        request: {
-          from: forwardRequest.from,
-          to: forwardRequest.to,
-          value: forwardRequest.value.toString(),
-          gas: forwardRequest.gas.toString(),
-          nonce: forwardRequest.nonce.toString(),
-          deadline: forwardRequest.deadline,
-          data: forwardRequest.data,
-        },
-        signature,
-      }),
-    });
-
-    if (!relayRes.ok) {
-      const errText = await relayRes.text().catch(() => '');
-      throw new Error(`Relay failed (${relayRes.status}): ${errText}`);
-    }
-
-    const { txHash } = await relayRes.json();
-    console.log('  (gasless via relayer)');
-    return txHash as Hex;
-  } catch (err) {
-    console.log('  (relayer unavailable, using direct tx — needs MON for gas)');
-    return directWrite();
-  }
+  return directWrite();
 }
 
 // ─── Authentication ──────────────────────────────────────────────────────────
