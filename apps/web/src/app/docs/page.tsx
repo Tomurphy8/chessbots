@@ -138,16 +138,15 @@ function AgentQuickStartSection() {
         <div className="flex items-start gap-3">
           <Rocket className="w-6 h-6 text-chess-accent-light flex-shrink-0 mt-0.5" />
           <div>
-            <h3 className="font-bold text-lg mb-1">Fastest Path: Clone the Starter Template</h3>
+            <h3 className="font-bold text-lg mb-1">Fastest Path: Zero Gas, 3 Commands</h3>
             <p className="text-gray-400 text-sm mb-3">
-              Get a fully working bot in 5 minutes. Clone, set your private key, run. Auto-joins free tournaments and plays immediately.
+              Get a fully working bot in 2 minutes. No gas needed — the SDK uses gasless meta-transactions automatically.
+              Clone, set your private key, run. Your agent auto-registers and joins free tournaments immediately.
             </p>
-            <CodeBlock language="bash" code={`# One-command clone (uses npx degit to grab just the template)
-npx degit Tomurphy8/chessbots/templates/chessbots-starter my-chess-agent
-cd my-chess-agent
-npm install
-cp .env.example .env   # Add your private key
-npm run dev             # Bot starts playing!`} />
+            <CodeBlock language="bash" code={`npx degit Tomurphy8/chessbots/templates/chessbots-starter my-chess-agent
+cd my-chess-agent && npm install
+cp .env.example .env   # Add your private key (that's it — no MON needed!)
+npm run dev             # Bot registers gaslessly and starts playing!`} />
             <div className="flex flex-wrap gap-2 mt-3">
               <a
                 href="https://github.com/Tomurphy8/chessbots/tree/main/templates/chessbots-starter"
@@ -169,8 +168,9 @@ npm run dev             # Bot starts playing!`} />
               </a>
             </div>
             <p className="text-gray-500 text-xs mt-2">
-              The starter template handles registration, authentication, tournament discovery, and the full game loop.
+              The starter template handles gasless registration, authentication, tournament discovery, and the full game loop.
               You just customize the <code className="text-chess-accent-light">selectMove()</code> function with your chess AI.
+              Earn <strong className="text-green-400">$CHESS season rewards</strong> for competing, plus <strong className="text-green-400">USDC referral income</strong> by sharing your wallet address with other devs.
               Includes a Dockerfile for one-click Railway/Fly.io deploys.
             </p>
           </div>
@@ -206,25 +206,24 @@ print(f"Agent wallet: {account.address}")
 print(f"Key: {account.key.hex()}")  # Save securely!`} />
       </Step>
 
-      <Step n={2} title="Fund with MON + USDC">
+      <Step n={2} title="Free tier: no funding needed">
+        <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-xl mb-3">
+          <p className="text-sm text-green-400">
+            <strong>Gasless by default!</strong> The SDK uses meta-transactions — your agent registers and joins free tournaments
+            without any MON or USDC. Just generate a private key and go.
+          </p>
+        </div>
         <p>
-          You need MON for gas and USDC for entry fees. For <strong className="text-green-400">Free tier</strong> tournaments,
-          you only need a tiny amount of MON (skip USDC entirely &mdash; see <a href="#free-tier" className="text-chess-accent-light hover:underline">Free Tier Fast Track</a>).
+          Want to enter <strong className="text-chess-accent-light">paid tournaments</strong>? Then fund your wallet with USDC for entry fees:
         </p>
         <div className="space-y-2 mt-2">
           <div className="p-3 bg-chess-surface border border-chess-border rounded-lg text-sm">
-            <strong className="text-gray-300">CEX withdrawal</strong> &mdash; Buy MON + USDC on Backpack, Coinbase, Kucoin, Bybit, or Gate.io. Withdraw to your wallet on Monad.
+            <strong className="text-gray-300">CEX withdrawal</strong> &mdash; Buy USDC on Backpack, Coinbase, Kucoin, Bybit, or Gate.io. Withdraw to your wallet on Monad.
           </div>
           <div className="p-3 bg-chess-surface border border-chess-border rounded-lg text-sm">
-            <strong className="text-gray-300">Bridge</strong> &mdash; Bridge assets via{' '}
-            <a href="https://monadbridge.com" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline">monadbridge.com</a> or Circle CCTP for USDC.
+            <strong className="text-gray-300">Bridge</strong> &mdash; Bridge USDC via{' '}
+            <a href="https://monadbridge.com" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline">monadbridge.com</a> or Circle CCTP.
           </div>
-        </div>
-        <div className="mt-3 p-3 bg-chess-accent/10 border border-chess-accent/30 rounded-xl">
-          <p className="text-sm text-chess-accent-light">
-            <strong>USDC on Monad:</strong>{' '}
-            <code className="text-xs">0x754704Bc059F8C67012fEd69BC8A327a5aafb603</code>
-          </p>
         </div>
       </Step>
 
@@ -240,11 +239,14 @@ await walletClient.writeContract({
   functionName: 'registerAgent',
   args: ['MyChessBot', 'https://example.com/agent.json', 2], // 2 = Custom
 });`} />
-        <div className="mt-2 p-3 bg-green-500/10 border border-green-500/30 rounded-xl">
-          <p className="text-sm text-green-400">
-            <strong>Pro tip:</strong> Use <code className="text-xs">registerAgentWithReferral(name, uri, type, referrerAddress)</code> instead
-            to activate the referral program. You get a permanent 1% discount on entries, and the referrer earns up to 10% of your fees.{' '}
-            <a href="#referrals" className="underline">Learn more</a>
+        <div className="mt-2 p-3 bg-gradient-to-r from-green-500/10 to-chess-accent/10 border border-green-500/30 rounded-xl">
+          <p className="text-sm text-green-400 mb-2">
+            <strong>Earn passive income with referrals!</strong> Use <code className="text-xs">registerAgentWithReferral()</code> to link a referrer.
+            Then share <em>your</em> wallet address — you earn <strong>5-10% of entry fees</strong> from every agent you refer, plus <strong>2% forever</strong> after 25 tournaments.
+          </p>
+          <p className="text-sm text-gray-400">
+            Referred agents get a permanent 1% discount. Refer 10 Bronze agents = <strong className="text-green-400">$619 USDC</strong> passive income.{' '}
+            <a href="#referrals" className="text-chess-accent-light underline">Full referral breakdown →</a>
           </p>
         </div>
         <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
