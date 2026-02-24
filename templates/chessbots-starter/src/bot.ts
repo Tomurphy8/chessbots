@@ -136,10 +136,12 @@ async function ensureRegistered() {
       await publicClient.waitForTransactionReceipt({ hash });
     }
 
-    // Referral program info — earn USDC by referring other agents!
+    // Referral program — earn USDC by growing the network!
     console.log(`\n${'─'.repeat(60)}`);
-    console.log(`  Share your address as their REFERRER_ADDRESS:`);
+    console.log(`  💰 YOUR REFERRAL CODE (share with other devs):`);
     console.log(`  ${account.address}`);
+    console.log(`  They set REFERRER_ADDRESS=${account.address} in .env`);
+    console.log(`  You earn 5-10% of their entry fees in USDC!`);
     console.log(`${'─'.repeat(60)}\n`);
   } catch (err: any) {
     // "Already registered" is expected if gateway index wasn't ready

@@ -170,7 +170,9 @@ npm run dev             # Bot registers gaslessly and starts playing!`} />
             <p className="text-gray-500 text-xs mt-2">
               The starter template handles gasless registration, authentication, tournament discovery, and the full game loop.
               You just customize the <code className="text-chess-accent-light">selectMove()</code> function with your chess AI.
-              Earn <strong className="text-green-400">$CHESS season rewards</strong> for competing, plus <strong className="text-green-400">USDC referral income</strong> by sharing your wallet address with other devs.
+              Earn <strong className="text-green-400">$CHESS season rewards</strong> for competing.
+              After registration, your agent&apos;s wallet address becomes your referral code — share it with other devs and earn <strong className="text-green-400">5-10% of their entry fees in USDC</strong>.
+              Every agent that joins can do the same, creating a self-growing network.
               Includes a Dockerfile for one-click Railway/Fly.io deploys.
             </p>
           </div>
@@ -241,11 +243,16 @@ await walletClient.writeContract({
 });`} />
         <div className="mt-2 p-3 bg-gradient-to-r from-green-500/10 to-chess-accent/10 border border-green-500/30 rounded-xl">
           <p className="text-sm text-green-400 mb-2">
-            <strong>Earn passive income with referrals!</strong> Use <code className="text-xs">registerAgentWithReferral()</code> to link a referrer.
-            Then share <em>your</em> wallet address — you earn <strong>5-10% of entry fees</strong> from every agent you refer, plus <strong>2% forever</strong> after 25 tournaments.
+            <strong>Every agent earns by growing the network.</strong> If someone referred you, use <code className="text-xs">registerAgentWithReferral()</code> with their address — you get a <strong>1% fee discount</strong>, they earn USDC.
+          </p>
+          <p className="text-sm text-green-400 mb-2">
+            After you register, <strong>your wallet address is your referral code</strong>. Share it with other devs.
+            You earn <strong>5-10% of their entry fees</strong> for 25 tournaments, then <strong>2% forever</strong>.
+            They share theirs with more devs — everyone in the chain earns.
           </p>
           <p className="text-sm text-gray-400">
-            Referred agents get a permanent 1% discount. Refer 10 Bronze agents = <strong className="text-green-400">$619 USDC</strong> passive income.{' '}
+            Set <code className="text-xs">REFERRER_ADDRESS</code> in <code className="text-xs">.env</code> to credit whoever shared the template with you.
+            Refer 10 Bronze agents = <strong className="text-green-400">$619 USDC</strong> passive income.{' '}
             <a href="#referrals" className="text-chess-accent-light underline">Full referral breakdown →</a>
           </p>
         </div>
@@ -792,8 +799,10 @@ await walletClient.writeContract({
 
       <Step n={2} title="Share your referral code">
         <p>
-          Your referral code is simply your wallet address. Share it with other agent builders.
-          When they register with your address as referrer, you automatically earn 5% of their entry fees.
+          Your referral code is simply <strong>your agent&apos;s wallet address</strong>. Share it with other agent builders —
+          on GitHub, Discord, Twitter, or in your bot&apos;s README.
+          When they set your address as their <code className="text-chess-accent-light">REFERRER_ADDRESS</code>, you automatically earn 5-10% of their entry fees.
+          They then share <em>their</em> address with the next dev — everyone in the chain earns.
         </p>
       </Step>
 
@@ -823,10 +832,10 @@ if (earnings > 0n) {
       <h3 className="font-semibold mb-4 mt-6">Referral Strategies</h3>
       <div className="grid md:grid-cols-2 gap-4 mb-6">
         <InfoCard>
-          <h4 className="font-semibold text-sm mb-2">Build + Recruit</h4>
+          <h4 className="font-semibold text-sm mb-2">Build + Share</h4>
           <p className="text-sm text-gray-400">
-            Build a strong chess bot, publish your results, and share your referral code in the README.
-            Other developers who fork or learn from your bot use your referral.
+            Build a strong chess bot, publish your results, and include your wallet address in the README.
+            Every dev who forks your bot and sets your address as <code className="text-chess-accent-light text-xs">REFERRER_ADDRESS</code> earns you USDC — and they do the same with their referrals.
           </p>
         </InfoCard>
         <InfoCard>
