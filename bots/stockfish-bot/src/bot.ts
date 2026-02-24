@@ -250,57 +250,79 @@ async function ensureRegistered() {
 }
 
 async function joinTournament(tournamentId: number) {
-  try {
-    // Stagger join attempts across bots to avoid relayer rate limits
-    const jitter = Math.floor(Math.random() * 8000);
-    await new Promise(r => setTimeout(r, jitter));
+  // Stagger join attempts across bots to avoid relayer rate limits
+  const jitter = Math.floor(Math.random() * 10000);
+  await new Promise(r => setTimeout(r, jitter));
 
-    const raw = await publicClient.readContract({
-      address: CONTRACT,
-      abi: CHESSBOTS_ABI,
-      functionName: 'getTournament',
-      args: [BigInt(tournamentId)],
-    });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      if (attempt > 0) {
+        const backoff = 3000 + Math.floor(Math.random() * 5000);
+        console.log(`  Retry #${attempt} for tournament #${tournamentId} in ${backoff}ms...`);
+        await new Promise(r => setTimeout(r, backoff));
+      }
 
-    const entryFee = (raw as any).entryFee as bigint;
-
-    if (entryFee > 0n) {
-      const approveCalldata = encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: 'approve',
-        args: [CONTRACT, entryFee],
+      const raw = await publicClient.readContract({
+        address: CONTRACT,
+        abi: CHESSBOTS_ABI,
+        functionName: 'getTournament',
+        args: [BigInt(tournamentId)],
       });
 
-      const approveHash = await relayOrWrite(USDC, approveCalldata, () =>
-        walletClient.writeContract({
-          address: USDC,
+      const entryFee = (raw as any).entryFee as bigint;
+      const status = Number((raw as any).status);
+      if (status !== 0) {
+        console.log(`  Tournament #${tournamentId} not in registration (status=${status}), skipping.`);
+        return;
+      }
+
+      if (entryFee > 0n) {
+        const approveCalldata = encodeFunctionData({
           abi: ERC20_ABI,
           functionName: 'approve',
           args: [CONTRACT, entryFee],
-        }),
-      );
-      await publicClient.waitForTransactionReceipt({ hash: approveHash });
-      console.log(`  Approved ${entryFee} USDC for tournament #${tournamentId}`);
-    }
+        });
 
-    const joinCalldata = encodeFunctionData({
-      abi: CHESSBOTS_ABI,
-      functionName: 'registerForTournament',
-      args: [BigInt(tournamentId)],
-    });
+        const approveHash = await relayOrWrite(USDC, approveCalldata, () =>
+          walletClient.writeContract({
+            address: USDC,
+            abi: ERC20_ABI,
+            functionName: 'approve',
+            args: [CONTRACT, entryFee],
+          }),
+        );
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        console.log(`  Approved ${entryFee} USDC for tournament #${tournamentId}`);
+      }
 
-    const hash = await relayOrWrite(CONTRACT, joinCalldata, () =>
-      walletClient.writeContract({
-        address: CONTRACT,
+      const joinCalldata = encodeFunctionData({
         abi: CHESSBOTS_ABI,
         functionName: 'registerForTournament',
         args: [BigInt(tournamentId)],
-      }),
-    );
-    await publicClient.waitForTransactionReceipt({ hash });
-    console.log(`  Joined tournament #${tournamentId}! TX: ${hash}`);
-  } catch (err) {
-    console.error(`Failed to join tournament #${tournamentId}:`, (err as Error).message);
+      });
+
+      const hash = await relayOrWrite(CONTRACT, joinCalldata, () =>
+        walletClient.writeContract({
+          address: CONTRACT,
+          abi: CHESSBOTS_ABI,
+          functionName: 'registerForTournament',
+          args: [BigInt(tournamentId)],
+          gas: 200_000n,
+        }),
+      );
+      await publicClient.waitForTransactionReceipt({ hash });
+      console.log(`  Joined tournament #${tournamentId}! TX: ${hash}`);
+      return; // success
+    } catch (err) {
+      const msg = (err as Error).message;
+      if (msg.includes('Already registered') || msg.includes('Not in registration')) {
+        console.log(`  Tournament #${tournamentId}: ${msg.includes('Already') ? 'already registered' : 'registration closed'}`);
+        return;
+      }
+      if (attempt === 2) {
+        console.error(`Failed to join tournament #${tournamentId} after 3 attempts:`, msg);
+      }
+    }
   }
 }
 
