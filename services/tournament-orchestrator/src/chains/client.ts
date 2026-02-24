@@ -144,7 +144,7 @@ const TOURNAMENT_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
-  // getTournament (read) — V3 struct with format, teamSize, bestOf, challengeTarget
+  // getTournament (read) — V4 struct with tournamentType, bracket (no winners array)
   {
     inputs: [{ name: 'tournamentId', type: 'uint256' }],
     name: 'getTournament',
@@ -154,6 +154,8 @@ const TOURNAMENT_ABI = [
         { name: 'authority', type: 'address' },
         { name: 'tier', type: 'uint8' },
         { name: 'format', type: 'uint8' },
+        { name: 'tournamentType', type: 'uint8' },
+        { name: 'bracket', type: 'uint8' },
         { name: 'entryFee', type: 'uint256' },
         { name: 'status', type: 'uint8' },
         { name: 'maxPlayers', type: 'uint8' },
@@ -167,7 +169,6 @@ const TOURNAMENT_ABI = [
         { name: 'registrationDeadline', type: 'int64' },
         { name: 'baseTimeSeconds', type: 'uint32' },
         { name: 'incrementSeconds', type: 'uint32' },
-        { name: 'winners', type: 'address[3]' },
         { name: 'resultsUri', type: 'string' },
         { name: 'prizeDistributed', type: 'bool' },
         { name: 'exists', type: 'bool' },

@@ -13,7 +13,7 @@ function safeKeyCheck(provided: string, expected: string): boolean {
   return timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
 }
 
-// V3 struct layout — must match ChessBotsTournamentV3.sol exactly
+// V4 struct layout — must match ChessBotsTournamentV4.sol exactly
 const TOURNAMENT_ABI = [
   {
     inputs: [{ name: 'tournamentId', type: 'uint256' }],
@@ -24,6 +24,8 @@ const TOURNAMENT_ABI = [
         { name: 'authority', type: 'address' },
         { name: 'tier', type: 'uint8' },
         { name: 'format', type: 'uint8' },
+        { name: 'tournamentType', type: 'uint8' },
+        { name: 'bracket', type: 'uint8' },
         { name: 'entryFee', type: 'uint256' },
         { name: 'status', type: 'uint8' },
         { name: 'maxPlayers', type: 'uint8' },
@@ -37,7 +39,6 @@ const TOURNAMENT_ABI = [
         { name: 'registrationDeadline', type: 'int64' },
         { name: 'baseTimeSeconds', type: 'uint32' },
         { name: 'incrementSeconds', type: 'uint32' },
-        { name: 'winners', type: 'address[3]' },
         { name: 'resultsUri', type: 'string' },
         { name: 'prizeDistributed', type: 'bool' },
         { name: 'exists', type: 'bool' },
@@ -55,12 +56,11 @@ const TOURNAMENT_ABI = [
     outputs: [
       { name: 'authority', type: 'address' },
       { name: 'treasury', type: 'address' },
-      { name: 'protocolFeeBps', type: 'uint16' },
-      { name: 'buybackShareBps', type: 'uint16' },
-      { name: 'treasuryShareBps', type: 'uint16' },
       { name: 'totalTournaments', type: 'uint64' },
-      { name: 'totalPrizeDistributed', type: 'uint64' },
+      { name: 'totalPrizeDistributed', type: 'uint256' },
       { name: 'paused', type: 'bool' },
+      { name: 'sponsoredFreeTournaments', type: 'uint16' },
+      { name: 'maxFreeTournaments', type: 'uint16' },
     ],
     stateMutability: 'view',
     type: 'function',
@@ -94,11 +94,17 @@ const TierNames = ['Rookie', 'Bronze', 'Silver', 'Masters', 'Legends', 'Free'] a
 const StatusNames = ['Registration', 'InProgress', 'RoundActive', 'RoundComplete', 'Completed', 'Cancelled'] as const;
 const FormatNames = ['Swiss', '1v1', 'Team', 'League'] as const;
 
+const TournamentTypeNames = ['Standard', 'Satellite', 'Bounty'] as const;
+const BracketNames = ['Unrated', 'ClassC', 'ClassB', 'ClassA', 'Open'] as const;
+
 function formatTournament(raw: any) {
   return {
     id: Number(raw.id),
     authority: raw.authority,
     tier: TierNames[raw.tier] || 'Unknown',
+    format: FormatNames[raw.format] || 'Swiss',
+    tournamentType: TournamentTypeNames[raw.tournamentType] || 'Standard',
+    bracket: BracketNames[raw.bracket] || 'Unrated',
     entryFee: parseFloat(formatUnits(BigInt(raw.entryFee), 6)), // USDC 6 decimals — safe BigInt conversion
     status: StatusNames[raw.status] || 'Unknown',
     maxPlayers: raw.maxPlayers,
@@ -110,11 +116,9 @@ function formatTournament(raw: any) {
     registrationDeadline: Number(raw.registrationDeadline),
     baseTimeSeconds: raw.baseTimeSeconds,
     incrementSeconds: raw.incrementSeconds,
-    winners: raw.winners,
     resultsUri: raw.resultsUri,
     prizeDistributed: raw.prizeDistributed,
     exists: raw.exists,
-    format: FormatNames[raw.format] || 'Swiss',
     teamSize: raw.teamSize || 0,
     bestOf: raw.bestOf || 0,
     challengeTarget: raw.challengeTarget || '0x0000000000000000000000000000000000000000',

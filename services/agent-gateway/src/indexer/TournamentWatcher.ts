@@ -26,11 +26,12 @@ const TierNames = ['Rookie', 'Bronze', 'Silver', 'Masters', 'Legends', 'Free'] a
 const StatusNames = ['Registration', 'InProgress', 'RoundActive', 'RoundComplete', 'Completed', 'Cancelled'] as const;
 const FormatNames = ['Swiss', '1v1', 'Team', 'League'] as const;
 
+// V4 event signature — includes tournamentType and bracket fields
 const TOURNAMENT_CREATED_EVENT = parseAbiItem(
-  'event TournamentCreated(uint256 indexed id, uint8 tier, uint8 format, uint256 entryFee, uint8 maxPlayers)'
+  'event TournamentCreated(uint256 indexed id, uint8 tier, uint8 format, uint8 tournamentType, uint8 bracket, uint256 entryFee, uint8 maxPlayers)'
 );
 
-// ABI for reading tournament details — must match V3 struct order exactly
+// ABI for reading tournament details — must match V4 struct order exactly
 const GET_TOURNAMENT_ABI = [
   {
     inputs: [{ name: 'tournamentId', type: 'uint256' }],
@@ -41,6 +42,8 @@ const GET_TOURNAMENT_ABI = [
         { name: 'authority', type: 'address' },
         { name: 'tier', type: 'uint8' },
         { name: 'format', type: 'uint8' },
+        { name: 'tournamentType', type: 'uint8' },
+        { name: 'bracket', type: 'uint8' },
         { name: 'entryFee', type: 'uint256' },
         { name: 'status', type: 'uint8' },
         { name: 'maxPlayers', type: 'uint8' },
@@ -54,7 +57,6 @@ const GET_TOURNAMENT_ABI = [
         { name: 'registrationDeadline', type: 'int64' },
         { name: 'baseTimeSeconds', type: 'uint32' },
         { name: 'incrementSeconds', type: 'uint32' },
-        { name: 'winners', type: 'address[3]' },
         { name: 'resultsUri', type: 'string' },
         { name: 'prizeDistributed', type: 'bool' },
         { name: 'exists', type: 'bool' },

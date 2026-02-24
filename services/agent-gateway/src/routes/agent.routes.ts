@@ -63,17 +63,17 @@ const PROTOCOL_ABI = [{
   outputs: [
     { name: 'authority', type: 'address' },
     { name: 'treasury', type: 'address' },
-    { name: 'protocolFeeBps', type: 'uint16' },
-    { name: 'buybackShareBps', type: 'uint16' },
-    { name: 'treasuryShareBps', type: 'uint16' },
     { name: 'totalTournaments', type: 'uint64' },
-    { name: 'totalPrizeDistributed', type: 'uint64' },
+    { name: 'totalPrizeDistributed', type: 'uint256' },
     { name: 'paused', type: 'bool' },
+    { name: 'sponsoredFreeTournaments', type: 'uint16' },
+    { name: 'maxFreeTournaments', type: 'uint16' },
   ],
   stateMutability: 'view',
   type: 'function',
 }] as const;
 
+// V4 struct layout — must match ChessBotsTournamentV4.sol exactly
 const GET_TOURNAMENT_ABI_MINI = [{
   inputs: [{ name: 'tournamentId', type: 'uint256' }],
   name: 'getTournament',
@@ -83,6 +83,8 @@ const GET_TOURNAMENT_ABI_MINI = [{
       { name: 'authority', type: 'address' },
       { name: 'tier', type: 'uint8' },
       { name: 'format', type: 'uint8' },
+      { name: 'tournamentType', type: 'uint8' },
+      { name: 'bracket', type: 'uint8' },
       { name: 'entryFee', type: 'uint256' },
       { name: 'status', type: 'uint8' },
       { name: 'maxPlayers', type: 'uint8' },
@@ -96,7 +98,6 @@ const GET_TOURNAMENT_ABI_MINI = [{
       { name: 'registrationDeadline', type: 'int64' },
       { name: 'baseTimeSeconds', type: 'uint32' },
       { name: 'incrementSeconds', type: 'uint32' },
-      { name: 'winners', type: 'address[3]' },
       { name: 'resultsUri', type: 'string' },
       { name: 'prizeDistributed', type: 'bool' },
       { name: 'exists', type: 'bool' },
