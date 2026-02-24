@@ -1,0 +1,11 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/relayer/Dockerfile"
+buildContext = "."
+watchPatterns = ["services/relayer/**"]
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 15
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
