@@ -15,6 +15,29 @@ export const monad = defineChain({
 export const GATEWAY = process.env.GATEWAY_URL || 'https://agent-gateway-production-590d.up.railway.app';
 export const CONTRACT: Address = '0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787';
 export const USDC: Address = '0x754704Bc059F8C67012fEd69BC8A327a5aafb603';
+export const FORWARDER: Address = '0x99088C6D13113219B9fdA263Acb0229677c1658A';
+export const RELAYER_URL = process.env.RELAYER_URL || 'https://relayer-production-f6ec.up.railway.app';
+
+// ─── EIP-712 Meta-Transaction Constants ──────────────────────────────────────
+
+export const EIP712_DOMAIN = {
+  name: 'ChessForwarder' as const,
+  version: '1' as const,
+  chainId: 143n,
+  verifyingContract: FORWARDER,
+};
+
+export const FORWARD_REQUEST_TYPES = {
+  ForwardRequest: [
+    { name: 'from', type: 'address' },
+    { name: 'to', type: 'address' },
+    { name: 'value', type: 'uint256' },
+    { name: 'gas', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'deadline', type: 'uint48' },
+    { name: 'data', type: 'bytes' },
+  ],
+} as const;
 
 // ─── ABIs (minimal — only what the bot needs) ────────────────────────────────
 
@@ -81,6 +104,39 @@ export const CHESSBOTS_ABI = [
       type: 'tuple',
     }],
     stateMutability: 'view',
+    type: 'function',
+  },
+  // Referral economics
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'referralEarnings',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'referralCount',
+    outputs: [{ name: '', type: 'uint16' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'referrer', type: 'address' }],
+    name: 'getReferrerTier',
+    outputs: [
+      { name: 'tier', type: 'uint8' },
+      { name: 'rateBps', type: 'uint16' },
+      { name: 'count', type: 'uint16' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'claimReferralEarnings',
+    outputs: [],
+    stateMutability: 'nonpayable',
     type: 'function',
   },
 ] as const;
