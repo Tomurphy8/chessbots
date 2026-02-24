@@ -9,6 +9,7 @@
     "dev": "tsx src/bot.ts"
   },
   "dependencies": {
+    "dotenv": "^16.4.0",
     "socket.io-client": "^4.8.0",
     "viem": "^2.21.0"
   },

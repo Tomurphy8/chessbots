@@ -1,7 +1,26 @@
+import 'dotenv/config';
 import { io, type Socket } from 'socket.io-client';
-import { createWalletClient, createPublicClient, http, type Address } from 'viem';
+import {
+  createWalletClient,
+  createPublicClient,
+  http,
+  encodeFunctionData,
+  type Address,
+  type Hex,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { monad, GATEWAY, CONTRACT, USDC, CHESSBOTS_ABI, ERC20_ABI } from './config.js';
+import {
+  monad,
+  GATEWAY,
+  CONTRACT,
+  USDC,
+  FORWARDER,
+  RELAYER_URL,
+  CHESSBOTS_ABI,
+  ERC20_ABI,
+  EIP712_DOMAIN,
+  FORWARD_REQUEST_TYPES,
+} from './config.js';
 
 // ─── Load env ────────────────────────────────────────────────────────────────
 
@@ -16,6 +35,85 @@ const walletClient = createWalletClient({ account, chain: monad, transport: http
 const publicClient = createPublicClient({ chain: monad, transport: http() });
 
 console.log(`Agent wallet: ${account.address}`);
+
+// ─── Gasless Meta-Transaction Helper ─────────────────────────────────────────
+//
+// Every on-chain write goes through this function:
+// 1. Try the relayer (gasless — signs EIP-712, relayer pays gas)
+// 2. Fall back to direct writeContract (requires MON for gas)
+//
+// This means agents with zero MON can register, join tournaments, and claim
+// earnings without ever needing native tokens.
+
+async function relayOrWrite(
+  contract: Address,
+  calldata: Hex,
+  directWrite: () => Promise<Hex>,
+  gasLimit: bigint = 500_000n,
+): Promise<Hex> {
+  try {
+    // Check relayer health (3s timeout)
+    const healthRes = await fetch(`${RELAYER_URL}/health`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!healthRes.ok) throw new Error('Relayer unhealthy');
+
+    // Get forwarder nonce for our address
+    const nonceRes = await fetch(`${RELAYER_URL}/nonce/${account.address}`);
+    if (!nonceRes.ok) throw new Error('Failed to get nonce');
+    const { nonce } = await nonceRes.json();
+
+    // Build EIP-712 forward request
+    const forwardRequest = {
+      from: account.address,
+      to: contract,
+      value: 0n,
+      gas: gasLimit,
+      nonce: BigInt(nonce),
+      deadline: Math.floor(Date.now() / 1000) + 3600,
+      data: calldata,
+    };
+
+    // Sign with agent's private key (no gas needed — just a signature)
+    const signature = await account.signTypedData({
+      domain: EIP712_DOMAIN,
+      types: FORWARD_REQUEST_TYPES,
+      primaryType: 'ForwardRequest',
+      message: forwardRequest,
+    });
+
+    // Submit to relayer — it executes on-chain and pays gas for us
+    const relayRes = await fetch(`${RELAYER_URL}/relay`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        request: {
+          from: forwardRequest.from,
+          to: forwardRequest.to,
+          value: forwardRequest.value.toString(),
+          gas: forwardRequest.gas.toString(),
+          nonce: forwardRequest.nonce.toString(),
+          deadline: forwardRequest.deadline,
+          data: forwardRequest.data,
+        },
+        signature,
+      }),
+    });
+
+    if (!relayRes.ok) {
+      const errText = await relayRes.text().catch(() => '');
+      throw new Error(`Relay failed (${relayRes.status}): ${errText}`);
+    }
+
+    const { txHash } = await relayRes.json();
+    console.log('  (gasless via relayer)');
+    return txHash as Hex;
+  } catch (err) {
+    // Relayer unavailable or failed — fall back to direct write (needs MON)
+    console.log('  (relayer unavailable, using direct tx — needs MON for gas)');
+    return directWrite();
+  }
+}
 
 // ─── Authentication ──────────────────────────────────────────────────────────
 
@@ -96,7 +194,7 @@ async function makeMove(gameId: string, token: string) {
   }
 }
 
-// ─── On-Chain Registration ───────────────────────────────────────────────────
+// ─── On-Chain Registration (gasless) ─────────────────────────────────────────
 
 async function ensureRegistered() {
   try {
@@ -116,22 +214,40 @@ async function ensureRegistered() {
       // * You get 1% discount on tournament entry fees (first 25 tournaments)
       // * Referrer earns 5-10% of your entry fees (based on their referral tier)
       console.log(`Registering with referral (referrer: ${referrer})...`);
-      const hash = await walletClient.writeContract({
-        address: CONTRACT,
+
+      const calldata = encodeFunctionData({
         abi: CHESSBOTS_ABI,
         functionName: 'registerAgentWithReferral',
         args: [agentName, '', 2, referrer as `0x${string}`],
       });
+
+      const hash = await relayOrWrite(CONTRACT, calldata, () =>
+        walletClient.writeContract({
+          address: CONTRACT,
+          abi: CHESSBOTS_ABI,
+          functionName: 'registerAgentWithReferral',
+          args: [agentName, '', 2, referrer as `0x${string}`],
+        }),
+      );
       console.log(`Registered with referral! TX: ${hash}`);
       await publicClient.waitForTransactionReceipt({ hash });
     } else {
       console.log('Registering agent on-chain...');
-      const hash = await walletClient.writeContract({
-        address: CONTRACT,
+
+      const calldata = encodeFunctionData({
         abi: CHESSBOTS_ABI,
         functionName: 'registerAgent',
         args: [agentName, '', 2],
       });
+
+      const hash = await relayOrWrite(CONTRACT, calldata, () =>
+        walletClient.writeContract({
+          address: CONTRACT,
+          abi: CHESSBOTS_ABI,
+          functionName: 'registerAgent',
+          args: [agentName, '', 2],
+        }),
+      );
       console.log(`Registered! TX: ${hash}`);
       await publicClient.waitForTransactionReceipt({ hash });
     }
@@ -174,23 +290,39 @@ async function joinTournament(tournamentId: number) {
 
     // Approve USDC if entry fee > 0
     if (entryFee > 0n) {
-      const approveHash = await walletClient.writeContract({
-        address: USDC,
+      const approveCalldata = encodeFunctionData({
         abi: ERC20_ABI,
         functionName: 'approve',
         args: [CONTRACT, entryFee],
       });
+
+      const approveHash = await relayOrWrite(USDC, approveCalldata, () =>
+        walletClient.writeContract({
+          address: USDC,
+          abi: ERC20_ABI,
+          functionName: 'approve',
+          args: [CONTRACT, entryFee],
+        }),
+      );
       await publicClient.waitForTransactionReceipt({ hash: approveHash });
       console.log(`  Approved ${entryFee} USDC for tournament #${tournamentId}`);
     }
 
-    // Register for tournament
-    const hash = await walletClient.writeContract({
-      address: CONTRACT,
+    // Register for tournament (gasless)
+    const joinCalldata = encodeFunctionData({
       abi: CHESSBOTS_ABI,
       functionName: 'registerForTournament',
       args: [BigInt(tournamentId)],
     });
+
+    const hash = await relayOrWrite(CONTRACT, joinCalldata, () =>
+      walletClient.writeContract({
+        address: CONTRACT,
+        abi: CHESSBOTS_ABI,
+        functionName: 'registerForTournament',
+        args: [BigInt(tournamentId)],
+      }),
+    );
     await publicClient.waitForTransactionReceipt({ hash });
     console.log(`  Joined tournament #${tournamentId}! TX: ${hash}`);
   } catch (err) {
@@ -465,15 +597,22 @@ async function main() {
 
       console.log(`[Economics] Balance: $${balanceUsdc.toFixed(2)} | Earnings: $${earningsUsdc.toFixed(2)} | Referrals: ${refCount} (${tierName} ${Number(rateBps) / 100}%)`);
 
-      // 3. Auto-claim referral earnings
+      // 3. Auto-claim referral earnings (gasless)
       if (autoClaimEnabled && earnings > CLAIM_THRESHOLD) {
         console.log(`[Economics] Claiming $${earningsUsdc.toFixed(2)} referral earnings...`);
         try {
-          const hash = await walletClient.writeContract({
-            address: CONTRACT,
+          const claimCalldata = encodeFunctionData({
             abi: CHESSBOTS_ABI,
             functionName: 'claimReferralEarnings',
           });
+
+          const hash = await relayOrWrite(CONTRACT, claimCalldata, () =>
+            walletClient.writeContract({
+              address: CONTRACT,
+              abi: CHESSBOTS_ABI,
+              functionName: 'claimReferralEarnings',
+            }),
+          );
           await publicClient.waitForTransactionReceipt({ hash });
           console.log(`[Economics] Claimed! TX: ${hash}`);
         } catch (e) {
