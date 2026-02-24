@@ -586,8 +586,8 @@ async function main() {
           };
 
           // Only create one Free Swiss at a time — agents funnel into this one tournament
-          // Bullet time control: 30s + 1s increment
-          await autoCreateIfNeeded(5, 0, 8, 2, 30, 1, 'Free Swiss');
+          // Rapid time control: 3min + 5s increment
+          await autoCreateIfNeeded(5, 0, 8, 2, 180, 5, 'Free Swiss');
 
         } catch (err: any) {
           log('warn', 'Auto-create check failed', { error: err.message });
