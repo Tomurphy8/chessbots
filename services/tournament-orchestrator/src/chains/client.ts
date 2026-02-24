@@ -120,18 +120,15 @@ const TOURNAMENT_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
-  // protocol (read)
+  // protocol (read) — V4 struct (no fee split fields, uint256 totalPrizeDistributed)
   {
     inputs: [],
     name: 'protocol',
     outputs: [
       { name: 'authority', type: 'address' },
       { name: 'treasury', type: 'address' },
-      { name: 'protocolFeeBps', type: 'uint16' },
-      { name: 'buybackShareBps', type: 'uint16' },
-      { name: 'treasuryShareBps', type: 'uint16' },
       { name: 'totalTournaments', type: 'uint64' },
-      { name: 'totalPrizeDistributed', type: 'uint64' },
+      { name: 'totalPrizeDistributed', type: 'uint256' },
       { name: 'paused', type: 'bool' },
       { name: 'sponsoredFreeTournaments', type: 'uint16' },
       { name: 'maxFreeTournaments', type: 'uint16' },
