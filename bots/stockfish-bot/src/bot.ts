@@ -128,13 +128,8 @@ async function makeMove(gameId: string, token: string) {
 // ─── On-Chain Registration (gasless) ─────────────────────────────────────────
 
 async function ensureRegistered() {
-  try {
-    const agents = await fetch(`${GATEWAY}/api/agents/${account.address}`);
-    if (agents.ok) {
-      console.log('Agent already registered on-chain.');
-      return;
-    }
-  } catch { /* gateway may not be ready */ }
+  // Always attempt registration — "Already registered" is handled gracefully.
+  // Previously this checked gateway API which could be stale or misleading.
 
   const agentName = process.env.AGENT_NAME || 'StockfishBot';
   const referrer = process.env.REFERRER_ADDRESS;
@@ -155,6 +150,7 @@ async function ensureRegistered() {
           abi: CHESSBOTS_ABI,
           functionName: 'registerAgentWithReferral',
           args: [agentName, '', 2, referrer as `0x${string}`],
+          gas: 300_000n,
         }),
       );
       console.log(`Registered with referral! TX: ${hash}`);
@@ -174,6 +170,7 @@ async function ensureRegistered() {
           abi: CHESSBOTS_ABI,
           functionName: 'registerAgent',
           args: [agentName, '', 2],
+          gas: 300_000n,
         }),
       );
       console.log(`Registered! TX: ${hash}`);
