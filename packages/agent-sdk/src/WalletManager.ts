@@ -2,6 +2,7 @@ import {
   createWalletClient,
   createPublicClient,
   http,
+  encodeFunctionData,
   type WalletClient,
   type PublicClient,
   type Address,
@@ -10,6 +11,7 @@ import {
   parseAbi,
   formatUnits,
 } from 'viem';
+import type { RelayerClient, RelayRequest } from './RelayerClient.js';
 import { privateKeyToAccount } from 'viem/accounts';
 
 const monad: Chain = {
@@ -35,6 +37,29 @@ const TOURNAMENT_ABI = parseAbi([
   'function registerForTournament(uint256 tournamentId)',
   'function getAgent(address) view returns ((address wallet, string name, string metadataUri, uint16 eloRating, uint32 gamesPlayed, uint32 gamesWon, uint32 gamesDrawn, uint32 gamesLost, uint32 tournamentsEntered, uint32 tournamentsWon, uint128 totalEarnings, uint64 registeredAt, bool isVerified, uint8 agentType))',
 ]);
+
+// ── Meta-Transaction (EIP-712) Constants ─────────────────────────────────
+
+const FORWARDER_ADDRESS = '0x99088C6D13113219B9fdA263Acb0229677c1658A' as Address;
+
+const EIP712_DOMAIN = {
+  name: 'ChessForwarder' as const,
+  version: '1' as const,
+  chainId: 143n,
+  verifyingContract: FORWARDER_ADDRESS,
+};
+
+const FORWARD_REQUEST_TYPES = {
+  ForwardRequest: [
+    { name: 'from', type: 'address' },
+    { name: 'to', type: 'address' },
+    { name: 'value', type: 'uint256' },
+    { name: 'gas', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'deadline', type: 'uint48' },
+    { name: 'data', type: 'bytes' },
+  ],
+} as const;
 
 export class WalletManager {
   public readonly address: Address;
@@ -110,38 +135,74 @@ export class WalletManager {
     });
   }
 
-  /** Register agent on-chain */
-  async registerAgent(name: string, metadataUri: string, referrer?: Address, contract: Address = TOURNAMENT_V4): Promise<Hex> {
-    if (referrer) {
-      return this.wallet.writeContract({
-        account: this.account,
-        chain: this.chain,
-        address: contract,
-        abi: TOURNAMENT_ABI,
-        functionName: 'registerAgentWithReferral',
-        args: [name, metadataUri, 2, referrer], // agentType 2 = custom
-      });
-    }
-    return this.wallet.writeContract({
-      account: this.account,
-      chain: this.chain,
-      address: contract,
-      abi: TOURNAMENT_ABI,
-      functionName: 'registerAgent',
-      args: [name, metadataUri, 2],
-    });
+  /** Register agent on-chain (gasless via relayer if available) */
+  async registerAgent(
+    name: string,
+    metadataUri: string,
+    referrer?: Address,
+    contract: Address = TOURNAMENT_V4,
+    relayer?: RelayerClient,
+  ): Promise<Hex> {
+    const directWrite = () =>
+      referrer
+        ? this.wallet.writeContract({
+            account: this.account,
+            chain: this.chain,
+            address: contract,
+            abi: TOURNAMENT_ABI,
+            functionName: 'registerAgentWithReferral',
+            args: [name, metadataUri, 2, referrer],
+          })
+        : this.wallet.writeContract({
+            account: this.account,
+            chain: this.chain,
+            address: contract,
+            abi: TOURNAMENT_ABI,
+            functionName: 'registerAgent',
+            args: [name, metadataUri, 2],
+          });
+
+    const calldata = referrer
+      ? encodeFunctionData({
+          abi: TOURNAMENT_ABI,
+          functionName: 'registerAgentWithReferral',
+          args: [name, metadataUri, 2, referrer],
+        })
+      : encodeFunctionData({
+          abi: TOURNAMENT_ABI,
+          functionName: 'registerAgent',
+          args: [name, metadataUri, 2],
+        });
+
+    return this._relayOrWrite(relayer, contract, calldata, directWrite);
   }
 
-  /** Register for tournament on-chain */
-  async registerForTournament(tournamentId: number, contract: Address = TOURNAMENT_V4): Promise<Hex> {
-    return this.wallet.writeContract({
-      account: this.account,
-      chain: this.chain,
-      address: contract,
+  /** Register for tournament on-chain (gasless via relayer if available) */
+  async registerForTournament(
+    tournamentId: number,
+    contract: Address = TOURNAMENT_V4,
+    relayer?: RelayerClient,
+  ): Promise<Hex> {
+    const calldata = encodeFunctionData({
       abi: TOURNAMENT_ABI,
       functionName: 'registerForTournament',
       args: [BigInt(tournamentId)],
     });
+
+    return this._relayOrWrite(
+      relayer,
+      contract,
+      calldata,
+      () =>
+        this.wallet.writeContract({
+          account: this.account,
+          chain: this.chain,
+          address: contract,
+          abi: TOURNAMENT_ABI,
+          functionName: 'registerForTournament',
+          args: [BigInt(tournamentId)],
+        }),
+    );
   }
 
   /** Check if agent is registered on-chain */
@@ -156,6 +217,79 @@ export class WalletManager {
       return agent.registeredAt > 0n;
     } catch {
       return false;
+    }
+  }
+
+  // ── Meta-Transaction Helpers ──────────────────────────────────────────
+
+  /** Sign an EIP-712 ForwardRequest for the ChessForwarder */
+  async signForwardRequest(request: {
+    from: Address;
+    to: Address;
+    value: bigint;
+    gas: bigint;
+    nonce: bigint;
+    deadline: number;
+    data: Hex;
+  }): Promise<Hex> {
+    return this.account.signTypedData({
+      domain: EIP712_DOMAIN,
+      types: FORWARD_REQUEST_TYPES,
+      primaryType: 'ForwardRequest',
+      message: request,
+    });
+  }
+
+  /**
+   * Try to execute a contract call via the relayer (gasless meta-tx).
+   * Falls back to direct writeContract if relayer is unavailable or fails.
+   */
+  private async _relayOrWrite(
+    relayer: RelayerClient | undefined,
+    contract: Address,
+    calldata: Hex,
+    directWrite: () => Promise<Hex>,
+    gasLimit: bigint = 500_000n,
+  ): Promise<Hex> {
+    if (!relayer) return directWrite();
+
+    try {
+      const available = await relayer.isAvailable();
+      if (!available) return directWrite();
+
+      // Get nonce from relayer
+      const nonce = await relayer.getNonce(this.address);
+
+      // Build forward request
+      const forwardRequest = {
+        from: this.address,
+        to: contract,
+        value: 0n,
+        gas: gasLimit,
+        nonce,
+        deadline: Math.floor(Date.now() / 1000) + 3600,
+        data: calldata,
+      };
+
+      // Sign EIP-712
+      const signature = await this.signForwardRequest(forwardRequest);
+
+      // Serialize BigInts as strings for JSON transport
+      const relayRequest: RelayRequest = {
+        from: forwardRequest.from,
+        to: forwardRequest.to,
+        value: forwardRequest.value.toString(),
+        gas: forwardRequest.gas.toString(),
+        nonce: forwardRequest.nonce.toString(),
+        deadline: forwardRequest.deadline,
+        data: forwardRequest.data,
+      };
+
+      const result = await relayer.relay(relayRequest, signature);
+      return result.txHash;
+    } catch {
+      // Relayer failed — fall back to direct write
+      return directWrite();
     }
   }
 }

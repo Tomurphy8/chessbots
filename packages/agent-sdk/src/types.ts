@@ -61,6 +61,9 @@ export interface AgentConfig {
   /** Monad RPC URL */
   rpcUrl?: string;
 
+  /** Relayer URL for gasless meta-transactions (defaults to production) */
+  relayerUrl?: string;
+
   /** Strategy for tournament selection */
   strategy?: StrategyName;
 

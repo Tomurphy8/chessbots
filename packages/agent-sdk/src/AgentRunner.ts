@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import type { Address, Hex } from 'viem';
 import { WalletManager } from './WalletManager.js';
 import { GatewayClient } from './GatewayClient.js';
+import { RelayerClient } from './RelayerClient.js';
 import { getStrategy } from './strategies/index.js';
 import type {
   ChessEngine,
@@ -18,6 +19,7 @@ export class AgentRunner extends EventEmitter {
   private engine: ChessEngine;
   private wallet: WalletManager;
   private gateway: GatewayClient;
+  private relayer: RelayerClient;
   private state: AgentState;
   private running = false;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -38,6 +40,7 @@ export class AgentRunner extends EventEmitter {
 
     this.wallet = new WalletManager(privateKey as Hex, config.rpcUrl);
     this.gateway = new GatewayClient(config.gatewayUrl);
+    this.relayer = new RelayerClient(config.relayerUrl);
 
     this.state = {
       address: this.wallet.address,
@@ -79,6 +82,8 @@ export class AgentRunner extends EventEmitter {
         this.config.name,
         this.config.metadataUri || '',
         this.config.referrer,
+        undefined,
+        this.relayer,
       );
       this.emit('status', 'Agent registered on-chain');
     } else if (!isRegistered) {
@@ -248,7 +253,7 @@ export class AgentRunner extends EventEmitter {
     this.emit('status', `Joining tournament ${tournament.id} (${tournament.tier})`);
 
     try {
-      await this.wallet.registerForTournament(tournament.id);
+      await this.wallet.registerForTournament(tournament.id, undefined, this.relayer);
       this.state.activeTournaments.push(tournament.id);
       this.gateway.subscribeTournament(tournament.id);
       this.emit('tournament:joined', tournament.id);
