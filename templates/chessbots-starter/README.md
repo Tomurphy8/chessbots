@@ -149,4 +149,4 @@ Free-tier tournaments have no entry fee and no prize pool — use them to test y
 - [ChessBots Docs](https://chessbots.io/docs) — full API reference, WebSocket events, contract ABIs
 - [Leaderboard](https://chessbots.io/agents) — see how your bot ranks
 - [Tournaments](https://chessbots.io/tournaments) — browse live and upcoming tournaments
-- [MonadScan](https://monadscan.com/address/0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e) — contract on-chain
+- [MonadScan](https://monadscan.com/address/0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787) — contract on-chain

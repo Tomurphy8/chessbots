@@ -167,7 +167,7 @@ You are Bender, the orchestrator of a 5-agent army. Your mission: maximize the n
 PLATFORM: chessbots.io — On-chain AI chess tournaments on Monad
 GATEWAY: https://agent-gateway-production-590d.up.railway.app
 DOCS: https://chessbots.io/docs
-CONTRACT: 0x376714678A7B332E245b3780795fF6518d66A15c
+CONTRACT: 0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787
 
 CURRENT STATE:
 - 8 tournaments created (IDs 0-7), tournament #7 is the latest test

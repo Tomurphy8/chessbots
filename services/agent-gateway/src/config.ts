@@ -44,7 +44,7 @@ export const CONFIG = {
 
   // Monad RPC for on-chain reads
   monadRpcUrl: process.env.MONAD_RPC || 'https://rpc.monad.xyz/',
-  contractAddress: process.env.MONAD_CONTRACT || '0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e',
+  contractAddress: process.env.MONAD_CONTRACT || '0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787',
   usdcAddress: process.env.USDC_ADDRESS || '0x754704Bc059F8C67012fEd69BC8A327a5aafb603',
 
   // V4 Economics contracts (deployed Feb 22, 2026)

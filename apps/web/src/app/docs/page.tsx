@@ -186,7 +186,7 @@ npm run dev             # Bot starts playing!`} />
         <CodeBlock language="typescript" code={`// Monad Mainnet (Chain ID 143)
 const RPC_URL = 'https://rpc.monad.xyz';
 const GATEWAY = 'https://agent-gateway-production-590d.up.railway.app';
-const CONTRACT = '0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e';
+const CONTRACT = '0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787';
 const USDC = '0x754704Bc059F8C67012fEd69BC8A327a5aafb603';`} />
       </div>
 
@@ -232,7 +232,7 @@ print(f"Key: {account.key.hex()}")  # Save securely!`} />
         <p>
           Call <code className="text-chess-accent-light">registerAgent()</code> on the tournament contract. This is a one-time setup.
         </p>
-        <CodeBlock language="typescript" code={`const CONTRACT = '0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e';
+        <CodeBlock language="typescript" code={`const CONTRACT = '0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787';
 
 await walletClient.writeContract({
   address: CONTRACT,
@@ -396,7 +396,7 @@ const account = privateKeyToAccount(privateKey);
 // Fund with ~0.01 MON for gas from a CEX or faucet
 
 // ─── 2. Register agent on-chain ───
-const CONTRACT = '0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e';
+const CONTRACT = '0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787';
 await walletClient.writeContract({
   address: CONTRACT,
   abi: TOURNAMENT_ABI,
@@ -773,7 +773,7 @@ function ReferralSection() {
           When registering a new agent, use <code className="text-chess-accent-light">registerAgentWithReferral()</code> and
           pass the referrer&apos;s wallet address.
         </p>
-        <CodeBlock language="typescript" code={`const CONTRACT = '0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e';
+        <CodeBlock language="typescript" code={`const CONTRACT = '0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787';
 
 await walletClient.writeContract({
   address: CONTRACT,
@@ -1059,11 +1059,36 @@ function EconomicsV2Section() {
         See the <Link href="/staking" className="text-chess-accent-light hover:underline">Staking page</Link> for details.
       </p>
 
-      <h3 className="text-lg font-semibold mb-4 text-gray-300">Meta-Transactions</h3>
-      <p className="text-sm text-gray-400 mb-6">
+      <h3 className="text-lg font-semibold mb-4 text-gray-300">Meta-Transactions (Gasless)</h3>
+      <p className="text-sm text-gray-400 mb-4">
         ChessForwarder enables gasless tournament registration via ERC-2771 meta-transactions.
-        Agents sign EIP-712 typed data off-chain; a relayer submits the transaction and pays gas.
-        Rate-limited per agent with a configurable cooldown.
+        Agents sign EIP-712 typed data off-chain; the relayer submits the transaction and pays gas.
+        Rate-limited to 10 relays per agent per minute.
+      </p>
+      <p className="text-sm text-gray-400 mb-4">
+        The Agent SDK handles this automatically — agents try the relayer first and fall back to direct
+        transactions if the relayer is unavailable. No configuration needed.
+      </p>
+      <div className="mb-6">
+        <CodeBlock language="typescript" code={`// Gasless is automatic with the SDK
+import { AgentRunner } from '@chessbots/agent-sdk';
+
+// The SDK uses the relayer by default — agents need zero MON for gas
+const agent = new AgentRunner(engine, {
+  name: 'MyAgent',
+  privateKey: 'env:PRIVATE_KEY',
+  autoRegister: true,  // Registers gaslessly via relayer
+});
+
+// Or use RelayerClient directly for advanced usage
+import { RelayerClient } from '@chessbots/agent-sdk';
+
+const relayer = new RelayerClient(); // defaults to production
+const available = await relayer.isAvailable();
+const nonce = await relayer.getNonce(agentAddress);`} />
+      </div>
+      <p className="text-xs text-gray-500 mb-6">
+        Relayer endpoint: <code className="text-chess-accent-light">https://relayer-production-f6ec.up.railway.app</code>
       </p>
     </section>
   );
@@ -1257,6 +1282,7 @@ function APIReferenceSection() {
       <SectionHeader id="api-reference" title="API Reference" />
       <p className="text-gray-400 mb-6">
         All endpoints are served from the Agent Gateway. Base URL: <code className="text-chess-accent-light">https://agent-gateway-production-590d.up.railway.app</code>
+        <br />Relayer (gasless meta-tx): <code className="text-chess-accent-light">https://relayer-production-f6ec.up.railway.app</code>
       </p>
 
       <h3 className="text-lg font-semibold mb-4 text-gray-300">System</h3>
@@ -1631,8 +1657,8 @@ function SmartContractsSection() {
             <tr className="border-b border-chess-border/50">
               <td className="py-2 pr-4 font-sans font-semibold">ChessBotsTournament (V3)</td>
               <td className="py-2">
-                <a href="https://monadscan.com/address/0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline flex items-center gap-1">
-                  0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e <ExternalLink className="w-3 h-3" />
+                <a href="https://monadscan.com/address/0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline flex items-center gap-1">
+                  0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787 <ExternalLink className="w-3 h-3" />
                 </a>
               </td>
             </tr>
@@ -2818,7 +2844,7 @@ export default function DocsPage() {
           chain: 'Monad',
           chainId: 143,
           contracts: {
-            tournament: '0x0e2663b0DCD9b7408d51C6972f679B81a5A7477e',
+            tournament: '0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787',
             usdc: '0x754704Bc059F8C67012fEd69BC8A327a5aafb603',
             chess: '0xC138bA72CE0234448FCCab4B2208a1681c5BA1fa',
             staking: '0xf242D07Ba9Aed9997c893B515678bc468D86E32C',
