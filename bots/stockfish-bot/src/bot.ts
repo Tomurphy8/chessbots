@@ -1,3 +1,4 @@
+// ChessBots Stockfish Agent — gasless via ERC-2771 meta-transactions
 import 'dotenv/config';
 import { io, type Socket } from 'socket.io-client';
 import {
