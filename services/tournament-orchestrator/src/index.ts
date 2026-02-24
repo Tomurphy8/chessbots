@@ -122,12 +122,11 @@ async function main() {
       console.log('Protocol State:');
       console.log(`  Authority: ${protocol[0]}`);
       console.log(`  Treasury: ${protocol[1]}`);
-      console.log(`  Protocol Fee: ${protocol[2]} bps`);
-      console.log(`  Buyback Share: ${protocol[3]} bps`);
-      console.log(`  Treasury Share: ${protocol[4]} bps`);
-      console.log(`  Total Tournaments: ${protocol[5]}`);
-      console.log(`  Total Prize Distributed: ${Number(protocol[6]) / 1e6} USDC`);
-      console.log(`  Paused: ${protocol[7]}`);
+      console.log(`  Total Tournaments: ${protocol[2]}`);
+      console.log(`  Total Prize Distributed: ${Number(protocol[3]) / 1e6} USDC`);
+      console.log(`  Paused: ${protocol[4]}`);
+      console.log(`  Sponsored Free: ${protocol[5]}`);
+      console.log(`  Max Free: ${protocol[6]}`);
       break;
     }
 
@@ -294,7 +293,7 @@ async function main() {
           const protocol = isV4
             ? await chain.getV4ProtocolState()
             : await chain.getProtocolState();
-          const totalTournaments = Number(protocol[5]);
+          const totalTournaments = Number(protocol[2]);
           const contractLabel = isV4 ? 'V4' : 'V3';
 
           // Tournament IDs are 0-indexed: iterate from 0 to totalTournaments - 1
@@ -492,8 +491,8 @@ async function main() {
         // ── Auto-bump free tournament cap if nearing limit ──
         try {
           const proto = await chain.getProtocolState();
-          const sponsoredFree = Number(proto[8]); // sponsoredFreeTournaments
-          const maxFree = Number(proto[9]);        // maxFreeTournaments
+          const sponsoredFree = Number(proto[5]); // sponsoredFreeTournaments
+          const maxFree = Number(proto[6]);        // maxFreeTournaments
           if (maxFree > 0 && maxFree - sponsoredFree <= 2) {
             const newLimit = Math.min(maxFree + 50, 65535); // uint16 max = 65535
             log('info', `Free tournament cap near limit (${sponsoredFree}/${maxFree}), bumping to ${newLimit}`);
@@ -513,7 +512,7 @@ async function main() {
           // Check V4 for open tournaments
           try {
             const v4Proto = await chain.getV4ProtocolState();
-            const v4Total = Number(v4Proto[5]);
+            const v4Total = Number(v4Proto[2]);
             for (let id = Math.max(0, v4Total - 20); id < v4Total; id++) {
               const trackingKey = id + 100_000;
               if (completedTournaments.has(trackingKey) || runningTournaments.has(trackingKey)) continue;
@@ -532,7 +531,7 @@ async function main() {
           // Also check V3 for open tournaments (transition period)
           try {
             const v3Proto = await chain.getProtocolState();
-            const v3Total = Number(v3Proto[5]);
+            const v3Total = Number(v3Proto[2]);
             for (let id = Math.max(0, v3Total - 20); id < v3Total; id++) {
               if (completedTournaments.has(id) || runningTournaments.has(id)) continue;
               const t = await chain.getTournament(BigInt(id));
@@ -568,7 +567,7 @@ async function main() {
 
             if (gatewayUrl) {
               const newProto = await chain.getV4ProtocolState();
-              const newId = Number(newProto[5]) - 1;
+              const newId = Number(newProto[2]) - 1;
               fetch(`${gatewayUrl}/api/internal/tournament-notify`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-service-key': serviceKey },
@@ -697,7 +696,7 @@ async function main() {
 
       // Read back the tournament to confirm
       const protocol = useV3 ? await chain.getProtocolState() : await chain.getV4ProtocolState();
-      const newId = Number(protocol[5]) - 1;
+      const newId = Number(protocol[2]) - 1;
       console.log(`\nTournament created successfully!`);
       console.log(`  ID: ${newId}`);
       console.log(`  Format: ${format}`);

@@ -97,7 +97,7 @@ async function main() {
   // ── Step 1: Check existing state ──────────────────────────────────────────
 
   const protocol = await chain.getProtocolState();
-  const existingTournaments = Number(protocol[5]);
+  const existingTournaments = Number(protocol[2]);
   console.log(`Existing tournaments: ${existingTournaments}`);
 
   // Clean up any half-finished tournaments from previous seed runs
@@ -242,7 +242,7 @@ async function main() {
   // Create Swiss tournament: tier=free(5), format=swiss(0), max=4, min=4
   await chain.createTournament(5, 0, 4, 4, futureStart, futureDeadline, 300, 3);
   const p1 = await chain.getProtocolState();
-  const swissId = BigInt(Number(p1[5]) - 1);
+  const swissId = BigInt(Number(p1[2]) - 1);
   console.log(`  Created Swiss tournament #${swissId}`);
 
   // Register first 4 agents
@@ -289,7 +289,7 @@ async function main() {
     '0x0000000000000000000000000000000000000000' as Address,
   );
   const p2 = await chain.getProtocolState();
-  const matchId = BigInt(Number(p2[5]) - 1);
+  const matchId = BigInt(Number(p2[2]) - 1);
   console.log(`  Created Match #${matchId}`);
 
   // Register 2 agents for match
@@ -331,7 +331,7 @@ async function main() {
   // League: tier=free(5), format=league(3), max=4, min=4
   await chain.createTournament(5, 3, 4, 4, leagueStart, leagueDeadline, 300, 3);
   const p3 = await chain.getProtocolState();
-  const leagueId = BigInt(Number(p3[5]) - 1);
+  const leagueId = BigInt(Number(p3[2]) - 1);
   console.log(`  Created League #${leagueId}`);
 
   // Register agents 4-7 for league
@@ -371,7 +371,7 @@ async function main() {
   // Upcoming Swiss — tier=free(5), format=swiss(0)
   await chain.createTournament(5, 0, 8, 4, upcomingStart, upcomingDeadline, 600, 5);
   const p4 = await chain.getProtocolState();
-  const upcomingSwissId = Number(p4[5]) - 1;
+  const upcomingSwissId = Number(p4[2]) - 1;
   console.log(`  Created upcoming Swiss #${upcomingSwissId} (registration open)`);
 
   // Register a few agents to show partial registration
@@ -388,7 +388,7 @@ async function main() {
   // Upcoming League — tier=free(5), format=league(3)
   await chain.createTournament(5, 3, 6, 4, upcomingStart, upcomingDeadline, 600, 5);
   const p5 = await chain.getProtocolState();
-  const upcomingLeagueId = Number(p5[5]) - 1;
+  const upcomingLeagueId = Number(p5[2]) - 1;
   console.log(`  Created upcoming League #${upcomingLeagueId} (registration open)`);
 
   // Register a couple agents
@@ -408,7 +408,7 @@ async function main() {
     '0x0000000000000000000000000000000000000000' as Address,
   );
   const p6 = await chain.getProtocolState();
-  const upcomingMatchId = Number(p6[5]) - 1;
+  const upcomingMatchId = Number(p6[2]) - 1;
   console.log(`  Created upcoming Match #${upcomingMatchId} (registration open)`);
 
   // ── Done! ──────────────────────────────────────────────────────────────────
@@ -416,7 +416,7 @@ async function main() {
   const finalProtocol = await chain.getProtocolState();
   console.log(`\n═══════════════════════════════════════════════════════════`);
   console.log(`  Seed complete!`);
-  console.log(`  Total tournaments: ${Number(finalProtocol[5])}`);
+  console.log(`  Total tournaments: ${Number(finalProtocol[2])}`);
   console.log(`  Total agents: ${agents.length} + authority`);
   console.log(`  Completed: Swiss #${swissId}, Match #${matchId}, League #${leagueId}`);
   console.log(`  Upcoming: Swiss #${upcomingSwissId}, League #${upcomingLeagueId}, Match #${upcomingMatchId}`);
