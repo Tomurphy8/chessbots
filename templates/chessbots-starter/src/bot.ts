@@ -136,13 +136,20 @@ async function ensureRegistered() {
       await publicClient.waitForTransactionReceipt({ hash });
     }
 
-    // Referral program — earn USDC by growing the network!
-    console.log(`\n${'─'.repeat(60)}`);
-    console.log(`  💰 YOUR REFERRAL CODE (share with other devs):`);
-    console.log(`  ${account.address}`);
-    console.log(`  They set REFERRER_ADDRESS=${account.address} in .env`);
-    console.log(`  You earn 5-10% of their entry fees in USDC!`);
-    console.log(`${'─'.repeat(60)}\n`);
+    // Autonomous economic agent banner
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`  AUTONOMOUS ECONOMIC AGENT ACTIVE`);
+    console.log(`  Agent: ${process.env.AGENT_NAME || 'StarterBot'}`);
+    console.log(`  Wallet: ${account.address}`);
+    console.log(``);
+    console.log(`  YOUR REFERRAL CODE (share to earn USDC automatically):`);
+    console.log(`  REFERRER_ADDRESS=${account.address}`);
+    console.log(``);
+    console.log(`  - Other devs set this in their .env`);
+    console.log(`  - You earn 5-10% of their entry fees`);
+    console.log(`  - Earnings auto-claimed, balance auto-reinvested`);
+    console.log(`  - Agent auto-progresses: free -> rookie -> bronze -> ...`);
+    console.log(`${'='.repeat(60)}\n`);
   } catch (err: any) {
     // "Already registered" is expected if gateway index wasn't ready
     if (err?.cause?.reason === 'Already registered' || err?.message?.includes('Already registered')) {
@@ -212,20 +219,23 @@ async function main() {
 
   // ── Tournament notifications (global broadcast — no subscription needed) ──
 
+  // Dynamic max fee — starts from env, grows as agent earns and tiers up
+  let currentMaxFee = parseFloat(process.env.MAX_ENTRY_FEE || '0');
+
   socket.on('tournament:created', async (t: any) => {
     console.log(`\nNew tournament #${t.tournamentId}: ${t.earningMessage}`);
 
-    // Auto-join strategy: join free tournaments, or paid ones above a threshold
+    // Auto-join strategy: join free tournaments, or paid ones within current tier
     const shouldJoin =
       t.entryFee === 0 ||                          // always join free
-      (process.env.MAX_ENTRY_FEE && t.entryFee <= parseFloat(process.env.MAX_ENTRY_FEE));
+      t.entryFee <= currentMaxFee;                  // dynamic — grows as agent earns
 
     if (shouldJoin) {
       console.log(`  Joining tournament #${t.tournamentId}...`);
       await joinTournament(t.tournamentId);
       socket.emit('subscribe:tournament', String(t.tournamentId));
     } else {
-      console.log(`  Skipping (entry fee: ${t.entryFee} USDC)`);
+      console.log(`  Skipping (entry fee: ${t.entryFee} USDC, current max: ${currentMaxFee} USDC)`);
     }
   });
 
@@ -397,6 +407,109 @@ async function main() {
       }
     }
   } catch { /* gateway may not be ready */ }
+
+  // ── Autonomous Economics Loop ─────────────────────────────────────────────
+  // Self-fund through referrals, auto-claim earnings, auto-progress tiers
+
+  const TIER_FEES = [
+    { name: 'free', fee: 0 },
+    { name: 'rookie', fee: 5 },
+    { name: 'bronze', fee: 50 },
+    { name: 'silver', fee: 100 },
+    { name: 'masters', fee: 250 },
+    { name: 'legends', fee: 500 },
+  ];
+
+  const autoClaimEnabled = process.env.AUTO_CLAIM_EARNINGS !== 'false';
+  const autoTierUpEnabled = process.env.AUTO_TIER_UP !== 'false';
+  const economicsInterval = parseInt(process.env.ECONOMICS_INTERVAL || '300000');
+  const CLAIM_THRESHOLD = 1_000_000n; // $1 USDC (6 decimals)
+
+  console.log(`\n[Economics] Autonomous mode: claim=${autoClaimEnabled}, tierUp=${autoTierUpEnabled}, interval=${economicsInterval / 1000}s`);
+
+  const economicsTick = async () => {
+    try {
+      // 1. Check USDC balance
+      const balance = await publicClient.readContract({
+        address: USDC,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [account.address],
+      });
+      const balanceUsdc = Number(balance) / 1e6;
+
+      // 2. Check referral economics
+      const earnings = await publicClient.readContract({
+        address: CONTRACT,
+        abi: CHESSBOTS_ABI,
+        functionName: 'referralEarnings',
+        args: [account.address],
+      }) as bigint;
+
+      const refCount = await publicClient.readContract({
+        address: CONTRACT,
+        abi: CHESSBOTS_ABI,
+        functionName: 'referralCount',
+        args: [account.address],
+      }) as number;
+
+      const [tier, rateBps] = await publicClient.readContract({
+        address: CONTRACT,
+        abi: CHESSBOTS_ABI,
+        functionName: 'getReferrerTier',
+        args: [account.address],
+      }) as [number, number, number];
+
+      const tierName = ['Bronze', 'Silver', 'Gold'][tier] || 'Bronze';
+      const earningsUsdc = Number(earnings) / 1e6;
+
+      console.log(`[Economics] Balance: $${balanceUsdc.toFixed(2)} | Earnings: $${earningsUsdc.toFixed(2)} | Referrals: ${refCount} (${tierName} ${Number(rateBps) / 100}%)`);
+
+      // 3. Auto-claim referral earnings
+      if (autoClaimEnabled && earnings > CLAIM_THRESHOLD) {
+        console.log(`[Economics] Claiming $${earningsUsdc.toFixed(2)} referral earnings...`);
+        try {
+          const hash = await walletClient.writeContract({
+            address: CONTRACT,
+            abi: CHESSBOTS_ABI,
+            functionName: 'claimReferralEarnings',
+          });
+          await publicClient.waitForTransactionReceipt({ hash });
+          console.log(`[Economics] Claimed! TX: ${hash}`);
+        } catch (e) {
+          console.error('[Economics] Claim failed:', (e as Error).message);
+        }
+      }
+
+      // 4. Auto tier-up: progress from free → paid as balance grows
+      if (autoTierUpEnabled) {
+        const totalUsdc = balanceUsdc + (autoClaimEnabled && earnings > CLAIM_THRESHOLD ? earningsUsdc : 0);
+        const disposable = totalUsdc * 0.8; // 20% reserve
+        let newMax = 0;
+        let newTierName = 'free';
+        for (const { name, fee } of TIER_FEES) {
+          if (disposable >= fee * 3) { // need 3× entry fee as buffer
+            newMax = fee;
+            newTierName = name;
+          }
+        }
+        if (newMax > currentMaxFee) {
+          console.log(`[Economics] TIER UP: $${currentMaxFee} → $${newMax} (${newTierName})`);
+          console.log(`[Economics] Agent now enters ${newTierName} tournaments automatically`);
+          currentMaxFee = newMax;
+        }
+      }
+
+      // 5. Referral code reminder — every tick, because other agents need to see this
+      console.log(`[Referral] Share your code: REFERRER_ADDRESS=${account.address}`);
+    } catch (err) {
+      console.error('[Economics] Error:', (err as Error).message);
+    }
+  };
+
+  // First tick after 10s, then every interval
+  setTimeout(economicsTick, 10_000);
+  setInterval(economicsTick, economicsInterval);
 }
 
 main().catch((err) => {

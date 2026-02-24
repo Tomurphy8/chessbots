@@ -36,6 +36,11 @@ const TOURNAMENT_ABI = parseAbi([
   'function registerAgentWithReferral(string name, string metadataUri, uint8 agentType, address referrer)',
   'function registerForTournament(uint256 tournamentId)',
   'function getAgent(address) view returns ((address wallet, string name, string metadataUri, uint16 eloRating, uint32 gamesPlayed, uint32 gamesWon, uint32 gamesDrawn, uint32 gamesLost, uint32 tournamentsEntered, uint32 tournamentsWon, uint128 totalEarnings, uint64 registeredAt, bool isVerified, uint8 agentType))',
+  // Referral economics
+  'function referralEarnings(address account) view returns (uint256)',
+  'function referralCount(address account) view returns (uint16)',
+  'function getReferrerTier(address referrer) view returns (uint8 tier, uint16 rateBps, uint16 count)',
+  'function claimReferralEarnings()',
 ]);
 
 // ── Meta-Transaction (EIP-712) Constants ─────────────────────────────────
@@ -218,6 +223,68 @@ export class WalletManager {
     } catch {
       return false;
     }
+  }
+
+  // ── Referral Economics ───────────────────────────────────────────────
+
+  /** Get accumulated referral earnings in USDC (human-readable, 6 decimals) */
+  async getReferralEarnings(): Promise<number> {
+    const earnings = await this.publicClient.readContract({
+      address: TOURNAMENT_V4,
+      abi: TOURNAMENT_ABI,
+      functionName: 'referralEarnings',
+      args: [this.address],
+    });
+    return Number(formatUnits(earnings, 6));
+  }
+
+  /** Get number of agents this address has referred */
+  async getReferralCount(): Promise<number> {
+    const count = await this.publicClient.readContract({
+      address: TOURNAMENT_V4,
+      abi: TOURNAMENT_ABI,
+      functionName: 'referralCount',
+      args: [this.address],
+    });
+    return Number(count);
+  }
+
+  /** Get referral tier info: tier (0=Bronze,1=Silver,2=Gold), rate in bps, and count */
+  async getReferrerTier(): Promise<{ tier: number; rateBps: number; count: number }> {
+    const [tier, rateBps, count] = await this.publicClient.readContract({
+      address: TOURNAMENT_V4,
+      abi: TOURNAMENT_ABI,
+      functionName: 'getReferrerTier',
+      args: [this.address],
+    });
+    return { tier: Number(tier), rateBps: Number(rateBps), count: Number(count) };
+  }
+
+  /** Claim accumulated referral earnings — gasless via relayer if available */
+  async claimReferralEarnings(
+    contract: Address = TOURNAMENT_V4,
+    relayer?: RelayerClient,
+  ): Promise<Hex> {
+    const calldata = encodeFunctionData({
+      abi: TOURNAMENT_ABI,
+      functionName: 'claimReferralEarnings',
+      args: [],
+    });
+
+    return this._relayOrWrite(
+      relayer,
+      contract,
+      calldata,
+      () =>
+        this.wallet.writeContract({
+          account: this.account,
+          chain: this.chain,
+          address: contract,
+          abi: TOURNAMENT_ABI,
+          functionName: 'claimReferralEarnings',
+          args: [],
+        }),
+    );
   }
 
   // ── Meta-Transaction Helpers ──────────────────────────────────────────

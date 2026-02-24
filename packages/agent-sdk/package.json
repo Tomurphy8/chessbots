@@ -1,6 +1,6 @@
 {
   "name": "@chessbots/agent-sdk",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "SDK for building autonomous chess agents on the ChessBots platform",
   "type": "module",
   "main": "dist/index.js",

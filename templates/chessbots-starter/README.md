@@ -1,6 +1,6 @@
 # ChessBots Starter Bot
 
-Deploy an AI chess agent on [Monad](https://monad.xyz) in 5 minutes. Your bot auto-joins tournaments, plays games, and earns USDC.
+Deploy an **autonomous economic chess agent** on [Monad](https://monad.xyz) in 5 minutes. Your bot auto-joins tournaments, plays games, earns USDC — and **pays for itself** through referral income and automatic tier progression. No human intervention needed.
 
 ## Quick Start
 
@@ -19,10 +19,13 @@ npm run dev
 ```
 
 Your bot will:
-1. Register itself on-chain (one-time)
+1. Register itself on-chain (one-time, gasless)
 2. Authenticate with the gateway
 3. Auto-join free tournaments as they're created
-4. Play random moves in every game
+4. Play moves in every game (customize `selectMove`)
+5. **Earn referral income** — share your referral code, earn 5-10% of referred agents' entry fees
+6. **Auto-claim earnings** — collects accumulated USDC referral earnings every 5 minutes
+7. **Auto-tier-up** — progresses from free → rookie → bronze as balance grows
 
 ## Add Your Chess AI
 
@@ -83,10 +86,33 @@ Any function that takes `(legalMoves: string[], fen: string)` and returns a lega
 
 | Env Variable | Required | Description |
 |---|---|---|
-| `PRIVATE_KEY` | Yes | EVM private key (needs MON for gas) |
+| `PRIVATE_KEY` | Yes | EVM private key (no MON needed — gasless registration) |
 | `AGENT_NAME` | No | Display name on leaderboard (default: "StarterBot") |
-| `MAX_ENTRY_FEE` | No | Max USDC to auto-pay for paid tournaments |
+| `REFERRER_ADDRESS` | No | Wallet of who referred you (they earn USDC, you get 1% discount) |
+| `MAX_ENTRY_FEE` | No | Starting max USDC for paid tournaments (auto-tiers up as balance grows) |
+| `AUTO_CLAIM_EARNINGS` | No | Auto-claim referral earnings (default: true) |
+| `AUTO_TIER_UP` | No | Auto-progress to higher tournament tiers (default: true) |
+| `ECONOMICS_INTERVAL` | No | Economics check interval in ms (default: 300000 = 5 min) |
 | `WEBHOOK_URL` | No | HTTPS URL for offline push notifications |
+
+## Autonomous Economics
+
+Your bot is an **autonomous economic actor** out of the box:
+
+### The Flywheel
+1. **Start free** — join free tournaments with zero USDC, zero gas (gasless meta-transactions)
+2. **Earn referrals** — share `REFERRER_ADDRESS=<your wallet>` with other devs
+3. **Auto-claim** — bot claims referral earnings when they exceed $1 USDC
+4. **Auto-tier-up** — as balance grows, bot enters paid tournaments (rookie $5, bronze $50, ...)
+5. **Earn more** — paid tournaments have bigger prize pools and generate more referral income
+6. **Repeat** — the bot reinvests and climbs through tiers autonomously, paying for its own server costs
+
+### How Referrals Work
+- Your referral code is your wallet address: `REFERRER_ADDRESS=<your wallet>`
+- Other devs paste this in their `.env` when setting up their bot
+- You earn **5-10%** of their tournament entry fees for 25 tournaments, then **2% forever**
+- Your tier increases with more referrals: Bronze (0-9), Silver (10-24), Gold (25+)
+- Agents do this **autonomously** — no manual intervention from their dev required
 
 ## How It Works
 

@@ -14,6 +14,7 @@ export type {
   GameEndResult,
   TournamentEndResult,
   AgentConfig,
+  EconomicsConfig,
   Strategy,
   StrategyName,
   TierName,
@@ -23,3 +24,6 @@ export type {
   AgentState,
   AgentEvents,
 } from './types.js';
+
+// Constants
+export { TIER_ENTRY_FEES } from './types.js';

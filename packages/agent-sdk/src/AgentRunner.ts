@@ -23,6 +23,7 @@ export class AgentRunner extends EventEmitter {
   private state: AgentState;
   private running = false;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private economicsTimer: ReturnType<typeof setInterval> | null = null;
   private processingGames = new Set<string>();
 
   constructor(engine: ChessEngine, config: AgentConfig) {
@@ -51,6 +52,10 @@ export class AgentRunner extends EventEmitter {
       tournamentsEntered: 0,
       activeTournaments: [],
       activeGames: [],
+      referralEarnings: 0,
+      referralCount: 0,
+      referralTier: 0,
+      referralTierName: 'Bronze',
     };
   }
 
@@ -143,6 +148,10 @@ export class AgentRunner extends EventEmitter {
     this.running = true;
     this._startPolling();
 
+    // Start autonomous economics loop (auto-claim, auto-tier-up)
+    this._startEconomicsLoop();
+    this._logReferralCode();
+
     this.emit('status', 'Agent is live and listening for tournaments');
   }
 
@@ -151,6 +160,10 @@ export class AgentRunner extends EventEmitter {
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
+    }
+    if (this.economicsTimer) {
+      clearInterval(this.economicsTimer);
+      this.economicsTimer = null;
     }
     this.gateway.disconnect();
     await this.engine.destroy?.();
@@ -369,5 +382,128 @@ export class AgentRunner extends EventEmitter {
         this.emit('error', e as Error, 'polling');
       }
     }, interval);
+  }
+
+  // ── Autonomous Economics Loop ──────────────────────────────────────
+
+  private _startEconomicsLoop(): void {
+    const eco = this.config.economics ?? {};
+    const autoClaimEarnings = eco.autoClaimEarnings ?? true;
+    const autoTierUp = eco.autoTierUp ?? true;
+    const claimThreshold = eco.claimThresholdUsdc ?? 1.0;
+    const interval = eco.economicsIntervalMs ?? 300_000; // 5 min
+    const reserveRatio = eco.reserveRatio ?? 0.2;
+
+    const tick = async () => {
+      if (!this.running) return;
+
+      try {
+        // 1. Refresh balance
+        this.state.usdcBalance = await this.wallet.getUsdcBalance();
+
+        // 2. Check referral status (3 parallel reads — zero gas)
+        const [earnings, count, tierInfo] = await Promise.all([
+          this.wallet.getReferralEarnings(),
+          this.wallet.getReferralCount(),
+          this.wallet.getReferrerTier(),
+        ]);
+
+        this.state.referralEarnings = earnings;
+        this.state.referralCount = count;
+        this.state.referralTier = tierInfo.tier;
+        this.state.referralTierName = ['Bronze', 'Silver', 'Gold'][tierInfo.tier] || 'Bronze';
+
+        this.emit('economics:status',
+          `Balance: $${this.state.usdcBalance.toFixed(2)} | ` +
+          `Referral earnings: $${earnings.toFixed(2)} | ` +
+          `Referrals: ${count} (${this.state.referralTierName} ${tierInfo.rateBps / 100}%)`
+        );
+
+        // 3. Auto-claim referral earnings
+        if (autoClaimEarnings && earnings >= claimThreshold) {
+          this.emit('economics:status', `Claiming $${earnings.toFixed(2)} referral earnings...`);
+          try {
+            await this.wallet.claimReferralEarnings(undefined, this.relayer);
+            this.state.usdcBalance = await this.wallet.getUsdcBalance();
+            this.state.referralEarnings = 0;
+            this.emit('economics:claimed', earnings);
+            this.emit('economics:status',
+              `Claimed $${earnings.toFixed(2)}! New balance: $${this.state.usdcBalance.toFixed(2)}`
+            );
+          } catch (e) {
+            this.emit('error', e as Error, 'claim referral earnings');
+          }
+        }
+
+        // 4. Auto tier-up: adjust maxEntryFeeUsdc based on available balance
+        if (autoTierUp) {
+          this._evaluateTierProgression(reserveRatio);
+        }
+
+        // 5. Referral code reminder
+        this.emit('economics:status',
+          `Share your referral code: REFERRER_ADDRESS=${this.wallet.address}`
+        );
+      } catch (e) {
+        this.emit('error', e as Error, 'economics loop');
+      }
+    };
+
+    // First tick after 5s (let tournament/game systems initialize), then every interval
+    setTimeout(() => tick(), 5_000);
+    this.economicsTimer = setInterval(tick, interval);
+  }
+
+  private _evaluateTierProgression(reserveRatio: number): void {
+    const TIER_FEES: [string, number][] = [
+      ['free', 0],
+      ['rookie', 5],
+      ['bronze', 50],
+      ['silver', 100],
+      ['masters', 250],
+      ['legends', 500],
+    ];
+
+    // Disposable balance = total minus reserve
+    const disposable = this.state.usdcBalance * (1 - reserveRatio);
+    const currentMax = this.config.maxEntryFeeUsdc ?? 0;
+
+    // Find highest tier agent can afford (3× entry as buffer)
+    let targetFee = 0;
+    let targetTierName = 'free';
+    for (const [tierName, fee] of TIER_FEES) {
+      if (disposable >= fee * 3) {
+        targetFee = fee;
+        targetTierName = tierName;
+      }
+    }
+
+    // Only tier UP, never down
+    if (targetFee > currentMax) {
+      const oldMax = currentMax;
+      this.config.maxEntryFeeUsdc = targetFee;
+      this.emit('economics:tierUp', oldMax, targetFee,
+        `Balance $${this.state.usdcBalance.toFixed(2)} supports ${targetTierName} tier (entry: $${targetFee})`
+      );
+      this.emit('economics:status',
+        `TIER UP: $${oldMax} → $${targetFee} (${targetTierName}). ` +
+        `Agent now enters ${targetTierName} tournaments automatically.`
+      );
+    }
+  }
+
+  private _logReferralCode(): void {
+    const divider = '='.repeat(60);
+    this.emit('status', divider);
+    this.emit('status', '  AUTONOMOUS ECONOMIC AGENT');
+    this.emit('status', `  Wallet: ${this.wallet.address}`);
+    this.emit('status', '');
+    this.emit('status', '  REFERRAL CODE (share to earn USDC):');
+    this.emit('status', `  REFERRER_ADDRESS=${this.wallet.address}`);
+    this.emit('status', '');
+    this.emit('status', '  Other agents set this in their .env');
+    this.emit('status', '  You earn 5-10% of their entry fees automatically');
+    this.emit('status', '  Earnings auto-claimed → balance grows → tier up → repeat');
+    this.emit('status', divider);
   }
 }

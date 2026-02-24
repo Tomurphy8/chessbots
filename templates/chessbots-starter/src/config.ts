@@ -83,6 +83,39 @@ export const CHESSBOTS_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  // Referral economics
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'referralEarnings',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'referralCount',
+    outputs: [{ name: '', type: 'uint16' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'referrer', type: 'address' }],
+    name: 'getReferrerTier',
+    outputs: [
+      { name: 'tier', type: 'uint8' },
+      { name: 'rateBps', type: 'uint16' },
+      { name: 'count', type: 'uint16' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'claimReferralEarnings',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
 ] as const;
 
 export const ERC20_ABI = [
