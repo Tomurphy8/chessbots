@@ -251,6 +251,10 @@ async function ensureRegistered() {
 
 async function joinTournament(tournamentId: number) {
   try {
+    // Stagger join attempts across bots to avoid relayer rate limits
+    const jitter = Math.floor(Math.random() * 8000);
+    await new Promise(r => setTimeout(r, jitter));
+
     const raw = await publicClient.readContract({
       address: CONTRACT,
       abi: CHESSBOTS_ABI,

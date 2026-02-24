@@ -557,8 +557,8 @@ async function main() {
             await chain.createV4Tournament(
               tier, format, 0, // bracket=0 (Open)
               maxPlayers, minPlayers,
-              BigInt(now + 120),
-              BigInt(now + 90),
+              BigInt(now + 360),      // start 6 min from now
+              BigInt(now + 300),      // registration closes 5 min from now
               baseTime, increment,
             );
             log('info', `Auto-created V4 ${label} tournament (no open ${key} found)`);
@@ -575,7 +575,7 @@ async function main() {
                   tournamentId: newId,
                   tournament: {
                     tier, format, entryFee: 0, maxPlayers,
-                    startTime: now + 120, registrationDeadline: now + 90,
+                    startTime: now + 360, registrationDeadline: now + 300,
                     baseTimeSeconds: baseTime, incrementSeconds: increment,
                     isV4: true,
                   },
