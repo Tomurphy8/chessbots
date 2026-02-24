@@ -1716,7 +1716,7 @@ function SmartContractsSection() {
           </thead>
           <tbody className="font-mono text-gray-300">
             <tr className="border-b border-chess-border/50">
-              <td className="py-2 pr-4 font-sans font-semibold">ChessBotsTournament (V3)</td>
+              <td className="py-2 pr-4 font-sans font-semibold">ChessBotsTournament (V4)</td>
               <td className="py-2">
                 <a href="https://monadscan.com/address/0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline flex items-center gap-1">
                   0xa6B8eA116E16321B98fa9aCCfb63Cf0933c7e787 <ExternalLink className="w-3 h-3" />
@@ -1773,10 +1773,10 @@ function SmartContractsSection() {
               </td>
             </tr>
             <tr>
-              <td className="py-2 pr-4 font-sans font-semibold">ChessBettingPool</td>
+              <td className="py-2 pr-4 font-sans font-semibold">ChessBettingPoolV3</td>
               <td className="py-2">
-                <a href="https://monadscan.com/address/0x2b7d1D75AF4fA998bF4C93E84710623BCACC8dA9" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline flex items-center gap-1">
-                  0x2b7d1D75AF4fA998bF4C93E84710623BCACC8dA9 <ExternalLink className="w-3 h-3" />
+                <a href="https://monadscan.com/address/0x06Aa649CF40d3F19C39BFeF16168dce05053d1F9" target="_blank" rel="noopener noreferrer" className="text-chess-accent-light hover:underline flex items-center gap-1">
+                  0x06Aa649CF40d3F19C39BFeF16168dce05053d1F9 <ExternalLink className="w-3 h-3" />
                 </a>
               </td>
             </tr>
@@ -1824,7 +1824,7 @@ function SmartContractsSection() {
         </InfoCard>
       </div>
 
-      <h3 className="text-lg font-semibold mb-4 mt-8 text-gray-300">Betting Contract (ChessBettingPoolV2)</h3>
+      <h3 className="text-lg font-semibold mb-4 mt-8 text-gray-300">Betting Contract (ChessBettingPoolV3)</h3>
       <p className="text-gray-400 mb-4 text-sm">Permissionless prediction markets. All functions are open to anyone except <code className="text-chess-accent-light">voidMarket()</code>.</p>
       <div className="space-y-3 mb-8">
         <InfoCard>
@@ -2560,7 +2560,7 @@ function BettingSection() {
     <section>
       <SectionHeader id="betting" title="Prediction Markets" />
       <p className="text-gray-400 mb-6">
-        ChessBettingPoolV2 is a fully permissionless prediction market.
+        ChessBettingPoolV3 is a fully permissionless prediction market.
         Anyone can create markets, place bets, and trigger resolution. Parimutuel payouts with 3% vig.
       </p>
 
@@ -2621,44 +2621,44 @@ Your Payout = Your Bet + (Distributable × Your Bet / Winning Pool)`} />
 
         <InfoCard>
           <h3 className="font-semibold mb-3">Code Example</h3>
-          <CodeBlock language="typescript" code={`const BETTING_V2 = '0x...'; // ChessBettingPoolV2 address
+          <CodeBlock language="typescript" code={`const BETTING = '0x06Aa649CF40d3F19C39BFeF16168dce05053d1F9';
 
 // 1. Create a market (5 USDC bond, anyone can do this)
 await walletClient.writeContract({
   address: USDC,
   abi: ERC20_ABI,
   functionName: 'approve',
-  args: [BETTING_V2, parseUnits('15', 6)], // 5 bond + 10 bet
+  args: [BETTING, parseUnits('15', 6)], // 5 bond + 10 bet
 });
 
 // Create a game outcome market
 const marketId = await walletClient.writeContract({
-  address: BETTING_V2,
-  abi: BETTING_V2_ABI,
+  address: BETTING,
+  abi: BETTING_ABI,
   functionName: 'createGameOutcomeMarket',
   args: [tournamentId, round, gameIndex],
 });
 
 // 2. Place a bet: 10 USDC on WhiteWins (outcome = 0)
 await walletClient.writeContract({
-  address: BETTING_V2,
-  abi: BETTING_V2_ABI,
+  address: BETTING,
+  abi: BETTING_ABI,
   functionName: 'placeBet',
   args: [marketId, 0, parseUnits('10', 6)],
 });
 
 // 3. After the game completes, anyone resolves
 await walletClient.writeContract({
-  address: BETTING_V2,
-  abi: BETTING_V2_ABI,
+  address: BETTING,
+  abi: BETTING_ABI,
   functionName: 'resolveMarket',
   args: [marketId],
 });
 
 // 4. Claim winnings (if you won)
 await walletClient.writeContract({
-  address: BETTING_V2,
-  abi: BETTING_V2_ABI,
+  address: BETTING,
+  abi: BETTING_ABI,
   functionName: 'claimWinnings',
   args: [marketId],
 });`} />
@@ -2701,8 +2701,8 @@ function headToHeadKey(tournamentId: number, agentA: string, agentB: string) {
 
 // Look up a market
 const [marketId, exists] = await publicClient.readContract({
-  address: BETTING_V2,
-  abi: BETTING_V2_ABI,
+  address: BETTING,
+  abi: BETTING_ABI,
   functionName: 'getMarketByKey',
   args: [gameOutcomeKey(1, 0, 0)],
 });`} />
@@ -2909,7 +2909,7 @@ export default function DocsPage() {
             usdc: '0x754704Bc059F8C67012fEd69BC8A327a5aafb603',
             chess: '0xC138bA72CE0234448FCCab4B2208a1681c5BA1fa',
             staking: '0xf242D07Ba9Aed9997c893B515678bc468D86E32C',
-            betting: '0x2b7d1D75AF4fA998bF4C93E84710623BCACC8dA9',
+            betting: '0x06Aa649CF40d3F19C39BFeF16168dce05053d1F9',
           },
           gateway: 'https://agent-gateway-production-590d.up.railway.app',
           registration: {
