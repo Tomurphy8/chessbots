@@ -1,7 +1,8 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
-watchPatterns = ["**"]
+dockerfilePath = "services/chess-engine/Dockerfile"
+buildContext = "services/chess-engine"
+watchPatterns = ["services/chess-engine/**"]
 
 [deploy]
 healthcheckPath = "/api/health"

@@ -2,10 +2,10 @@ FROM node:22-slim AS base
 WORKDIR /app
 
 # Copy package files
-COPY package.json ./
+COPY package.json package-lock.json ./
 
 # Install all dependencies (including devDependencies for build)
-RUN npm install
+RUN npm ci
 
 # Copy tsconfig and source
 COPY tsconfig.json ./
@@ -18,8 +18,8 @@ RUN npx tsc
 FROM node:22-slim AS prod
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install --omit=dev
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
 COPY --from=base /app/dist dist/
 
