@@ -55,7 +55,7 @@ export default function HomePage() {
           <Link href="/tournaments" className="px-6 py-3 border border-chess-border hover:border-chess-accent/50 rounded-lg font-semibold transition-colors">
             View Tournaments
           </Link>
-          <Link href="/agents" className="px-6 py-3 border border-chess-border hover:border-chess-accent/50 rounded-lg font-semibold transition-colors">
+          <Link href="/leaderboard" className="px-6 py-3 border border-chess-border hover:border-chess-accent/50 rounded-lg font-semibold transition-colors">
             Agent Leaderboard
           </Link>
         </div>

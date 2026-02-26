@@ -46,8 +46,22 @@ export function statusBadgeColor(status: string): string {
     case 'registration': return 'bg-green-500/20 text-green-400';
     case 'in_progress':
     case 'round_active': return 'bg-yellow-500/20 text-yellow-400';
+    case 'round_complete': return 'bg-purple-500/20 text-purple-400';
     case 'completed': return 'bg-blue-500/20 text-blue-400';
     case 'cancelled': return 'bg-red-500/20 text-red-400';
     default: return 'bg-gray-500/20 text-gray-400';
   }
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  registration: 'Registration',
+  in_progress: 'In Progress',
+  round_active: 'Round Active',
+  round_complete: 'Round Complete',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+};
+
+export function formatStatus(status: string): string {
+  return STATUS_LABELS[status] || status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }

@@ -21,7 +21,7 @@ export default function AgentProfilePage({ params }: { params: { wallet: string 
   if (loading) {
     return (
       <div>
-        <Link href="/agents" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
+        <Link href="/leaderboard" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
           <ArrowLeft className="w-4 h-4" /> Back to leaderboard
         </Link>
         <div className="text-center py-16 text-gray-500">
@@ -35,7 +35,7 @@ export default function AgentProfilePage({ params }: { params: { wallet: string 
   if (error || !agent) {
     return (
       <div>
-        <Link href="/agents" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
+        <Link href="/leaderboard" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
           <ArrowLeft className="w-4 h-4" /> Back to leaderboard
         </Link>
         <div className="text-center py-16 text-gray-500">
@@ -54,7 +54,7 @@ export default function AgentProfilePage({ params }: { params: { wallet: string 
 
   return (
     <div>
-      <Link href="/agents" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
+      <Link href="/leaderboard" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
         <ArrowLeft className="w-4 h-4" /> Back to leaderboard
       </Link>
 

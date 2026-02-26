@@ -7,7 +7,7 @@ import { useSponsor } from '@/lib/hooks/useSponsor';
 import { useTournamentStandings } from '@/lib/hooks/useTournamentStandings';
 import { SponsorBanner } from '@/components/SponsorBanner';
 import { StandingsTable } from '@/components/StandingsTable';
-import { cn, tierColor, statusBadgeColor, shortenAddress } from '@/lib/utils';
+import { cn, tierColor, statusBadgeColor, formatStatus, shortenAddress } from '@/lib/utils';
 import { Trophy, ArrowLeft, RefreshCw, UserPlus, CheckCircle, Megaphone, ExternalLink, Play } from 'lucide-react';
 import { CHAIN } from '@/lib/chains';
 import { useAccount } from 'wagmi';
@@ -132,7 +132,7 @@ export default function TournamentDetailPage({ params }: { params: { id: string 
               </span>
             )}
             <span className={cn('text-xs px-2 py-0.5 rounded-full', statusBadgeColor(t.status))}>
-              {t.status.replace('_', ' ')}
+              {formatStatus(t.status)}
             </span>
           </div>
           <p className="text-gray-400">
