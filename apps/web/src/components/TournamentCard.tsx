@@ -37,14 +37,18 @@ interface TournamentCardProps {
   prizePool: number;
   startTime?: number;
   registrationDeadline?: number;
+  contractAddress?: string;
 }
 
 export function TournamentCard({
   id, tier, status, format, entryFee, registeredCount, maxPlayers,
-  currentRound, totalRounds, prizePool, startTime, registrationDeadline,
+  currentRound, totalRounds, prizePool, startTime, registrationDeadline, contractAddress,
 }: TournamentCardProps) {
+  const href = contractAddress
+    ? `/tournaments/${id}?contract=${contractAddress}`
+    : `/tournaments/${id}`;
   return (
-    <Link href={`/tournaments/${id}`}>
+    <Link href={href}>
       <div className={cn(
         'border rounded-xl p-5 bg-chess-surface hover:bg-chess-surface/80 transition-all cursor-pointer',
         tierBorderColor(tier),

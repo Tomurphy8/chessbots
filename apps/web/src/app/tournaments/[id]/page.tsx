@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useTournament } from '@/lib/hooks/useChainData';
 import { useSponsor } from '@/lib/hooks/useSponsor';
 import { useTournamentStandings } from '@/lib/hooks/useTournamentStandings';
@@ -20,11 +21,13 @@ import { LiveGamesCarousel } from '@/components/LiveGamesCarousel';
 
 export default function TournamentDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
+  const searchParams = useSearchParams();
+  const contractAddress = searchParams.get('contract') || undefined;
   const [activeTab, setActiveTab] = useState<'standings' | 'games' | 'info'>('standings');
   const [showSponsorModal, setShowSponsorModal] = useState(false);
   const tournamentId = parseInt(id);
   const { address } = useAccount();
-  const { tournament, loading } = useTournament(tournamentId);
+  const { tournament, loading } = useTournament(tournamentId, contractAddress);
   const { sponsor, hasSponsor, isImageUri } = useSponsor(tournamentId);
   const { standings, loading: standingsLoading, refresh: refreshStandings } = useTournamentStandings(tournamentId);
   const joinTournament = useJoinTournament(tournamentId, tournament?.entryFee ?? 0);
