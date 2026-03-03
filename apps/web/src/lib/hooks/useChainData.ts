@@ -37,29 +37,46 @@ export function useProtocolStats() {
 
   const fetchStats = useCallback(async () => {
     try {
-      // Sum stats across current V3 + V4 + legacy contracts for cumulative totals
-      const v4 = CHAIN.v4ContractAddress;
-      const allContracts = [CONTRACT, ...(v4 ? [v4 as Address] : []), ...CHAIN.legacyContracts.map(a => a as Address)];
+      // V3/legacy contracts use CHESSBOTS_ABI (protocol returns fee bps at positions 2-4)
+      // V4 contract uses CHESSBOTS_V4_ABI (protocol has no fee bps, totalTournaments at position 2)
+      const v3Contracts = [V3_CONTRACT, ...CHAIN.legacyContracts.map(a => a as Address)];
 
-      const calls = allContracts.flatMap(addr => [
+      const v4Calls = [
+        { address: CONTRACT, abi: CHESSBOTS_V4_ABI, functionName: 'protocol' as const },
+        { address: CONTRACT, abi: CHESSBOTS_V4_ABI, functionName: 'totalGamesPlayed' as const },
+      ];
+      const v3Calls = v3Contracts.flatMap(addr => [
         { address: addr, abi: CHESSBOTS_ABI, functionName: 'protocol' as const },
         { address: addr, abi: CHESSBOTS_ABI, functionName: 'totalGamesPlayed' as const },
       ]);
 
-      const results = await publicClient.multicall({ contracts: calls, allowFailure: true });
+      const results = await publicClient.multicall({ contracts: [...v4Calls, ...v3Calls], allowFailure: true });
 
       let totalTournaments = 0;
       let totalGamesPlayed = 0;
       let totalPrizeDistributed = BigInt(0);
 
-      for (let i = 0; i < allContracts.length; i++) {
-        const protocolResult = results[i * 2];
-        const gamesResult = results[i * 2 + 1];
+      // V4 results (first 2 calls) — totalTournaments at index [2], totalPrizeDistributed at [3]
+      const v4Protocol = results[0];
+      const v4Games = results[1];
+      if (v4Protocol.status === 'success') {
+        const p = v4Protocol.result as unknown as any[];
+        totalTournaments += Number(p[2]);
+        totalPrizeDistributed += p[3] as bigint;
+      }
+      if (v4Games.status === 'success') {
+        totalGamesPlayed += Number(v4Games.result);
+      }
+
+      // V3/legacy results (remaining calls) — totalTournaments at index [5], totalPrizeDistributed at [6]
+      for (let i = 0; i < v3Contracts.length; i++) {
+        const protocolResult = results[2 + i * 2];
+        const gamesResult = results[2 + i * 2 + 1];
 
         if (protocolResult.status === 'success') {
-          const protocol = protocolResult.result as unknown as any[];
-          totalTournaments += Number(protocol[5]);
-          totalPrizeDistributed += protocol[6] as bigint;
+          const p = protocolResult.result as unknown as any[];
+          totalTournaments += Number(p[5]);
+          totalPrizeDistributed += p[6] as bigint;
         }
         if (gamesResult.status === 'success') {
           totalGamesPlayed += Number(gamesResult.result);
@@ -156,7 +173,9 @@ export function useTournaments() {
           : Promise.resolve(null),
       ]);
 
-      const v4Total = Number(v4Protocol[5]);
+      // V4 protocol: [authority, treasury, totalTournaments, totalPrizeDistributed, paused, ...]
+      // V3 protocol: [authority, treasury, protocolFeeBps, buybackShareBps, treasuryShareBps, totalTournaments, ...]
+      const v4Total = Number(v4Protocol[2]);
       const v3Total = v3Protocol ? Number((v3Protocol as any)[5]) : 0;
 
       if (v4Total === 0 && v3Total === 0) { setLoading(false); return; }
