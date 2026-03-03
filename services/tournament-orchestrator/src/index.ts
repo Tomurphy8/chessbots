@@ -555,7 +555,7 @@ async function main() {
             if (openGameTypes.has(key)) return;
 
             await chain.createV4Tournament(
-              tier, format, 0, // bracket=0 (Open)
+              tier, format, 4, // bracket=4 (Open) — enum: Unrated=0,ClassC=1,ClassB=2,ClassA=3,Open=4
               maxPlayers, minPlayers,
               BigInt(now + 360),      // start 6 min from now
               BigInt(now + 300),      // registration closes 5 min from now
