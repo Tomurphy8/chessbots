@@ -1,7 +1,6 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "services/chess-engine/Dockerfile"
-buildContext = "services/chess-engine"
 watchPatterns = ["services/chess-engine/**"]
 
 [deploy]

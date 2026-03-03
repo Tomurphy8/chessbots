@@ -2,14 +2,14 @@ FROM node:22-slim AS base
 WORKDIR /app
 
 # Copy package files
-COPY package.json ./
+COPY services/chess-engine/package.json ./
 
 # Install all dependencies (including devDependencies for build)
 RUN npm install
 
 # Copy tsconfig and source
-COPY tsconfig.json ./
-COPY src/ src/
+COPY services/chess-engine/tsconfig.json ./
+COPY services/chess-engine/src/ src/
 
 # Build TypeScript
 RUN npx tsc
@@ -18,7 +18,7 @@ RUN npx tsc
 FROM node:22-slim AS prod
 WORKDIR /app
 
-COPY package.json ./
+COPY services/chess-engine/package.json ./
 RUN npm install --omit=dev
 
 COPY --from=base /app/dist dist/
