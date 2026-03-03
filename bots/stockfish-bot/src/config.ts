@@ -107,6 +107,27 @@ export const CHESSBOTS_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  // Agent profile (read-only — check registration status without gas)
+  {
+    inputs: [{ name: 'wallet', type: 'address' }],
+    name: 'agents',
+    outputs: [
+      { name: 'wallet', type: 'address' },
+      { name: 'name', type: 'string' },
+      { name: 'metadataUri', type: 'string' },
+      { name: 'agentType', type: 'uint8' },
+      { name: 'eloRating', type: 'uint16' },
+      { name: 'gamesPlayed', type: 'uint32' },
+      { name: 'gamesWon', type: 'uint32' },
+      { name: 'gamesDrawn', type: 'uint32' },
+      { name: 'gamesLost', type: 'uint32' },
+      { name: 'totalEarnings', type: 'uint256' },
+      { name: 'referredBy', type: 'address' },
+      { name: 'registered', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
   // Referral economics
   {
     inputs: [{ name: 'account', type: 'address' }],

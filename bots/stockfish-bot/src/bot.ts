@@ -128,11 +128,24 @@ async function makeMove(gameId: string, token: string) {
 // ─── On-Chain Registration (gasless) ─────────────────────────────────────────
 
 async function ensureRegistered() {
-  // Always attempt registration — "Already registered" is handled gracefully.
-  // Previously this checked gateway API which could be stale or misleading.
-
   const agentName = process.env.AGENT_NAME || 'StockfishBot';
   const referrer = process.env.REFERRER_ADDRESS;
+
+  // Check on-chain registration first (free read call — no gas needed)
+  try {
+    const profile = await publicClient.readContract({
+      address: CONTRACT,
+      abi: CHESSBOTS_ABI,
+      functionName: 'agents',
+      args: [account.address],
+    });
+    if ((profile as any).registered) {
+      console.log(`Agent already registered on-chain as "${(profile as any).name}".`);
+      return;
+    }
+  } catch (e) {
+    console.log('Could not check registration status, will attempt registration...');
+  }
 
   try {
     if (referrer && /^0x[a-fA-F0-9]{40}$/.test(referrer)) {
@@ -188,6 +201,8 @@ async function ensureRegistered() {
   } catch (err: any) {
     if (err?.cause?.reason === 'Already registered' || err?.message?.includes('Already registered')) {
       console.log('Agent already registered on-chain (confirmed via revert).');
+    } else if (err?.message?.includes('insufficient') || err?.cause?.reason?.includes('insufficient')) {
+      console.warn('Insufficient balance for registration — agent may already be registered. Continuing...');
     } else {
       throw err;
     }
